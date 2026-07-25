@@ -1,0 +1,23 @@
+{%- comment -%}
+  SEO structured data (JSON-LD) — WebSite + Sitelinks SearchAction only.
+  Organization and Product schema are already injected by the store's
+  SEO/reviews app, so we intentionally DO NOT duplicate them here
+  (duplicate Product schema can cause Google Search Console conflicts).
+  This adds only the missing WebSite/SearchAction (sitelinks search box).
+{%- endcomment -%}
+
+{%- capture search_target -%}{{ shop.url }}/search?q={search_term_string}{%- endcapture -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": {{ shop.name | json }},
+  "url": {{ shop.url | append: '/' | json }},
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {{ search_target | json }},
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>

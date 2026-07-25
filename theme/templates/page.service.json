@@ -1,0 +1,179 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "settings": {
+        "padding_top": 100,
+        "padding_bottom": 40
+      }
+    },
+    "1663905094553d81ae": {
+      "type": "multicolumn",
+      "blocks": {
+        "1663905094d859ffee-0": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/service-4.jpg",
+            "title": "Good Functions",
+            "text": "<p>Vitae congue mauris rhoncus aenean vel elit. Mauris pharetra et ultrices neque non odio euismod lacinia atmt risus.</p>",
+            "link_label": "View More",
+            "link": "/#"
+          }
+        },
+        "1663905094d859ffee-1": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/service-3.jpg",
+            "title": "New Bass Beat",
+            "text": "<p>Aliquet enim tortor at auctor urna nunc. Tempus imperdiet nulla malesuada pellentesque elit eget gravida.</p>",
+            "link_label": "View More",
+            "link": "/#"
+          }
+        },
+        "cc3a245d-4fc1-499f-b492-f116950cb133": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/service-2_dea1e6fe-54b6-4900-871d-ee6e369585d1.jpg",
+            "title": "Affordable Buds",
+            "text": "<p>Urna neque viverra justo nec ultrices dui sapien eget. Quam nulla porttitor massa id neque aliquam vestibulum duis</p>",
+            "link_label": "View More",
+            "link": "/#"
+          }
+        },
+        "d8eab9fc-a810-427d-bb2a-f7a3b7691dfe": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/service-1_ae0f2ec1-58bc-4594-abf6-fccc5115e73c.jpg",
+            "title": "Sound Quality",
+            "text": "<p>Lectus nulla at volutpat diam. Accumsan sit amet nulla facilisi morbi. Dictum varius duis sectetur lorem donec</p>",
+            "link_label": "View More",
+            "link": "/#"
+          }
+        }
+      },
+      "block_order": [
+        "1663905094d859ffee-0",
+        "1663905094d859ffee-1",
+        "cc3a245d-4fc1-499f-b492-f116950cb133",
+        "d8eab9fc-a810-427d-bb2a-f7a3b7691dfe"
+      ],
+      "settings": {
+        "title": "",
+        "heading_size": "h1",
+        "image_width": "full",
+        "image_ratio": "adapt",
+        "columns_desktop": 2,
+        "column_alignment": "left",
+        "background_style": "none",
+        "button_label": "",
+        "button_link": "",
+        "color_scheme": "background-1",
+        "columns_mobile": "1",
+        "swipe_on_mobile": false,
+        "padding_top": 0,
+        "padding_bottom": 100,
+        "custom_class_name": "multicolumn-overlay"
+      }
+    },
+    "1664252871999640c0": {
+      "type": "video-pop-up",
+      "settings": {
+        "heading": "Choose The Good One",
+        "sub_heading": "",
+        "text": "Congue nisi vitae suscipit tellus mauris a diam maecenas. Vitae ultricies leo integer malesuada nunc vel risus commodo luctus venena.",
+        "button_label": "",
+        "button_link": "",
+        "button_style_secondary": false,
+        "heading_size": "h2",
+        "content_style": "overlay",
+        "cover_image": "shopify://shop_images/home-bg-01-mincompresspng_1.png",
+        "video_url": "https://www.youtube.com/watch?v=_9VUPq3SxOc",
+        "description": "",
+        "full_width": true,
+        "color_scheme": "inverse",
+        "padding_top": 100,
+        "padding_bottom": 100
+      }
+    },
+    "16639157449daa5115": {
+      "type": "collage",
+      "blocks": {
+        "6ea1ae36-68f2-4dce-8c7c-a08737d3883f": {
+          "type": "image",
+          "settings": {
+            "image": "shopify://shop_images/service-5.jpg",
+            "image_padding": false,
+            "title": "Safe Listening Processor",
+            "text": "<p>Diam maecenas sed enim ut sem viverra aliquet eget. Duis ultricies lacus sed turpis tincidunt id aliquet. Pellentesque diam volutpat commodo sed egestas gravid</p>",
+            "link_label": "Read More",
+            "link": "/#"
+          }
+        },
+        "3bd585e9-81f8-444f-a115-f8da8cfa674e": {
+          "type": "image",
+          "settings": {
+            "image": "shopify://shop_images/service-8.jpg",
+            "image_padding": false,
+            "title": "Go User Friendly",
+            "text": "",
+            "link_label": "Read More",
+            "link": "/#"
+          }
+        },
+        "d0cf982f-a6b2-49e6-bc12-2be806206b9d": {
+          "type": "image",
+          "settings": {
+            "image": "shopify://shop_images/service-6.jpg",
+            "image_padding": false,
+            "title": "Good Music Parts",
+            "text": "",
+            "link_label": "Read More",
+            "link": "/#"
+          }
+        },
+        "739f6e5d-a78d-4d85-a02a-3ce7a078e892": {
+          "type": "image",
+          "settings": {
+            "image": "shopify://shop_images/service-7.jpg",
+            "image_padding": false,
+            "title": "Simple Ear Reach",
+            "text": "",
+            "link_label": "Read More",
+            "link": "/#"
+          }
+        }
+      },
+      "block_order": [
+        "6ea1ae36-68f2-4dce-8c7c-a08737d3883f",
+        "3bd585e9-81f8-444f-a115-f8da8cfa674e",
+        "d0cf982f-a6b2-49e6-bc12-2be806206b9d",
+        "739f6e5d-a78d-4d85-a02a-3ce7a078e892"
+      ],
+      "settings": {
+        "heading": "Multimedia collage",
+        "heading_size": "h1",
+        "desktop_layout": "left",
+        "mobile_layout": "collage",
+        "color_scheme": "background-1",
+        "padding_top": 36,
+        "padding_bottom": 100,
+        "custom_class_name": "image-collage"
+      }
+    }
+  },
+  "order": [
+    "main",
+    "1663905094553d81ae",
+    "1664252871999640c0",
+    "16639157449daa5115"
+  ]
+}

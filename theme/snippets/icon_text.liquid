@@ -1,0 +1,110 @@
+<div class="product-additional__information">
+  <div class="product_meta-content {{ class }}">           
+    {% if block.settings.icon1 != blank %}
+  <div class="product_meta-icon">            
+  <img
+      srcset="{%- if block.settings.icon1.width >= 275 -%}{{ block.settings.icon1 | image_url: width: 275 }} 275w,{%- endif -%}
+      {%- if block.settings.icon1.width >= 550 -%}{{ block.settings.icon1 | image_url: width: 550 }} 550w,{%- endif -%}
+      {%- if block.settings.icon1.width >= 710 -%}{{ block.settings.icon1 | image_url: width: 710 }} 710w,{%- endif -%}
+      {%- if block.settings.icon1.width >= 1420 -%}{{ block.settings.icon1 | image_url: width: 1420 }} 1420w,{%- endif -%}
+      {{ block.settings.icon1 | image_url }} {{ block.settings.icon1.width }}w"
+      src="{{ block.settings.icon1 | image_url: width: 550 }}"
+      sizes="(min-width: 990px) {% if section.blocks.size <= 2 %}710px{% else %}550px{% endif %},
+      (min-width: 750px) {% if section.blocks.size == 1 %}710px{% else %}550px{% endif %}, calc(100vw - 30px)"
+      alt="{{ block.settings.icon1.alt }}"
+      height="{{ block.settings.icon1.height }}"
+      width="{{ block.settings.icon1.width }}"
+      loading="lazy"
+    >  
+  </div>
+  {% endif%}  
+    {% if block.settings.text1 != blank  %}  
+    <h5 class="icon-title">{{ block.settings.text1 }}</h5>
+  {% endif %} 
+  {% if block.settings.html1 != blank  %}  
+    <div class="icon-description"> {{ block.settings.html1}}</div>
+  {% endif %}     
+  </div>
+  <div class="product_meta-content {{ class }}">           
+  {% if block.settings.icon2 != blank %}
+  <div class="product_meta-icon">            
+  <img
+      srcset="{%- if block.settings.icon2.width >= 275 -%}{{ block.settings.icon2 | image_url: width: 275 }} 275w,{%- endif -%}
+      {%- if block.settings.icon2.width >= 550 -%}{{ block.settings.icon2 | image_url: width: 550 }} 550w,{%- endif -%}
+      {%- if block.settings.icon2.width >= 710 -%}{{ block.settings.icon2 | image_url: width: 710 }} 710w,{%- endif -%}
+      {%- if block.settings.icon2.width >= 1420 -%}{{ block.settings.icon2 | image_url: width: 1420 }} 1420w,{%- endif -%}
+      {{ block.settings.icon2 | image_url }} {{ block.settings.icon2.width }}w"
+      src="{{ block.settings.icon2 | image_url: width: 550 }}"
+      sizes="(min-width: 990px) {% if section.blocks.size <= 2 %}710px{% else %}550px{% endif %},
+      (min-width: 750px) {% if section.blocks.size == 1 %}710px{% else %}550px{% endif %}, calc(100vw - 30px)"
+      alt="{{ block.settings.icon2.alt }}"
+      height="{{ block.settings.icon2.height }}"
+      width="{{ block.settings.icon2.width }}"
+      loading="lazy"
+    >  
+  </div>
+  {% endif%}              
+    {% if block.settings.text2 != blank  %}  
+    <h5 class="icon-title">{{ block.settings.text2 }}</h5>
+  {% endif %} 
+  {% if block.settings.html2 != blank  %}  
+    <div class="icon-description"> {{ block.settings.html2}}</div>
+  {% endif %}            
+  </div>
+    
+  <div class="product_meta-content {{ class }}">           
+  {% if block.settings.icon3 != blank %}
+  <div class="product_meta-icon">            
+  <img
+      srcset="{%- if block.settings.icon3.width >= 275 -%}{{ block.settings.icon3 | image_url: width: 275 }} 275w,{%- endif -%}
+      {%- if block.settings.icon3.width >= 550 -%}{{ block.settings.icon3 | image_url: width: 550 }} 550w,{%- endif -%}
+      {%- if block.settings.icon3.width >= 710 -%}{{ block.settings.icon3 | image_url: width: 710 }} 710w,{%- endif -%}
+      {%- if block.settings.icon3.width >= 1420 -%}{{ block.settings.icon3 | image_url: width: 1420 }} 1420w,{%- endif -%}
+      {{ block.settings.icon3 | image_url }} {{ block.settings.icon3.width }}w"
+      src="{{ block.settings.icon3 | image_url: width: 550 }}"
+      sizes="(min-width: 990px) {% if section.blocks.size <= 2 %}710px{% else %}550px{% endif %},
+      (min-width: 750px) {% if section.blocks.size == 1 %}710px{% else %}550px{% endif %}, calc(100vw - 30px)"
+      alt="{{ block.settings.icon3.alt }}"
+      height="{{ block.settings.icon3.height }}"
+      width="{{ block.settings.icon3.width }}"
+      loading="lazy"
+    >  
+  </div>
+  {% endif%}            
+    {% if block.settings.text3 != blank  %}  
+    <h5 class="icon-title">{{ block.settings.text3 }}</h5>
+  {% endif %} 
+  {% if block.settings.html3 != blank  %}  
+    <div class="icon-description"> {{ block.settings.html3}}</div>
+  {% endif %}            
+  </div>
+</div>
+
+<style>
+  .product-additional__information { display: flex; justify-content: start; text-align: left; margin: 1.5rem 0 3rem; }
+  .product-additional__information .icon-description { font-size: 1.4rem;  width: 85%; margin: auto; margin-left: 0; }
+  .product_meta-content:not(:last-child) { margin-right: 40px; position: relative; }
+  .product_meta-content:not(:last-child):before { position: absolute; content:''; height: 75%;  width: 1px; background-color: #c8c8c8;     right: 0;
+    margin: auto; left: auto; bottom:0; top:0; }
+  .product_meta-icon img { border-radius: 0%; width: 50px; height: 50px;}
+  .product-additional__information  h5.icon-title { margin-top: 15px; font-size: 16px; font-weight: 600;}
+  {% for block in section.blocks %} 
+  .product-additional__information .product_meta-content:first-child h5.icon-title {color:{{block.settings.text1_color}};}
+  .product-additional__information .product_meta-content:nth-child(2) h5.icon-title {color:{{block.settings.text2_color}};}
+  .product-additional__information .product_meta-content-block:last-child h5.icon-title {color:{{block.settings.text3_color}};}
+  
+  .product-additional__information .product_meta-content:first-child .icon-description {color:{{block.settings.html1_color}};}
+  .product-additional__information .product_meta-content:nth-child(2) .icon-description {color:{{block.settings.html2_color}};}
+  .product-additional__information .product_meta-content-block:last-child .icon-description {color:{{block.settings.html3_color}};}
+  {% endfor %}
+
+@media screen and (max-width:1200px){
+ .product-additional__information .icon-description { width: 100%;  }
+ .product-additional__information { display: flex; flex-direction: column; } 
+  .product-additional__information .product_meta-content { display: flex; margin:0; column-gap: 10px; align-items: center; }
+   .product_meta-content:not(:last-child):before { display: none; }
+}
+ 
+</style>
+  
+  

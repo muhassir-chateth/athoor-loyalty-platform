@@ -1,0 +1,231 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "settings": {
+        "padding_top": 100,
+        "padding_bottom": 40
+      }
+    },
+    "1663905094553d81ae": {
+      "type": "multicolumn",
+      "blocks": {
+        "1663905094d859ffee-0": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/about-1_3989cd83-2c1a-4ded-8fe4-c6849c9e9753.jpg",
+            "title": "Reliable Music",
+            "text": "<p>Adipiscing diam donec adipiscing tristique risus nec feugiat in sit amet sit amet justo</p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "1663905094d859ffee-1": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/about-2.jpg",
+            "title": "Soft Rhythm",
+            "text": "<p>Ultrices mi tempus imperdiet nulla malesuada pellentesque elit.Aliquam faucibus massa purusets</p>",
+            "link_label": "",
+            "link": ""
+          }
+        }
+      },
+      "block_order": [
+        "1663905094d859ffee-0",
+        "1663905094d859ffee-1"
+      ],
+      "settings": {
+        "title": "Explore Our Collections",
+        "heading_size": "h1",
+        "image_width": "full",
+        "image_ratio": "adapt",
+        "columns_desktop": 2,
+        "column_alignment": "center",
+        "background_style": "none",
+        "button_label": "",
+        "button_link": "",
+        "color_scheme": "inverse",
+        "columns_mobile": "1",
+        "swipe_on_mobile": false,
+        "padding_top": 100,
+        "padding_bottom": 100,
+        "custom_class_name": "multicolumn-overlay"
+      }
+    },
+    "166390473706e7065a": {
+      "type": "image-with-text",
+      "blocks": {
+        "16639047371bf77667-0": {
+          "type": "heading",
+          "settings": {
+            "heading": "Music Therapy",
+            "heading_size": "h1"
+          }
+        },
+        "16639047371bf77667-1": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Interdum velit laoreet id donec ultrices tincidunt arcu non. Justo laoreet sitamet cursus sit amet dictumsita.</p>",
+            "text_style": "body"
+          }
+        },
+        "16639047371bf77667-2": {
+          "type": "button",
+          "settings": {
+            "button_label": "Read More",
+            "button_link": "shopify://collections"
+          }
+        }
+      },
+      "block_order": [
+        "16639047371bf77667-0",
+        "16639047371bf77667-1",
+        "16639047371bf77667-2"
+      ],
+      "settings": {
+        "image": "shopify://shop_images/blog-3_e27c852c-1965-4514-9b14-839b40a61596_770x_1.jpg",
+        "height": "adapt",
+        "desktop_image_width": "medium",
+        "layout": "image_first",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "content_layout": "no-overlap",
+        "color_scheme": "background-1",
+        "mobile_content_alignment": "left",
+        "padding_top": 100,
+        "padding_bottom": 0,
+        "custom_class_name": "image-text-overlay"
+      }
+    },
+    "1663904812be00b15d": {
+      "type": "image-with-text",
+      "blocks": {
+        "1663904812d57c36b3-0": {
+          "type": "heading",
+          "settings": {
+            "heading": "Fuse Music",
+            "heading_size": "h1"
+          }
+        },
+        "1663904812d57c36b3-1": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Diam sollicitudin tempor id eu nisl nunc mi ipsum. Nam aliquam sem et tortor consequat id porta tortornih.</p>",
+            "text_style": "body"
+          }
+        },
+        "1663904812d57c36b3-2": {
+          "type": "button",
+          "settings": {
+            "button_label": "Read More",
+            "button_link": "shopify://collections"
+          }
+        }
+      },
+      "block_order": [
+        "1663904812d57c36b3-0",
+        "1663904812d57c36b3-1",
+        "1663904812d57c36b3-2"
+      ],
+      "settings": {
+        "image": "shopify://shop_images/about-4.jpg",
+        "height": "adapt",
+        "desktop_image_width": "medium",
+        "layout": "text_first",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "right",
+        "content_layout": "no-overlap",
+        "color_scheme": "background-1",
+        "mobile_content_alignment": "left",
+        "padding_top": 0,
+        "padding_bottom": 100,
+        "custom_class_name": "image-text-overlay"
+      }
+    },
+    "16639044034b2f7fcc": {
+      "type": "multicolumn",
+      "blocks": {
+        "2a7b146f-ab68-430d-97dc-49488a10e014": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/team-4_0940c410-7155-46fb-b06c-6168afe13872.jpg",
+            "title": "Ala Olivia",
+            "text": "<p>CEO</p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "1663904402b3b3b560-0": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/team-3_69491947-c1f3-4030-a3d4-3d59f98405de.jpg",
+            "title": "George Leo",
+            "text": "<p>Project Manager</p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "1663904402b3b3b560-1": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/team-2_1293d6f3-1bc5-4b8e-bedb-efd3aabaeedd.jpg",
+            "title": "Amelia Jacky",
+            "text": "<p>Production Controller</p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "1663904402b3b3b560-2": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/team-1_1daed071-620e-479c-a03b-dd7196ebd9e4.jpg",
+            "title": "Daniel Arthur",
+            "text": "<p>Store Manager</p>",
+            "link_label": "",
+            "link": ""
+          }
+        }
+      },
+      "block_order": [
+        "2a7b146f-ab68-430d-97dc-49488a10e014",
+        "1663904402b3b3b560-0",
+        "1663904402b3b3b560-1",
+        "1663904402b3b3b560-2"
+      ],
+      "settings": {
+        "title": "Our team",
+        "heading_size": "h1",
+        "image_width": "full",
+        "image_ratio": "adapt",
+        "columns_desktop": 4,
+        "column_alignment": "center",
+        "background_style": "none",
+        "button_label": "",
+        "button_link": "",
+        "color_scheme": "accent-2",
+        "columns_mobile": "1",
+        "swipe_on_mobile": false,
+        "padding_top": 0,
+        "padding_bottom": 100,
+        "custom_class_name": "team-members"
+      }
+    }
+  },
+  "order": [
+    "main",
+    "1663905094553d81ae",
+    "166390473706e7065a",
+    "1663904812be00b15d",
+    "16639044034b2f7fcc"
+  ]
+}

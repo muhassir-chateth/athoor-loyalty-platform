@@ -1,0 +1,78 @@
+{%- comment -%}
+  Blocks checkout for the Custom Sample Set (Coming Soon) if it ends up in the cart.
+  Blocked variant IDs: 54074344997203 (1 Sample), 54077951050067 (3 Samples).
+  Only affects these variants — all other products/checkout work normally.
+{%- endcomment -%}
+<script>
+(function() {
+  var BLOCKED = ['54074344997203', '54077951050067'];
+  var MSG = 'This product is coming soon and is not yet available for purchase.';
+
+  function cartHasBlocked(cart) {
+    if (!cart || !cart.items) return false;
+    return cart.items.some(function(it) {
+      return BLOCKED.indexOf(String(it.variant_id)) !== -1 || BLOCKED.indexOf(String(it.id)) !== -1;
+    });
+  }
+
+  function showBanner() {
+    if (document.getElementById('athoor-block-msg')) return;
+    var bar = document.createElement('div');
+    bar.id = 'athoor-block-msg';
+    bar.textContent = MSG;
+    bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#1a1a1a;color:#fff;padding:14px 22px;border-radius:8px;font-size:13px;max-width:90vw;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+    document.body.appendChild(bar);
+    setTimeout(function(){ if (bar.parentNode) bar.remove(); }, 5000);
+  }
+
+  function disableCheckout() {
+    // Disable all checkout buttons
+    var selectors = [
+      'button[name="checkout"]',
+      '[name="checkout"]',
+      '.cart__checkout-button',
+      '#checkout',
+      '.shopify-payment-button__button'
+    ];
+    selectors.forEach(function(sel) {
+      document.querySelectorAll(sel).forEach(function(btn) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.style.opacity = '0.4';
+        btn.style.pointerEvents = 'none';
+      });
+    });
+  }
+
+  function enforce() {
+    fetch('/cart.js').then(function(r){ return r.json(); }).then(function(cart) {
+      if (cartHasBlocked(cart)) {
+        disableCheckout();
+      }
+    }).catch(function(){});
+  }
+
+  // Block checkout clicks as a hard fallback
+  document.addEventListener('click', function(e) {
+    var checkoutBtn = e.target.closest('button[name="checkout"], [name="checkout"], #checkout, .cart__checkout-button');
+    if (!checkoutBtn) return;
+    fetch('/cart.js').then(function(r){ return r.json(); }).then(function(cart) {
+      if (cartHasBlocked(cart)) {
+        e.preventDefault();
+        e.stopPropagation();
+        showBanner();
+        disableCheckout();
+      }
+    });
+    // Optimistic block: prevent immediately, re-allow only if cart is clean (handled above)
+  }, true);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', enforce);
+  } else {
+    enforce();
+  }
+  // Re-check when cart drawer opens or cart updates
+  document.addEventListener('click', function(){ setTimeout(enforce, 600); });
+})();
+</script>

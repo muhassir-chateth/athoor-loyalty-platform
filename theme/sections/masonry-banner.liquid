@@ -1,0 +1,794 @@
+{{ 'section-masonry-banner.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+
+  assign listWidth = section.settings.content_width | split: '/'
+  assign leftColumn = listWidth[0]
+  assign rightColumn = listWidth[1]
+
+  assign listWidth = section.settings.lap_content_width | split: '/'
+  assign lap_leftColumn = listWidth[0]
+  assign lap_rightColumn = listWidth[1]
+
+  
+ for block in section.blocks
+  assign block_style = section.settings.block_style
+  endfor
+%}
+
+  
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
+  }
+
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+   @media (min-width: 1541px) {
+       .grid-banner-section.masonry-grid-banner .main-grid {
+        width: calc({{ leftColumn }}% - (calc(var(--grid-desktop-horizontal-spacing))/2));
+      }
+     .grid-banner-section.masonry-grid-banner .additional-grids {
+        width: calc({{ rightColumn }}% - (calc(var(--grid-desktop-horizontal-spacing))/2));
+      }
+      .grid-banner-section.masonry-grid-banner .grid-banner.overlay_style {
+        min-height: {{ section.settings.overlay_style_height }}px;
+      }
+    }
+   @media (max-width: 1540px) {
+     .grid-banner-section.masonry-grid-banner .main-grid {
+        width: calc({{ lap_leftColumn }}% - (calc(var(--grid-desktop-horizontal-spacing))/2));
+      }
+      .grid-banner-section.masonry-grid-banner .additional-grids {
+        width: calc({{ lap_rightColumn }}% - (calc(var(--grid-desktop-horizontal-spacing))/2));
+      }
+      .grid-banner-section.masonry-grid-banner .grid-banner.overlay_style {
+         min-height: {{ section.settings.overlay_style_height }}px;
+      }
+    }
+    @media only screen and (max-width: 1199px) {
+      .grid-banner-section.masonry-grid-banner .grid-banner.overlay_style {
+        min-height: {{ section.settings.overlay_style_height_tab }}px;
+      }
+      .grid-banner-section.masonry-grid-banner .main-grid,
+      .grid-banner-section.masonry-grid-banner .additional-grids {
+        width: 100%; }
+      .grid-banner-section.masonry-grid-banner {
+        display: grid; width: 100%; grid-template-columns: 1fr; gap: var(--grid-desktop-horizontal-spacing);
+      }
+    
+    }
+  @media (max-width: 767px) {
+      .grid-banner-section.masonry-grid-banner .grid-banner.overlay_style {
+        min-height: {{ section.settings.overlay_style_height_mobile }}px;
+      }
+    }
+  {%- for block in section.blocks -%} 
+  .additional-grids .grid-banner.overlay_style.overlay-{{ forloop.index }} .grid-banner-block-image:before { background: linear-gradient(225deg, rgba(0, 0, 0, 0.4), rgba(255, 255, 255, 0.8) 85% ); width: 100%; height: 100%; z-index: 0; position: absolute; content: ""; opacity:0; transition:all 0.5s linear;}
+ .additional-grids .grid-banner.overlay_style.overlay-{{ forloop.index }}:hover .grid-banner-block-image:before{ opacity: 0.5; }
+  {%- endfor -%}
+{%- endstyle -%}
+
+
+
+  <div class="masonry-banner color-{{ section.settings.color_scheme }} gradient{% if section.settings.title == blank %} no-heading{% endif %} {{ section.settings.custom_class_name }} ">
+     <div class="{% if section.settings.page_full_width %} page-full-width {% else %} page-width {% endif %} {% if section.settings.page_full_width_spacing %} page-full-width_spacing {% endif %}section-{{ section.id }}-padding isolate">
+       <div class="row">     
+      {%- unless section.settings.title == blank -%}
+        <div class="title-wrapper-with-link title-wrapper--self-padded-mobile title-wrapper--no-top-margin content-align--{{ section.settings.column_alignment }}">
+          <p class="grid-banner-list-title__text grid-banner-list-title__text--caption {{ section.settings.text_style }} {{ section.settings.text_style }}--{{ section.settings.text_size }} {{ section.settings.text_style }}" {{ section.shopify_attributes }}>{{ section.settings.subtitle | escape }}</p>
+          <h2 class="title {{ section.settings.heading_size }}">
+            {{ section.settings.title | escape }}
+          </h2>
+          {%- if section.settings.button_label != blank -%}
+            <a href="{{ section.settings.button_link }}" class="link underlined-link large-up-hide">{{ section.settings.button_label | escape }}</a>
+          {%- endif -%}
+          </div>
+        {%- endunless -%}
+         <div class="grid-banner-section masonry-grid-banner  {% if section.settings.reverse_column %} reverse-columns {% endif %}">
+         {% if section.settings.primary_image != blank or section.settings.primary_title != blank or  section.settings.primary_sub_title != blank or  section.settings.primary_description != blank or  section.settings.primary_button_link != blank %}
+         <div class="main-grid ">
+           <div class="grid-banner {{ section.settings.main_banner_style }}">
+            <div class="grid-banner-image">
+              {% if section.settings.primary_image != blank %}
+             <img
+              srcset="{%- if section.settings.primary_image.width >= 375 -%}{{ section.settings.primary_image | image_url: width: 375 }} 375w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 550 -%}{{ section.settings.primary_image | image_url: width: 550 }} 550w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 750 -%}{{ section.settings.primary_image | image_url: width: 750 }} 750w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 1100 -%}{{ section.settings.primary_image | image_url: width: 1100 }} 1100w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 1500 -%}{{ section.settings.primary_image | image_url: width: 1500 }} 1500w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 1780 -%}{{ section.settings.primary_image | image_url: width: 1780 }} 1780w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 2000 -%}{{ section.settings.primary_image | image_url: width: 2000 }} 2000w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 3000 -%}{{ section.settings.primary_image | image_url: width: 3000 }} 3000w,{%- endif -%}
+              {%- if section.settings.primary_image.width >= 3840 -%}{{ section.settings.primary_image | image_url: width: 3840 }} 3840w,{%- endif -%}
+              {{ section.settings.image | image_url }} {{ section.settings.primary_image.width }}w"
+              sizes="100vw"
+              src="{{ section.settings.image | image_url: width: 1500 }}"
+              loading="lazy"
+              class=""
+              alt="{{ section.settings.primary_image.alt | escape }}"
+              width="{{ section.settings.primary_image.width }}"
+              height="{{ section.settings.primary_image.width | divided_by: section.settings.primary_image.aspect_ratio | round }}"
+            > 
+              {% else %}
+              {{ 'collection-apparel-1' | placeholder_svg_tag: 'placeholder-svg' }}
+              {% endif %}  
+            </div>
+            <div class="grid-banner-content {{ section.settings.primary_position }}">
+              <div class="grid-banner-inner {{ section.settings.primary_text_align }} color-{{ section.settings.content_color_scheme }} gradient">
+              {% if section.settings.primary_sub_title != blank %}
+              <h6 class="sub-title">{{ section.settings.primary_sub_title }}</h6>
+              {% endif %}
+              {% if section.settings.primary_title != blank %}              
+                  <h4 class="main-title ">
+                     {% if section.settings.enable_title %}<a href="{{ section.settings.primary_title_link }}"> {% endif %}
+                    {{ section.settings.primary_title }}
+                    {% if  section.settings.enable_title %}</a>{% endif %}
+                    </h4>
+              {% endif %}              
+              {% if section.settings.primary_description != blank %}
+              <p class="description">{{ section.settings.primary_description }}</p>
+              {% endif %}
+              {% if section.settings.primary_button_link != blank %}
+              <a href="{{ section.settings.primary_button_link }}" class="button button--primary">{{ section.settings.primary_button_text }}</a>
+              {% endif %}
+              </div>
+            </div>
+           </div>
+         </div>
+         {% endif %}
+         {%- liquid
+          case section.blocks.size
+          when 1
+          when 2
+          assign blockSize = 'two-items'
+          when 3
+          assign blockSize = 'three-items'
+          when 4
+          assign blockSize = 'four-items'
+          when 5
+          assign blockSize = 'five-items'
+          endcase
+        %}
+          <div class="additional-grids {{ blockSize }} {{ block_style }} ">
+         {%- for block in section.blocks -%} 
+       <div class="grid-banner overlay-{{ forloop.index }} {{ section.settings.additional_banner_style }}">   
+         <div class="grid-banner-block-image {% unless block.settings.show_image %}hidden {% endunless %}">
+          {%- if block.settings.enable_title_link %} <a href="{{ block.settings.block_button_link }}" class="grid-banner-image">{% endif %}
+          {% if block.settings.block_image != blank %}
+            <img
+                      class="grid-banner-image"
+                      srcset="{%- if block.settings.block_image.width >= 375 -%}{{ block.settings.block_image | image_url: width: 375 }} 375w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 550 -%}{{ block.settings.block_image | image_url: width: 550 }} 550w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 750 -%}{{ block.settings.block_image | image_url: width: 750 }} 750w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 1100 -%}{{ block.settings.block_image | image_url: width: 1100 }} 1100w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 1500 -%}{{ block.settings.block_image | image_url: width: 1500 }} 1500w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 1780 -%}{{ block.settings.block_image | image_url: width: 1780 }} 1780w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 2000 -%}{{ block.settings.block_image | image_url: width: 2000 }} 2000w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 3000 -%}{{ block.settings.block_image | image_url: width: 3000 }} 3000w,{%- endif -%}
+                      {%- if block.settings.block_image.width >= 3840 -%}{{ block.settings.block_image | image_url: width: 3840 }} 3840w,{%- endif -%}
+                      {{ block.settings.block_image | image_url: width: 1500 }} {{ block.settings.block_image.width }}w"
+                      sizes="100vw"
+                      src="{{ block.settings.block_image | image_url: width: 1500 }}"
+                      loading="lazy"              
+                      alt="{{ block.settings.block_image.alt | escape }}"
+                      width="{{ block.settings.block_image.width }}"
+                      height="{{ block.settings.block_image.width | divided_by: block.settings.block_image.aspect_ratio | round }}"
+                    >
+            {% else %}
+           {%- assign placeholder_image_index = forloop.index0 | modulo: 4 | plus: 1 -%}
+                {%- assign placeholder_image = 'product-apparel-' | append: placeholder_image_index -%}
+                {{ placeholder_image | placeholder_svg_tag: 'placeholder-svg' }}
+            {% endif %}
+          </a>
+         </div>    
+          <div class="grid-banner-content {% unless block.settings.show_content %}hidden {% endunless %} {{ block.settings.block_position }}">
+             <div class="grid-banner-inner banner--content-align {{ block.settings.block_text_align }} color-{{ section.settings.content_color_scheme }} gradient">
+                    {% if block.settings.block_sub_title != blank %}
+                    <h6 class="sub-title">{{ block.settings.block_sub_title }}</h6>
+                    {% endif %}
+                     {% if block.settings.block_title != blank %}
+                    <h4 class="main-title ">
+                    {% if block.settings.enable_title_link %}<a href="{{ block.settings.block_button_link }}">{% endif %}
+                    {{ block.settings.block_title }}
+                    {% if block.settings.enable_title_link %}</a>{% endif %}
+                    </h4>
+                    {% endif %}
+                    {% if block.settings.block_description != blank %}
+                    <p class="description">{{ block.settings.block_description }}</p>
+                    {% endif %}
+                    {% if block.settings.block_button_link != blank %}
+                    <a href="{{ block.settings.block_button_link }}" class="banner-button">{{ block.settings.block_button_text }}</a>
+                 {% endif %}
+             </div> 
+          </div>  
+       </div>  
+         {% endfor %} 
+       </div>
+         </div>
+      
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+"name": "t:sections.masonry-banner.name",
+"class": "section",
+"settings": [  
+    {
+      "type":"checkbox",
+      "id":"page_full_width",
+       "default": false,
+      "label": "t:sections.all.page_full_width.label"
+    },
+    {
+      "type":"checkbox",
+      "id":"page_full_width_spacing",
+       "default": false,
+      "label": "t:sections.all.page_full_width_spacing.label"
+    },
+    {
+      "type": "select",
+      "id": "color_scheme",
+      "options": [
+        {
+          "value": "accent-1",
+          "label": "t:sections.all.colors.accent_1.label"
+        },
+        {
+          "value": "accent-2",
+          "label": "t:sections.all.colors.accent_2.label"
+        },
+        {
+          "value": "background-1",
+          "label": "t:sections.all.colors.background_1.label"
+        },
+        {
+          "value": "background-2",
+          "label": "t:sections.all.colors.background_2.label"
+        },
+        {
+          "value": "inverse",
+          "label": "t:sections.all.colors.inverse.label"
+        }
+      ],
+      "default": "background-1",
+      "label": "t:sections.all.colors.label"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "default": "grid-banner",
+      "label": "t:sections.masonry-banner.settings.title.label"
+    },
+    {
+      "type": "select",
+      "id": "heading_size",
+      "options": [
+        {
+          "value": "h2",
+          "label": "t:sections.all.heading_size.options__1.label"
+        },
+        {
+          "value": "h1",
+          "label": "t:sections.all.heading_size.options__2.label"
+        },
+        {
+          "value": "h0",
+          "label": "t:sections.all.heading_size.options__3.label"
+        }
+      ],
+      "default": "h1",
+      "label": "t:sections.all.heading_size.label"
+    },
+    {
+          "type": "text",
+          "id": "subtitle",
+          "label": "t:sections.masonry-banner.settings.subtitle.label"
+        },
+        {
+          "type": "select",
+          "id": "text_style",
+          "options": [
+            {
+              "value": "subtitle",
+              "label": "t:sections.masonry-banner.settings.text_style.options__1.label"
+            },
+            {
+              "value": "caption-with-letter-spacing",
+              "label": "t:sections.masonry-banner.settings.text_style.options__2.label"
+            }
+          ],
+          "default": "caption-with-letter-spacing",
+          "label": "t:sections.masonry-banner.settings.text_style.label"
+        },
+        {
+          "type": "select",
+          "id": "text_size",
+          "options": [
+            {
+              "value": "small",
+              "label": "t:sections.masonry-banner.settings.text_size.options__1.label"
+            },
+            {
+              "value": "medium",
+              "label": "t:sections.masonry-banner.settings.text_size.options__2.label"
+            },
+            {
+              "value": "large",
+              "label": "t:sections.masonry-banner.settings.text_size.options__3.label"
+            }
+          ],
+          "default": "medium",
+          "label": "t:sections.masonry-banner.settings.text_size.label"
+        },
+    {
+      "type": "select",
+      "id": "column_alignment",
+      "options": [
+        {
+          "value": "left",
+          "label": "t:sections.masonry-banner.settings.column_alignment.options__1.label"
+        },
+        {
+          "value": "center",
+          "label": "t:sections.masonry-banner.settings.column_alignment.options__2.label"
+        }
+      ],
+      "default": "left",
+      "label": "t:sections.masonry-banner.settings.column_alignment.label"
+    },
+    {
+      "type": "header",
+      "content": "t:sections.masonry-banner.settings.main--banner-header.content"
+    },
+    {
+    "type": "image_picker",
+    "id": "primary_image",
+    "label": "t:sections.masonry-banner.settings.primary_image.label",
+    "info": "Size: 1280x820"
+    },
+   {
+      "type":"checkbox",
+      "id":"enable_title",
+       "default": false,
+      "label": "t:sections.masonry-banner.settings.enable_title.label"
+    },
+    {
+    "type": "text",
+    "id": "primary_title",
+    "label": "t:sections.masonry-banner.settings.primary_title.label",
+    "default": "Title"
+    },
+   {
+    "type": "url",
+    "id": "primary_title_link",
+    "label": "t:sections.masonry-banner.settings.primary_title_link.label"
+    },
+    {
+    "type": "text",
+    "id": "primary_sub_title",
+    "label": "t:sections.masonry-banner.settings.primary_sub_title.label",
+    "default": "Sub title"
+    },
+    {
+    "type": "text",
+    "id": "primary_description",
+    "label":  "t:sections.masonry-banner.settings.primary_description.label",
+    "default": "Short description"
+    },
+    {
+    "type": "text",
+    "id": "primary_button_text",
+    "label": "t:sections.masonry-banner.settings.primary_button_text.label"
+    },
+    {
+    "type": "url",
+    "id": "primary_button_link",
+    "label": "t:sections.masonry-banner.settings.primary_button_link.label"
+    },
+    {
+      "type": "select",
+      "id": "primary_text_align",
+      "options": [
+        {
+          "value": "left",
+          "label": "t:sections.masonry-banner.settings.primary_text_align.options__1.label"
+        },
+        {
+          "value": "center",
+          "label": "t:sections.masonry-banner.settings.primary_text_align.options__2.label"
+        }
+      ],
+      "default": "left",
+      "label": "t:sections.masonry-banner.settings.primary_text_align.label"
+    },
+    {
+    "type": "select",
+    "id": "primary_position",
+    "label": "t:sections.masonry-banner.settings.primary_position.label",
+    "options": [
+    {
+    "value": "top-left",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__1.label"
+    },
+    {
+    "value": "top-center",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__2.label"
+    },
+    {
+    "value": "top-right",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__3.label"
+    },
+    {
+    "value": "center-left",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__4.label"
+    },
+    {
+    "value": "center",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__5.label"
+    },
+    {
+    "value": "center-right",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__6.label"
+    },
+    {
+    "value": "bottom-left",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__7.label"
+    },
+    {
+    "value": "bottom-center",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__8.label"
+    },
+    {
+    "value": "bottom-right",
+    "label": "t:sections.masonry-banner.settings.primary_position.options__9.label"
+    }
+    ],
+    "default": "center",
+    "label": "t:sections.masonry-banner.settings.primary_position.label"
+    },
+    { 
+    "type": "header",
+    "content": "t:sections.masonry-banner.settings.display-setting.content"
+    },
+    {
+    "type": "select",
+    "id": "main_banner_style",
+    "label": "t:sections.masonry-banner.settings.main_banner_style.label",
+    "options": [
+    {
+    "value": "grid_style",
+    "label": "t:sections.masonry-banner.settings.main_banner_style.options__1.label"
+    },
+    {
+    "value": "overlay_style",
+    "label": "t:sections.masonry-banner.settings.main_banner_style.options__2.label"
+    }
+    ]
+    },
+    {
+    "type": "select",
+    "id": "additional_banner_style",
+    "label": "t:sections.masonry-banner.settings.additional_banner_style.label",
+    "options": [
+    {
+    "value": "grid_style",
+    "label": "t:sections.masonry-banner.settings.additional_banner_style.options__1.label"
+    },
+    {
+    "value": "overlay_style",
+    "label": "t:sections.masonry-banner.settings.additional_banner_style.options__2.label"
+    }
+    ]
+    },
+    {
+    "type": "text",
+    "id": "content_width",
+    "label":"t:sections.masonry-banner.settings.content_width.label",
+    "default":"65/35"
+    },
+    {
+    "type": "text",
+    "id": "lap_content_width",
+    "label": "t:sections.masonry-banner.settings.lap_content_width.label",
+    "default":"40/60",
+    "info": "100/100 for Tablet & Mobile Resolutions"
+    },
+    {
+    "type": "select",
+    "id": "content_color_scheme",
+    "options": [
+      {
+        "value": "accent-1",
+        "label": "t:sections.all.colors.accent_1.label"
+      },
+      {
+        "value": "accent-2",
+        "label": "t:sections.all.colors.accent_2.label"
+      },
+      {
+        "value": "background-1",
+        "label": "t:sections.all.colors.background_1.label"
+      },
+      {
+        "value": "background-2",
+        "label": "t:sections.all.colors.background_2.label"
+      },
+      {
+        "value": "inverse",
+        "label": "t:sections.all.colors.inverse.label"
+      }
+      ],
+      "default": "background-1",
+      "label": "t:sections.masonry-banner.settings.content_color_scheme.label"
+    },
+    { 
+    "type": "header",
+    "content": "t:sections.masonry-banner.settings.additional-banner-header.content",
+    "info": " Add & Customize the blocks from the section top"
+    },
+    {
+    "type": "select",
+    "id": "block_style",
+    "label": "t:sections.masonry-banner.settings.block_style.label",
+    "options": [
+    {
+    "value": "default",
+    "label": "t:sections.masonry-banner.settings.block_style.options__1.label"
+    },
+    {
+    "value": "style-2",
+    "label": "t:sections.masonry-banner.settings.block_style.options__2.label"
+    },
+    {
+    "value": "style-3",
+    "label": "t:sections.masonry-banner.settings.block_style.options__3.label"
+    },
+    {
+    "value": "style-4",
+    "label": "t:sections.masonry-banner.settings.block_style.options__4.label"
+    },
+    {
+    "value": "style-5",
+    "label": "t:sections.masonry-banner.settings.block_style.options__5.label"
+    },
+    {
+    "value": "style-6",
+    "label": "t:sections.masonry-banner.settings.block_style.options__6.label"
+    },
+    {
+    "value": "style-7",
+    "label": "t:sections.masonry-banner.settings.block_style.options__7.label"
+    },
+    {
+    "value": "style-8",
+    "label": "t:sections.masonry-banner.settings.block_style.options__8.label"
+    },
+    {
+    "value": "style-9",
+    "label": "t:sections.masonry-banner.settings.block_style.options__9.label"
+    },
+    {
+    "value": "style-10",
+    "label": "t:sections.masonry-banner.settings.block_style.options__10.label"
+    }
+    ],
+    "default": "style-2",
+    "label": "t:sections.masonry-banner.settings.block_style.label"  
+    },
+    {
+      "type": "header",
+      "content": "t:sections.all.padding.section_padding_heading"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_top",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_bottom",
+      "default": 36
+    },
+    {
+    "type": "header",
+    "content": "t:sections.masonry-banner.settings.overlay-height-header.content",
+    "info": "Height works for Additional Banners, So, Main Banner height depends on additional banners height"
+    },
+    {
+    "type": "range",
+    "id": "overlay_style_height",
+    "label": "t:sections.masonry-banner.settings.overlay_style_height.label",
+    "min": 200,
+    "max": 1000,
+    "step": 10,
+    "default": 600,
+    "unit": "px"
+    },
+    {
+    "type": "range",
+    "id": "overlay_style_height_laptop",
+    "label": "t:sections.masonry-banner.settings.overlay_style_height_laptop.label",
+    "min": 200,
+    "max": 1000,
+    "step": 10,
+    "default": 550,
+    "unit": "px"
+    },
+    {
+    "type": "range",
+    "id": "overlay_style_height_tab",
+    "label": "t:sections.masonry-banner.settings.overlay_style_height_tab.label",
+    "min": 200,
+    "max": 1000,
+    "step": 10,
+    "default": 500,
+    "unit": "px"
+    },
+    {
+    "type": "range",
+    "id": "overlay_style_height_mobile",
+    "label": "t:sections.masonry-banner.settings.overlay_style_height_mobile.label",
+    "min": 200,
+    "max": 1000,
+    "step": 10,
+    "default": 450,
+    "unit": "px"
+    },
+    {
+    "type": "header",
+    "content": "t:sections.masonry-banner.settings.custom_class_heading.content"
+    },
+    {
+    "type": "text",
+    "id": "custom_class_name",
+    "label": "t:sections.masonry-banner.settings.custom_class_name.label"
+    }
+ ],
+ "blocks": [
+   {
+    "type": "text",
+    "name": "t:sections.masonry-banner.blocks.text.name",
+    "settings": [
+      {
+        "type": "image_picker",
+        "id": "block_image",
+        "label": "t:sections.masonry-banner.blocks.text.settings.block_image.label",
+        "info": "Size: 1280x820 [Act as poster image for video type]"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_image",
+        "label": "t:sections.masonry-banner.blocks.text.settings.show_image.label",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_content",
+        "label": "t:sections.masonry-banner.blocks.text.settings.show_content.label",
+        "default": true
+      },
+      {
+      "type": "text",
+      "id": "block_title",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_title.label",
+      "default": "Title"
+      },
+      {
+      "type": "checkbox",
+      "id": "enable_title_link",
+      "label": "t:sections.masonry-banner.blocks.text.settings.enable_title_link.label",
+      "info": "t:sections.masonry-banner.blocks.text.settings.enable_title_link.info"
+      },
+      {
+      "type": "text",
+      "id": "block_sub_title",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_sub_title.label",
+      "default": "Sub title"
+      },
+      {
+      "type": "text",
+      "id": "block_description",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_description.label",
+      "default": "Short description"
+      },
+      {
+      "type": "text",
+      "id": "block_button_text",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_button_text.label"
+      },
+      {
+      "type": "url",
+      "id": "block_button_link",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_button_link.label"
+      },
+      {
+      "type": "select",
+      "id": "block_text_align",
+      "options": [
+        {
+          "value": "left",
+          "label": "t:sections.masonry-banner.blocks.text.settings.block_text_align.options__1.label"
+        },
+        {
+          "value": "center",
+          "label": "t:sections.masonry-banner.blocks.text.settings.block_text_align.options__2.label"
+        }
+      ],
+      "default": "left",
+      "label": "t:sections.masonry-banner.blocks.text.settings.block_text_align.label"
+    },
+    {
+    "type": "select",
+    "id": "block_position",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.label",
+    "options": [
+    {
+    "value": "top-left",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__1.label"
+    },
+    {
+    "value": "top-center",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__2.label"
+    },
+    {
+    "value": "top-right",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__3.label"
+    },
+    {
+    "value": "center-left",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__4.label"
+    },
+    {
+    "value": "center",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__5.label"
+    },
+    {
+    "value": "center-right",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__6.label"
+    },
+    {
+    "value": "bottom-left",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__7.label"
+    },
+    {
+    "value": "bottom-center",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__8.label"
+    },
+    {
+    "value": "bottom-right",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.options__9.label"
+    }
+    ],
+    "default": "center",
+    "label": "t:sections.masonry-banner.blocks.text.settings.block_position.label"
+    }  
+    ]
+   }
+ ],
+"presets": [
+    {
+    "name": "Masonry banner",
+    "category": "Grid banners"
+     
+   }
+]
+}
+{% endschema %}

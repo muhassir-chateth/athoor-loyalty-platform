@@ -1,0 +1,47 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-blog",
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "layout": "grid",
+        "show_image": true,
+        "image_height": "adapt",
+        "show_date": true,
+        "show_author": false,
+        "show_excerpts": true,
+        "show_articles": true,
+        "article_title": "Recent Articles",
+        "show_tags": false,
+        "tags_title": "Tags",
+        "show_carousel": true,
+        "carousel_title": "Elegant Products",
+        "carousel": "facial-creams",
+        "carousel_limit": 3,
+        "show_promo": true,
+        "sidebar_title": "Heading",
+        "sidebar_button": "Shop Now",
+        "sidebar_link": "",
+        "show_collection": false,
+        "collection_title": "PRODUCT LIST",
+        "collection": "facial-creams",
+        "collection_limit": 5,
+        "padding_top": 100,
+        "padding_bottom": 100
+      }
+    }
+  },
+  "order": [
+    "main"
+  ]
+}

@@ -1,0 +1,263 @@
+{% if section.settings.display_recent_purchase %}
+<ul class="customer-who-purchased text-{{ section.settings.placement }}">
+  {% for block in section.blocks %}    
+  {%- assign product = all_products[block.settings.product] -%}
+  <li class="product-data">
+    <a href="{{ product.url | within: collection }}">            
+    {% unless product.featured_image == blank %}
+      <img loading="lazy" src="{{ product.featured_image | image_url : width: 250 }}" alt="{{ product.featured_image.src.alt | escape }}"  width="" height="">                        
+      {% endunless %}
+      <span class="title">{{ product.title | truncatewords: 5 }}</span>
+    </a>
+    <p><span class="purchased">{{ section.settings.text }}</span>{{ 'products.facets.from' | t }}<span class="location">{{ block.settings.from }}</span><span class="timing">{{ block.settings.time }}</span></p>  
+   <a href="javascript:void(0)" title="Close" class="dT_close">
+      {% render 'icon-close' %}
+    </a>
+  </li>           
+  {% endfor %}
+</ul>
+{% endif %}
+
+<script type="text/javascript">
+  if ($.cookie('dT_suggested-cookie') == 'closed') {
+    $('.customer-who-purchased').remove();
+  }
+
+  $('.dT_close').bind('click',function(){
+    $('.customer-who-purchased').remove();
+    $.cookie('dT_suggested-cookie', 'closed', {expires:1, path:'/'});
+  });      
+
+  var elements = $('.customer-who-purchased li');
+  var init_element = 0;
+  var i = 0;
+  //elements.css({top: 0,left: 0,}).fadeOut(1);
+  elements.removeClass('active');
+  function fadeInRandomElement() { 
+    if ( i % 2 == 0) {
+      var currentItem = elements.eq(init_element);      
+      currentItem.addClass('active');
+      setTimeout(function(){ 
+        currentItem.removeClass('active')
+      }, 4000);
+
+      init_element++;
+      if(elements.length == init_element) {
+        init_element = 0;
+      }
+
+    }
+
+    i++;
+
+  }
+
+  setInterval(function(){ 
+    fadeInRandomElement();
+  }, 4000);
+
+
+</script>
+
+<style type="text/css">
+
+  .customer-who-purchased{  
+    pointer-events: none;
+    margin: 0;
+    height: 100px;
+    max-width: 500px;
+    min-width: 400px;
+    position: fixed;
+    bottom: 12px;
+    width: auto;
+    z-index: 3;
+    -webkit-transition: all 0.3s linear;
+    transition: all 0.3s linear;
+        }
+
+  .customer-who-purchased.text-left { left: 35px; }
+  .customer-who-purchased.text-right { right: 35px; }
+
+  .customer-who-purchased .product-data {
+    display: block;
+    height: auto;
+    margin: 25px 10px;
+    opacity: 0;
+    padding: 15px 25px 15px 95px;
+    position: absolute;
+    bottom: -35px;
+    left: 0;
+    visibility: hidden;
+    width: auto;
+    border-radius:0;
+    -webkit-transition: all cubic-bezier(.47,1.21,.47,1.21) .3s;
+    transition: all cubic-bezier(.47,1.21,.47,1.21) .3s;
+      }
+  .customer-who-purchased .product-data:before {
+   background-color: #fff;
+   content: "";
+    display: block;
+    height: auto;
+    margin: -15px -25px;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    width: auto;
+    z-index: -1;
+    border-radius: 0;
+    -webkit-box-shadow: 0 0 10px rgb(26 26 26 / 15%);
+    box-shadow: 0 0 10px rgb(26 26 26 / 15%);
+          }
+
+  .customer-who-purchased .product-data.active { pointer-events: all; opacity: 1; bottom: 0; visibility: visible; }
+  .customer-who-purchased .product-data p {     margin-bottom: 5px; font-size: 14px; line-height: 1.6; margin-top: 0px; font-family: var(--font-body-family);}
+  .customer-who-purchased .product-data p span {display: inline;padding: 3px;font-size: inherit; font-family: inherit;  }
+
+  .customer-who-purchased .product-data span.title{ font-weight: 400; }  
+  .customer-who-purchased .product-data p span.location { font-weight: 500; }  
+
+  .customer-who-purchased .product-data p span.purchased { padding-left: 0; }
+
+  .customer-who-purchased .product-data p span.timing {     
+    font-size: 12.5px;
+    font-weight: 600;
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    color: transparent;
+    font-style: italic;
+    background: linear-gradient(to right, var(--gradient-base-accent-3) 72%, var(--gradient-base-accent-1) 30%);
+    -webkit-background-clip: text;
+  }
+
+
+  .customer-who-purchased .product-data > a img {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 75px;
+    -webkit-transform: translateY(-50%);
+    transform: translateY(-50%);
+    box-shadow: 0 0 1px 1px rgba(var(--color-base-accent-1),0.1);
+    transition: all .3s linear;
+  }
+  .customer-who-purchased .product-data img:hover{
+    box-shadow: 0 0 2px 1px rgba(var(--color-base-accent-3),1);
+  }
+
+  .customer-who-purchased .product-data .dT_close {
+        height: 12px;
+    position: absolute;
+    right: -2px;
+    top: 10px;
+    text-align: center;
+    width: 12px;
+    pointer-events: all;
+    border-radius: var(--DTRadius);
+    -webkit-transform: translate(25%, -50%);
+    transform: translate(25%, -50%);
+      }
+
+  .customer-who-purchased .product-data .dT_close svg { 
+    height: 0.8em;
+    margin: auto; 
+    position: absolute; 
+    left: 50%; 
+    top: 50%; 
+    width: 1em;
+    -webkit-transform: translate(-50%,-50%); 
+    transform: translate(-50%,-50%); 
+    -webkit-transition: inherit; 
+    transition: inherit; 
+    color: var(--color-icon);
+    transition: all 0.3s linear;
+  }
+  .customer-who-purchased .product-data .dT_close:hover svg {
+    color: var(--gradient-base-accent-3);
+  }
+  @media (max-width:576px) {
+    .customer-who-purchased{
+      max-width: 90%;
+      min-width: 90%;
+      left: 0 !important;
+      right: 0!important;
+      margin: auto;
+    }
+  }
+
+.customer-who-purchased .product-data span.title {
+    color: var(--gradient-base-accent-1);
+    transition: all 0.3s linear;
+    font-size: 17px;
+    font-family: var(--font-heading-family);
+    line-height: 1.3;
+}
+ .customer-who-purchased .product-data span.title:hover {
+    color: var(--gradient-base-accent-3);
+} 
+</style>
+
+{% schema %}
+{
+"name": "t:sections.suggested-products.name",
+"class": "customer-purchased",
+"settings": [
+{
+"type" : "checkbox",
+"id" : "display_recent_purchase",
+"label" : "t:sections.suggested-products.settings.display_recent_purchase.label",
+"default" : true
+},        
+{
+"type": "radio",
+"id": "placement",
+"label" : "t:sections.suggested-products.settings.placement.label",
+"options": [
+{
+"value": "left",
+"label" : "t:sections.suggested-products.settings.placement.options__1.label"
+},
+{
+"value": "right",
+"label" : "t:sections.suggested-products.settings.placement.options__2.label"
+}
+],
+"default": "right"        
+},        
+{
+"type" : "textarea",
+"id" : "text",
+"label" : "t:sections.suggested-products.settings.text.label",
+"default" : "Someone recently bought a"
+}
+],
+"blocks" : [
+{
+"type" : "image",
+"name" : "Product",
+"settings":[
+{
+"type" : "product",
+"id" : "product",
+"label" : "t:sections.suggested-products.blocks.image.settings.product.label"
+},
+{
+"type" : "text",
+"id" : "from",
+"default" : "Texas, US",
+"label" : "t:sections.suggested-products.blocks.image.settings.from.label"
+},
+{
+"type" : "text",
+"id" : "time",
+"default" : "10 minutes ago",
+"label" : "t:sections.suggested-products.blocks.image.settings.time.label"
+}				
+]
+}
+]
+}
+{% endschema %}
+

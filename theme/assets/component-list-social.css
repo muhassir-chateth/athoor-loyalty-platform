@@ -1,0 +1,51 @@
+.list-social {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+ margin-top: 3.5rem;
+}
+/* .list-social__link:hover .icon-twitter {
+    color: #1da1f2;
+}
+.list-social__link:hover .icon-facebook {
+    color: #1877f2;
+}
+.list-social__link:hover .icon-instagram {
+    color: #c32aa3;
+} */
+
+@media only screen and (max-width: 749px) {
+  .list-social {
+    justify-content: center;
+  }
+}
+
+.list-social__item .icon {
+  height: 2rem;
+  width: 2rem;
+  color: var(--color-icon);
+  transition: all .3s linear;
+}
+
+.list-social__link {
+  align-items: center;
+  display: flex;
+  padding: 1.3rem;
+  color: rgb(var(--color-foreground));
+  position:relative;
+}
+
+.list-social__link:hover .icon {
+  transform: scale(1.07);
+  color: var(--gradient-base-accent-3);
+  
+}
+
+.list-social .list-social__link:hover:before {
+    visibility: visible;
+}
+@media screen and (min-width: 320px) and (max-width: 575px){
+  .list-social__link{
+  padding: .5rem;
+}
+}

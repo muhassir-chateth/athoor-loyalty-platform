@@ -1,0 +1,267 @@
+{%-liquid
+  assign TabMenu1 = block.settings.tab1 
+  assign TabMenu2 = block.settings.tab2 
+  assign TabMenu3 = block.settings.tab3 
+  assign TabMenu4 = block.settings.tab4 
+  assign TabMenu5 = block.settings.tab5 
+  
+ %}
+ 
+ {% capture MegaTab1 %}
+ {% if TabMenu1 != blank %}
+ <li class="dt-sc-menu-tabs"  id="tab1">
+   <ul class="dt-sc-column {{ block.settings.tab1_columns }} {% if block.settings.row_reverse_tab1 %}row-reverse {% endif %}">
+     {%- for link in linklists[TabMenu1].links -%}
+     <li>
+       <a class="headding" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}> {{ link.title }} </a>
+       {%- if link.links != blank -%}
+       <ul>
+         {%- for child_link in link.links -%}
+         <li>
+           <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+             {{ child_link.title }}
+           </a>
+           {%- if child_link.links != blank -%}
+           <ul>
+             {%- for grandchild_link in child_link.links -%}
+             <li>
+               <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                 {{ grandchild_link.title }}
+               </a>
+             </li>
+             {%- endfor -%}
+           </ul>
+           {%- endif -%}
+ 
+         </li>
+         {%- endfor -%}
+       </ul>
+       {%- endif -%}
+     </li>
+     {%- endfor -%}
+     {% if block.settings.tab1_image != blank %}
+     <li>{{ block.settings.tab1_image | image_url: width: 800 | image_tag: srcset: nil, loading: 'lazy' }}</li>
+     {% endif %}
+   </ul>
+ </li>
+ {% endif %}
+ {% endcapture %}
+ 
+ {% capture MegaTab2 %}
+ {% if TabMenu2 != blank %}
+ <li class="dt-sc-menu-tabs"  id="tab2">
+   <ul class="dt-sc-column {{ block.settings.tab2_columns }} {% if block.settings.row_reverse_tab2 %}row-reverse {% endif %}">
+     {%- for link in linklists[TabMenu2].links -%}
+     <li>
+       <a class="headding" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}>{{ link.title }}</a>
+       {%- if link.links != blank -%}
+       <ul>
+         {%- for child_link in link.links -%}
+         <li>
+           <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+             {{ child_link.title }}
+           </a>
+ 
+           {%- if child_link.links != blank -%}
+           <ul>
+             {%- for grandchild_link in child_link.links -%}
+             <li>
+               <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                 {{ grandchild_link.title }}
+               </a>
+             </li>
+             {%- endfor -%}
+           </ul>
+           {%- endif -%}
+ 
+         </li>
+         {%- endfor -%}
+       </ul>
+       {%- endif -%}
+ 
+     </li>
+     {%- endfor -%}
+     {% if block.settings.tab2_image != blank %}
+     <li>{{ block.settings.tab2_image | image_url: width: 800 | image_tag: srcset: nil, loading: 'lazy' }}</li>
+     {% endif %}
+   </ul>
+ </li>
+ {% endif %}
+ {% endcapture %}
+ 
+ {% capture MegaTab3 %}
+ {% if TabMenu3 != blank %}
+ <li class="dt-sc-menu-tabs"  id="tab3">
+   <ul class="dt-sc-column {{ block.settings.tab3_columns }} {% if block.settings.row_reverse_tab3 %}row-reverse {% endif %}">
+     {%- for link in linklists[TabMenu3].links -%}
+     <li>
+       <a class="headding" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}>{{ link.title }}</a>
+       {%- if link.links != blank -%}
+       <ul>
+         {%- for child_link in link.links -%}
+         <li>
+           <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+             {{ child_link.title }}
+           </a>
+ 
+           {%- if child_link.links != blank -%}
+           <ul>
+             {%- for grandchild_link in child_link.links -%}
+             <li>
+               <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                 {{ grandchild_link.title }}
+               </a>
+             </li>
+             {%- endfor -%}
+           </ul>
+           {%- endif -%}
+ 
+         </li>
+         {%- endfor -%}
+       </ul>
+       {%- endif -%}
+ 
+     </li>
+     {%- endfor -%}
+     {% if block.settings.tab3_image != blank %}
+     <li>{{ block.settings.tab3_image | image_url: width: 800 | image_tag: srcset: nil, loading: 'lazy' }}</li>
+     {% endif %}
+   </ul>
+ </li>
+ {% endif %}
+ {% endcapture %}
+ 
+ {% capture MegaTab4 %}
+ {% if TabMenu4 != blank %}
+ <li class="dt-sc-menu-tabs"  id="tab4">
+   <ul class="dt-sc-column {{ block.settings.tab4_columns }}  {% if block.settings.row_reverse_tab4 %}row-reverse {% endif %}">
+     {%- for link in linklists[TabMenu4].links -%}
+     <li>
+       <a class="headding" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}>{{ link.title }}</a>
+       {%- if link.links != blank -%}
+       <ul>
+         {%- for child_link in link.links -%}
+         <li>
+           <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+             {{ child_link.title }}
+           </a>
+ 
+           {%- if child_link.links != blank -%}
+           <ul>
+             {%- for grandchild_link in child_link.links -%}
+             <li>
+               <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                 {{ grandchild_link.title }}
+               </a>
+             </li>
+             {%- endfor -%}
+           </ul>
+           {%- endif -%}
+ 
+         </li>
+         {%- endfor -%}
+       </ul>
+       {%- endif -%}
+ 
+     </li>
+     {%- endfor -%}
+     {% if block.settings.tab4_image != blank %}
+     <li>{{ block.settings.tab4_image | image_url: width: 800 | image_tag: srcset: nil, loading: 'lazy' }}</li>
+     {% endif %}
+   </ul>
+ </li>
+ {% endif %}
+ {% endcapture %}
+ 
+ {% capture MegaTab5 %}
+ {% if TabMenu5 != blank %}
+ <li class="dt-sc-menu-tabs"  id="tab5">
+   <ul class="dt-sc-column {{ block.settings.tab5_columns }} {% if block.settings.row_reverse_tab5 %}row-reverse {% endif %}">
+     {%- for link in linklists[TabMenu5].links -%}
+     <li>
+       <a class="headding" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}>{{ link.title }}</a>
+       {%- if link.links != blank -%}
+       <ul>
+         {%- for child_link in link.links -%}
+         <li>
+           <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+             {{ child_link.title }}
+           </a>
+ 
+           {%- if child_link.links != blank -%}
+           <ul>
+             {%- for grandchild_link in child_link.links -%}
+             <li>
+               <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                 {{ grandchild_link.title }}
+               </a>
+             </li>
+             {%- endfor -%}
+           </ul>
+           {%- endif -%}
+ 
+         </li>
+         {%- endfor -%}
+       </ul>
+       {%- endif -%}
+ 
+     </li>
+     {%- endfor -%}
+     {% if block.settings.tab5_image != blank %}
+     <li>{{ block.settings.tab5_image | image_url: width: 800 | image_tag: srcset: nil, loading: 'lazy' }}</li>
+     {% endif %}
+   </ul>
+ </li>
+ {% endif %}
+ {% endcapture %}
+ <div class="tabs-nav hide-mobile">
+   <ul class="tabs">
+     {% if block.settings.tab1_heading != blank %}
+     <li class="active"><a href="#tab1">{{ block.settings.tab1_heading }}</a></li>
+     {% endif %}
+     {% if block.settings.tab2_heading != blank %}
+     <li><a href="#tab2">{{ block.settings.tab2_heading }}</a></li>
+     {% endif %}
+     {% if block.settings.tab3_heading != blank %}
+     <li><a href="#tab3">{{ block.settings.tab3_heading }}</a></li>
+     {% endif %}
+     {% if block.settings.tab4_heading != blank %}
+     <li><a href="#tab4">{{ block.settings.tab4_heading }}</a></li>
+     {% endif %}
+     {% if block.settings.tab5_heading != blank %}
+     <li><a href="#tab5">{{ block.settings.tab5_heading }}</a></li>
+     {% endif %}
+   </ul>
+ </div>
+ <ul class="tabs-content hide-mobile">
+   {{ MegaTab1 }}
+   {{ MegaTab2 }}
+   {{ MegaTab3 }}
+   {{ MegaTab4 }}
+   {{ MegaTab5 }}
+ </ul>
+ 
+ <div class="tabs-nav mobileTabs">
+   <ul class="tabs">
+     {% if block.settings.tab1_heading != blank %}
+     <li><a>{{ block.settings.tab1_heading }}</a></li>
+     <div class="tab-wrapper" style="display: none;">{{ MegaTab1 }}</div>
+     {% endif %}
+     {% if block.settings.tab2_heading != blank %}
+     <li><a>{{ block.settings.tab2_heading }}</a></li>
+     <div class="tab-wrapper" style="display: none;">{{ MegaTab2 }}</div>
+     {% endif %}
+     {% if block.settings.tab3_heading != blank %}
+     <li><a>{{ block.settings.tab3_heading }}</a></li>
+     <div class="tab-wrapper" style="display: none;">{{ MegaTab3 }}</div>
+     {% endif %}
+     {% if block.settings.tab4_heading != blank %}
+     <li><a>{{ block.settings.tab4_heading }}</a></li>
+     <div class="tab-wrapper" style="display: none;">{{ MegaTab4 }}</div>
+     {% endif %}
+     {% if block.settings.tab5_heading != blank %}
+     <li><a>{{ block.settings.tab5_heading }}</a></li>
+     <div class="tab-wrapper" style="display: none;"> {{ MegaTab5 }}</div>
+     {% endif %}
+   </ul>
+ </div>

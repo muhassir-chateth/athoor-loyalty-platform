@@ -1,0 +1,70 @@
+<!-- Athoor London Rewards Banner -->
+<style>
+.athoor-rewards-banner {
+  background: linear-gradient(90deg, #1a1a1a 0%, #2d2522 100%);
+  padding: 10px 16px;
+  text-align: center;
+}
+.athoor-rewards-banner a {
+  color: #FFD700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.athoor-rewards-banner a:hover {
+  color: #fff;
+}
+.athoor-rewards-banner a:focus-visible {
+  outline: 2px solid #FFD700;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+@media screen and (max-width: 749px) {
+  .athoor-rewards-banner {
+    padding: 8px 12px;
+  }
+  .athoor-rewards-banner a {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+}
+</style>
+<div class="athoor-rewards-banner" data-loyalty-banner>
+  <a href="/pages/rewards">
+    <span aria-hidden="true">✦</span>
+    <span data-loyalty="banner-message">Join the Athoor Rewards Club — Earn Points on Every Purchase</span>
+    <span aria-hidden="true">→</span>
+  </a>
+</div>
+
+{%- comment -%}
+  Rewards banner data source (task 6.7 / Migration M3). The loyalty balance is
+  authoritative in the Loyalty_Service /v1 API (via App Proxy). This banner is
+  rendered site-wide, so to avoid a network request on every page it does NOT
+  call the API itself: it reads the live Spendable_Balance that
+  assets/athoor-loyalty.js caches in sessionStorage when the member last opened
+  the dashboard. If no cached value exists (or storage is unavailable), the
+  static join message above is kept — preserving the current look (Req 8.2/8.4).
+{%- endcomment -%}
+<script>
+  (function () {
+    var banner = document.querySelector('[data-loyalty-banner]');
+    if (!banner) return;
+    try {
+      var raw = sessionStorage.getItem('athoorLoyalty');
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || typeof data.points !== 'number' || !isFinite(data.points)) return;
+      var msg = banner.querySelector('[data-loyalty="banner-message"]');
+      if (msg) {
+        msg.textContent = 'You have ' + Math.round(data.points) + ' Athoor Rewards points — View & Redeem';
+      }
+    } catch (e) { /* keep static fallback message */ }
+  })();
+</script>

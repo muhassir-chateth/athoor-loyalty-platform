@@ -1,0 +1,179 @@
+import { z } from "zod";
+
+/**
+ * Least-privilege Admin API scopes the Shopify custom app requests.
+ *
+ * Requirement 11.11 lists: read_customers, read_orders, read_products,
+ * write_discounts, write_price_rules, and required webhook scopes.
+ *
+ * This is the single source of truth for scope configuration/documentation.
+ * NOTE (task-1.1 scope): defined as configuration only — no Shopify app is
+ * created and no webhooks are registered here (webhook registration is task 3.2).
+ */
+export const ADMIN_API_SCOPES = [
+  "read_customers",
+  "read_orders",
+  "read_products",
+  "write_discounts",
+  "write_price_rules",
+] as const;
+
+/**
+ * Webhook topics the service subscribes to (registration deferred to task 3.2).
+ * Kept here so the scope/topic surface is documented alongside config.
+ */
+export const WEBHOOK_TOPICS = [
+  "customers/create",
+  "orders/paid",
+  "refunds/create",
+  "orders/cancelled",
+] as const;
+
+const boolish = z
+  .union([z.boolean(), z.string()])
+  .transform((v) => (typeof v === "boolean" ? v : ["1", "true", "yes", "on"].includes(v.toLowerCase())));
+
+/**
+ * Environment schema. Secrets (Admin API token, webhook secret, App Proxy
+ * shared secret, DB credentials) are loaded here from the environment and are
+ * NEVER hardcoded or committed (Requirement 11.6). See .env.example.
+ */
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().default(3000),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  REQUIRE_HTTPS: boolish.default(false),
+
+  // Shopify custom app
+  SHOPIFY_SHOP_DOMAIN: z.string().min(1).default("myathoorlondon.myshopify.com"),
+  SHOPIFY_ADMIN_API_TOKEN: z.string().min(1).optional(),
+  SHOPIFY_WEBHOOK_SECRET: z.string().min(1).optional(),
+  SHOPIFY_APP_PROXY_SECRET: z.string().min(1).optional(),
+
+  // Admin management surface (task 17.1, Req 10.1). Shared secret presented as
+  // `Authorization: Bearer <secret>` by an Admin_User. Loaded from secrets/env,
+  // never committed (Req 11.6). When absent the admin surface fails closed.
+  ADMIN_AUTH_SECRET: z.string().min(1).optional(),
+
+  // Membership-Credential service (task 19.2, Req 19.5/19.6). A DEDICATED
+  // signing key — separate from the Admin token, webhook secret, and App Proxy
+  // secret — used ONLY to sign/verify the Digital Membership Card / QR member
+  // identifier (design.md → "new dedicated signing key" held in secrets
+  // management). Loaded from secrets/env, never committed (Req 11.6). When
+  // absent the membership-card surface fails closed.
+  MEMBERSHIP_SIGNING_KEY: z.string().min(1).optional(),
+
+  // Database
+  DATABASE_URL: z.string().min(1).optional(),
+  PGHOST: z.string().optional(),
+  PGPORT: z.coerce.number().int().positive().optional(),
+  PGUSER: z.string().optional(),
+  PGPASSWORD: z.string().optional(),
+  PGDATABASE: z.string().optional(),
+  PGSSL: boolish.default(false),
+});
+
+export type Env = z.infer<typeof EnvSchema>;
+
+export interface AppConfig {
+  env: Env["NODE_ENV"];
+  port: number;
+  logLevel: Env["LOG_LEVEL"];
+  requireHttps: boolean;
+  shopify: {
+    shopDomain: string;
+    adminApiToken?: string;
+    webhookSecret?: string;
+    appProxySecret?: string;
+    adminApiScopes: readonly string[];
+    webhookTopics: readonly string[];
+  };
+  admin: {
+    /** Shared secret for the /v1/admin surface (Req 10.1); undefined = fail closed. */
+    authSecret?: string;
+  };
+  membership: {
+    /**
+     * Dedicated key used ONLY to sign/verify the Digital Membership Card / QR
+     * member identifier (task 19.2, Req 19.5/19.6). Never reuses another
+     * secret; undefined = the membership-card surface fails closed.
+     */
+    signingKey?: string;
+  };
+  database: {
+    connectionString?: string;
+    host?: string;
+    port?: number;
+    user?: string;
+    password?: string;
+    database?: string;
+    ssl: boolean;
+  };
+}
+
+/**
+ * A known token prefix we explicitly refuse: the local MCP `shpat_` token must
+ * not be reused for the production service (Requirement 11.7). This is a
+ * best-effort guard — the real protection is operational (separate custom app).
+ */
+const MCP_TOKEN_PREFIX = "shpat_";
+
+/**
+ * Loads and validates configuration from the process environment.
+ * Throws a descriptive error if validation fails so misconfiguration is caught
+ * at boot rather than at request time.
+ */
+export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
+  const parsed = EnvSchema.safeParse(source);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("\n");
+    throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  const env = parsed.data;
+
+  // Requirement 11.11: enforce HTTPS assumptions in production.
+  if (env.NODE_ENV === "production" && !env.REQUIRE_HTTPS) {
+    throw new Error(
+      "REQUIRE_HTTPS must be true in production (Requirement 11.11: serve all traffic over HTTPS).",
+    );
+  }
+
+  // Requirement 11.7: never reuse the local MCP shpat_ token in production.
+  if (env.NODE_ENV === "production" && env.SHOPIFY_ADMIN_API_TOKEN?.startsWith(MCP_TOKEN_PREFIX)) {
+    throw new Error(
+      "SHOPIFY_ADMIN_API_TOKEN must not be a local MCP `shpat_` token in production (Requirement 11.7).",
+    );
+  }
+
+  return {
+    env: env.NODE_ENV,
+    port: env.PORT,
+    logLevel: env.LOG_LEVEL,
+    requireHttps: env.REQUIRE_HTTPS,
+    shopify: {
+      shopDomain: env.SHOPIFY_SHOP_DOMAIN,
+      adminApiToken: env.SHOPIFY_ADMIN_API_TOKEN,
+      webhookSecret: env.SHOPIFY_WEBHOOK_SECRET,
+      appProxySecret: env.SHOPIFY_APP_PROXY_SECRET,
+      adminApiScopes: ADMIN_API_SCOPES,
+      webhookTopics: WEBHOOK_TOPICS,
+    },
+    admin: {
+      authSecret: env.ADMIN_AUTH_SECRET,
+    },
+    membership: {
+      signingKey: env.MEMBERSHIP_SIGNING_KEY,
+    },
+    database: {
+      connectionString: env.DATABASE_URL,
+      host: env.PGHOST,
+      port: env.PGPORT,
+      user: env.PGUSER,
+      password: env.PGPASSWORD,
+      database: env.PGDATABASE,
+      ssl: env.PGSSL,
+    },
+  };
+}

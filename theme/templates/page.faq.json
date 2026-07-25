@@ -1,0 +1,129 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "disabled": true,
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "padding_top": 24,
+        "padding_bottom": 0
+      }
+    },
+    "dac594f5-6f42-441b-b718-a5640c6f4896": {
+      "type": "collapsible-content",
+      "blocks": {
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-0": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What is your return policy?",
+            "icon": "snowflake",
+            "row_content": "<p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui official. </p>",
+            "page": ""
+          }
+        },
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-1": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How do i change my account email address?",
+            "icon": "snowflake",
+            "row_content": "<p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui official. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>",
+            "page": ""
+          }
+        },
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-3": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How do I track my order?",
+            "icon": "snowflake",
+            "row_content": "<p>Zeduis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.</p>",
+            "page": ""
+          }
+        },
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-2": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Do you test on animals?",
+            "icon": "snowflake",
+            "row_content": "<p>Seuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officiat.</p>",
+            "page": ""
+          }
+        },
+        "a28c49d0-90ca-483f-bf46-d4bee34fac3b": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "When will I get my refund?",
+            "icon": "snowflake",
+            "row_content": "<p>Reprehenderit duis aute irure dolor in  in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>",
+            "page": ""
+          }
+        },
+        "7d3ecf30-8d3a-486e-ac17-f3aaa10b895d": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How do I pay for my purchase?",
+            "icon": "snowflake",
+            "row_content": "<p>Reprehenderit duis aute irure dolor in  in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>",
+            "page": ""
+          }
+        },
+        "0e6dcb49-2e23-4283-bf67-9f36da9e7477": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How can i get support?",
+            "icon": "snowflake",
+            "row_content": "<p>At enim massa, malesuad mi. Maecenas in odo lorem.Maecenas in dictum at commodo lorem. Fusce id blandit blandit finibus eros. Vestibulum eu maximus turpis. Ut </p>",
+            "page": ""
+          }
+        },
+        "9823d165-e796-41e2-bef8-e9fa472932d0": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How to redeem my gift card?",
+            "icon": "snowflake",
+            "row_content": "<p>Blandit fusce id blandit finibus eros. Vestibulum eu maximus turpis. Ut enim mas da id scelerisque eu, volutpat id mi. imus turpis. Ut enim massa, malesuad mi. Maecenas in odo lorem.Maecenas in dictum at commodo lorem.</p>",
+            "page": ""
+          }
+        }
+      },
+      "block_order": [
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-0",
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-1",
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-3",
+        "template--16688272900316__dac594f5-6f42-441b-b718-a5640c6f4896-16672924418c53fb80-2",
+        "a28c49d0-90ca-483f-bf46-d4bee34fac3b",
+        "7d3ecf30-8d3a-486e-ac17-f3aaa10b895d",
+        "0e6dcb49-2e23-4283-bf67-9f36da9e7477",
+        "9823d165-e796-41e2-bef8-e9fa472932d0"
+      ],
+      "settings": {
+        "caption": "Find answer here",
+        "heading": "Ask Us Anything",
+        "heading_size": "h1",
+        "heading_alignment": "center",
+        "layout": "none",
+        "color_scheme": "background-1",
+        "container_color_scheme": "accent-1",
+        "open_first_collapsible_row": true,
+        "image": "shopify://shop_images/portrait-woman-customer-service-worker.webp",
+        "image_ratio": "adapt",
+        "desktop_layout": "image_first",
+        "padding_top": 100,
+        "padding_bottom": 100
+      }
+    }
+  },
+  "order": [
+    "main",
+    "dac594f5-6f42-441b-b718-a5640c6f4896"
+  ]
+}

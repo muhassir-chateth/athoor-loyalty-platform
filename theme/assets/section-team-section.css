@@ -1,0 +1,108 @@
+.team-section .team-section-section.two-column{ display: grid; grid-template-columns: repeat(2,1fr);}
+.team-section .team-section-section.three-column{ display: grid;  grid-template-columns: repeat(3,1fr);}
+.team-section .team-section-section.four-column{ display: grid; grid-template-columns: repeat(4,1fr);}
+.team-section .team-section-section.five-column{ display: grid; grid-template-columns: repeat(5,1fr);}
+.team-section .team-section-section.six-column{ display: grid; grid-template-columns: repeat(6,1fr);}
+.team-section .team-section-section{ column-gap: var(--grid-desktop-horizontal-spacing); row-gap: var(--grid-desktop-vertical-spacing);}
+
+@media screen and (max-width: 1199px) and (min-width: 751px) {
+.team-section .team-section-section.four-column{ display: grid; grid-template-columns: repeat(4,1fr);}
+}
+@media screen and (max-width: 750px) and (min-width: 320px) {
+.team-section .team-section-section.four-column{ display: grid; grid-template-columns: repeat(2,1fr);}
+}
+.team-section .team-section-section.five-column{ display: grid; grid-template-columns: repeat(3,1fr);}
+.team-section .team-section-section.six-column{ display: grid; grid-template-columns: repeat(3,1fr);}
+.team-section .team-section-section { column-gap: var(--grid-mobile-horizontal-spacing); row-gap: var(--grid-mobile-vertical-spacing);}  
+}
+ @media screen and (max-width: 750px) {
+ .team-section .team-section-section.two-column{ display: grid; grid-template-columns: repeat(1,1fr);}
+.team-section .team-section-section.three-column{ display: grid;  grid-template-columns: repeat(1,1fr);}
+.team-section .team-section-section.four-column{ display: grid; grid-template-columns: repeat(1,1fr);}
+.team-section .team-section-section.five-column{ display: grid; grid-template-columns: repeat(1,1fr);}
+.team-section .team-section-section.six-column{ display: grid; grid-template-columns: repeat(1,1fr);}
+.team-section .team-section-section { column-gap: var(--grid-mobile-horizontal-spacing); row-gap: var(--grid-mobile-vertical-spacing);}
+ }
+.team-section .title-wrapper-with-link.content-align--left{align-items: flex-start;}
+.team-section .title-wrapper-with-link.content-align--center{align-items: center;}
+.team-section .team-section-section .team-section-wrapper .team-section-block-image img.team-section-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  transition: all .3s linear;
+}
+.team-section-inner.banner--content-align-center {
+    align-items: center;
+    text-align: center;
+}
+.team-section-inner.banner--content-align-right {
+    align-items: flex-end;
+    text-align: right;
+}
+.team-section-inner.banner--content-align-left {
+    align-items: flex-start;
+    text-align: left;
+}
+
+.team-section .team-section-section:not(.background-none) .team-section-wrapper {
+  background: rgb(var(--color-background));
+  height: 100%;
+}
+
+.team-section .dt-sc-team-section-section.background-primary .team-section-wrapper {
+  background: rgb(var(--color-background)) linear-gradient(rgba(var(--color-foreground), 0.04), rgba(var(--color-foreground), 0.04));
+}
+.team-section-section .team-section-wrapper .team-section-content .team-section-inner h4.main-title a{color:var(--color-foreground);}
+
+.team-section-section .team-section-wrapper .team-section-content{padding:15px;}
+.team-section-section .team-section-wrapper .team-section-content h4.main-title{  margin: 0 0 10px; font-size: 2.5rem; }
+ .team-section-section .team-section-wrapper .team-section-content h6.sub-title{  margin: 0; font-size: 1.6rem;  font-weight: 400;  font-family: var(--font-body-family);letter-spacing: 1px;}
+.team-section-content-icon li.list-social__item:not(:last-child) { margin-right: 10px;}
+.team-section .list-social{margin-top:0;}
+.team-section .list-social__link:hover{ color: var(--gradient-base-accent-2);}
+.team-section-section .team-section-wrapper:hover .list-social__link{transition: all 0.3s linear; background: var(--gradient-background);}
+.team-section .team-section-block-image{position:relative;overflow: hidden;display: flex; justify-content: center;}
+.team-section-section .team-section-wrapper:hover .team-section-block-image img {
+    transform: scale3d(1.1,1.1,1);
+    transition: all .3s linear;
+}
+.team-section-section .team-section-wrapper .team-section-content-icon{
+    z-index: 2;
+    left: 0;
+    right: 0;
+    padding: 15px;
+    justify-content: center;
+    opacity: 0;
+    transition: .3s linear all;
+    position: absolute;
+    margin: auto;
+   overflow: hidden;
+  transition: all .3s linear;
+}
+.team-section-section .team-section-wrapper:hover .team-section-content-icon li{transform: translateY(0);}
+.team-section-section .team-section-wrapper .team-section-content-icon li { transform: translateY(50px);  transition: all .3s linear;  background: rgba(182, 113, 62,.9);}
+/* .team-section-section .team-section-wrapper:hover .team-section-content-icon li .icon { color: var(--gradient-background);} */
+.team-section-section .team-section-wrapper:hover .team-section-content-icon{  opacity: 1;  bottom: 10px; left: 0; right: 0;}
+.team-section-section .team-section-wrapper .team-section-content-icon { top: auto; bottom: 10px;  transform: initial;}  
+
+
+
+/*Overlay style*/
+.team-section-section.overlay .team-section-wrapper{ height: 500px; position: relative;}
+.team-section-section.overlay .team-section-wrapper .team-section-block-image{width:100%; height:100%; }
+.team-section-section.overlay .team-section-wrapper .team-section-content{    position: absolute; top: 0; bottom: 0; margin: auto; left: 0; right: 0; background: rgba(var(--color-background),0.4);}
+.team-section-section.overlay .team-section-wrapper .team-section-content .team-section-inner{    width: 100%;  height: 100%;  display: flex;  flex-direction: column;  align-items: center;  justify-content: center;}
+
+@media screen and (max-width: 1199px) and (min-width: 751px) {
+  .team-section-section .team-section-wrapper .team-section-content{padding: 15px 0;}
+}
+@media screen and (min-width: 320px) and (max-width: 575px){
+.caption-with-letter-spacing--medium{
+  text-align: center;
+}
+.image-text-overlay .image-with-text__grid{
+  padding: 0;
+}
+
+}
+

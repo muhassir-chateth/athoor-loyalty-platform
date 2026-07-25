@@ -1,0 +1,26 @@
+<div class="dt-sc-rating">
+  {% case block.settings.star %}
+  {% when '0' %}
+  <div class="no-star-rating"></div>
+  {% when '0.5' %}
+  <div class="half-star-rating"></div>
+  {% when '1' %}
+  <div class="one-star-rating"></div>
+  {% when '1.5' %}
+  <div class="one-half-star-rating"></div>
+  {% when '2' %}
+  <div class="two-star-rating"></div>
+  {% when '2.5' %}
+  <div class="two-half-star-rating"></div>
+  {% when '3' %}
+  <div class="three-star-rating"></div>
+  {% when '3.5' %}
+  <div class="three-half-star-rating"></div>
+  {% when '4' %}
+  <div class="four-star-rating"></div>
+  {% when '4.5' %}
+  <div class="four-half-star-rating"></div>
+  {% when '5' %}
+  <div class="five-star-rating"></div>
+  {% endcase %}
+</div>

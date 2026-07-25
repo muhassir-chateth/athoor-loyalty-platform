@@ -1,0 +1,48 @@
+{%- comment -%}
+  Compact "All Notes / Fragrance Family / Concentration / Longevity" block
+  for the product info column (SunnaMusk SS2 style). Driven by athoor
+  metafields. Renders just above the buy buttons.
+{%- endcomment -%}
+
+{%- liquid
+  assign mf = product.metafields.athoor
+  assign top = mf.top_note.value
+  assign heart = mf.heart_note.value
+  assign base = mf.base_note.value
+  assign fam = mf.fragrance_family.value
+  assign conc = mf.concentration.value
+  assign longv = mf.longevity.value
+  assign show = false
+  if top != blank or fam != blank
+    assign show = true
+  endif
+-%}
+
+{%- if show -%}
+<style>
+  .athoor-an {
+    border-top: 1px solid #e3dcd0; border-bottom: 1px solid #e3dcd0;
+    margin: 22px 0; padding: 20px 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px 16px;
+  }
+  .athoor-an__col { text-align: center; }
+  .athoor-an__k { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #C9A96E; margin: 0 0 7px; font-weight: 600; }
+  .athoor-an__v { font-size: 12px; color: #1a1a1a; line-height: 1.55; margin: 0; font-weight: 300; }
+  .athoor-an__v span { display: block; }
+</style>
+<div class="athoor-an">
+  {%- if top != blank or heart != blank or base != blank -%}
+    <div class="athoor-an__col">
+      <p class="athoor-an__k">All Notes</p>
+      <p class="athoor-an__v">
+        {%- if top != blank -%}<span>Top: {{ top }}</span>{%- endif -%}
+        {%- if heart != blank -%}<span>Heart: {{ heart }}</span>{%- endif -%}
+        {%- if base != blank -%}<span>Base: {{ base }}</span>{%- endif -%}
+      </p>
+    </div>
+  {%- endif -%}
+  {%- if fam != blank -%}<div class="athoor-an__col"><p class="athoor-an__k">Fragrance Family</p><p class="athoor-an__v">{{ fam }}</p></div>{%- endif -%}
+  {%- if conc != blank -%}<div class="athoor-an__col"><p class="athoor-an__k">Concentration</p><p class="athoor-an__v">{{ conc }}</p></div>{%- endif -%}
+  {%- if longv != blank -%}<div class="athoor-an__col"><p class="athoor-an__k">Longevity</p><p class="athoor-an__v">{{ longv }}</p></div>{%- endif -%}
+</div>
+{%- endif -%}

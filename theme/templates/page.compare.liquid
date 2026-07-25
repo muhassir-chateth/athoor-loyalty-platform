@@ -1,0 +1,50 @@
+{{ 'page-wishlist.css' | asset_url | stylesheet_tag }}
+<div class="page-width compare">
+  <dtx-wishlist-grid grid_type="compareList">
+    <div class="dtx-grid-empty">
+       <h2>{{ 'products.compare.no_records' | t }}</h2>
+    <img src="{{ "empty-cart.png" | asset_url }}" alt="{{ 'products.compare.no_records' | t }}" height="150" width="150" loading="lazy" />
+      <a href="{{ routes.all_products_collection_url }}" class="link button button--secondary">
+        {{ 'general.continue_shopping' | t }}
+      </a>
+    </div>
+    <table class="dtx-table">
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Product</th>
+          <th>Price</th>
+          <th>Purchase</th>
+          <th>Remove</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id="row_{item.product_handle}" class="grid_template" style="display: none;">
+          <td class="product-thumbnail">
+            <a href="{item.product_url}">
+              <img loading="lazy" src="{item.product_image}" alt="{item.product_title}" width="" height="">
+            </a>
+          </td>
+          <td class="product-name">
+            <a href="{item.product_url}">{item.product_title}</a>
+          </td>
+          <td class="product-price-cart">
+            {item.money_price}
+          </td>
+          <td class="product-wishlist-cart">
+            <a href="{item.product_url}" data-product-variant-id="{item.variant_id}" class="dt-sc-btn button product-cart">
+              Select Options
+            </a>
+          </td>
+          <td>
+            <dtx-remove-wish-item grid_type="compareList">
+              <a href="javascript:void(0);" data-product_handle="{item.product_handle}" class="remove-item product-cart">
+                {% render 'icon-remove' %}
+              </a>
+            </dtx-remove-wish-item>  
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </dtx-wishlist-grid>
+</div>

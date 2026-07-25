@@ -1,0 +1,638 @@
+{{ 'swiper-bundle.min.css' | asset_url | stylesheet_tag }}
+
+{%- style -%}
+/* === Athoor Bestsellers Section === */
+.athoor-bestsellers {
+  padding: 60px 0 72px;
+  overflow: hidden;
+  background: #faf8f5;
+}
+
+.athoor-bestsellers__header {
+  text-align: center;
+  margin-bottom: 40px;
+  padding: 0 20px;
+}
+
+.athoor-bestsellers__subtitle {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8C8279;
+  margin: 0 0 10px;
+  font-weight: 400;
+}
+
+.athoor-bestsellers__title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  margin: 0;
+  color: #1a1a1a;
+}
+
+.athoor-bestsellers__subtitle-text {
+  font-size: 14px;
+  color: #6b6b6b;
+  margin: 8px 0 0;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+}
+
+/* Pure CSS marquee container */
+.athoor-bs-swiper {
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* The track: flex row of all (duplicated) slides, scrolling continuously */
+.athoor-bs-swiper .swiper-wrapper {
+  display: flex !important;
+  width: max-content !important;
+  animation: athoorBsMarquee 18s linear infinite;
+  will-change: transform;
+}
+
+/* Desktop: slightly faster + pause EXACTLY where it is on hover (zero shake, resumes exactly) */
+@media screen and (min-width: 750px) {
+  .athoor-bs-swiper .swiper-wrapper {
+    animation-duration: 14s;
+  }
+  .athoor-bs-swiper:hover .swiper-wrapper {
+    animation-play-state: paused;
+  }
+}
+
+/* Mobile: pause on touch, resume on release — same exact pixel-perfect freeze */
+@media screen and (max-width: 749px) {
+  .athoor-bs-swiper.is-touching .swiper-wrapper {
+    animation-play-state: paused;
+  }
+}
+
+.athoor-bs-swiper .swiper-slide {
+  width: 300px;
+  padding: 0 14px;
+  flex: 0 0 auto;
+}
+
+/* Track scrolls one full set (products are duplicated 2x for a seamless loop) */
+@keyframes athoorBsMarquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+/* Product Card — Atkinsons minimal style */
+.athoor-bs-card {
+  text-align: center;
+}
+
+.athoor-bs-card__imgwrap {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.athoor-bs-card__img {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-decoration: none;
+  margin-bottom: 0;
+}
+
+.athoor-bs-card__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  transition: transform 0.5s ease;
+}
+
+.athoor-bs-card:hover .athoor-bs-card__img img {
+  transform: scale(1.04);
+}
+
+.athoor-bs-soon {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border-radius: 3px;
+}
+
+/* Wishlist + Cart action icons — top-right of image, stacked */
+.athoor-bs-wish,
+.athoor-bs-addcart {
+  position: absolute;
+  right: 10px;
+  z-index: 3;
+  background: rgba(255,255,255,0.85);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, background 0.2s ease;
+  padding: 0;
+}
+.athoor-bs-wish { top: 10px; }
+.athoor-bs-addcart { bottom: 10px; top: auto; }
+.athoor-bs-wish svg,
+.athoor-bs-addcart svg {
+  width: 18px;
+  height: 18px;
+  stroke: #1a1a1a;
+  fill: none;
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+.athoor-bs-wish:hover,
+.athoor-bs-addcart:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.95);
+}
+.athoor-bs-wish.is-active svg { fill: #c0392b; stroke: #c0392b; }
+.athoor-bs-wish.is-animating {
+  animation: athoorBsWishPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes athoorBsWishPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.athoor-bs-addcart.is-added svg { stroke: #1a1a1a; fill: #1a1a1a; }
+
+@media screen and (max-width: 749px) {
+  .athoor-bs-wish, .athoor-bs-addcart { width: 32px; height: 32px; right: 8px; }
+  .athoor-bs-wish { top: 8px; }
+  .athoor-bs-addcart { bottom: 8px; top: auto; }
+  .athoor-bs-wish svg, .athoor-bs-addcart svg { width: 16px; height: 16px; }
+}
+
+.athoor-bs-card__type {
+  font-size: 11px;
+  color: #8a8079;
+  margin: 0 0 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+.athoor-bs-card__name {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: #1a1a1a;
+}
+
+.athoor-bs-card__name a {
+  text-decoration: none;
+  color: #1a1a1a;
+}
+
+.athoor-bs-card__tagline {
+  font-size: 14px;
+  color: #6b6258;
+  margin: 0;
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+/* Responsive */
+@media screen and (max-width: 749px) {
+  .athoor-bestsellers {
+    padding: 44px 0 52px;
+  }
+
+  .athoor-bestsellers__title {
+    font-size: 26px;
+  }
+
+  .athoor-bestsellers__header {
+    margin-bottom: 28px;
+  }
+
+  .athoor-bs-swiper .swiper-slide {
+    width: 78vw;
+    max-width: 320px;
+    padding: 0 10px;
+  }
+
+  .athoor-bs-card__type {
+    font-size: 11px;
+  }
+
+  .athoor-bs-card__name {
+    font-size: 17px;
+  }
+
+  .athoor-bs-card__tagline {
+    font-size: 14px;
+  }
+}
+
+@media screen and (min-width: 750px) and (max-width: 989px) {
+  .athoor-bs-swiper .swiper-slide {
+    width: 300px;
+  }
+}
+
+@media screen and (min-width: 990px) {
+  .athoor-bestsellers__title {
+    font-size: 36px;
+  }
+
+  .athoor-bs-swiper .swiper-slide {
+    width: 300px;
+    padding: 0 16px;
+  }
+}
+
+/* Scrollbar progress indicator */
+.athoor-bs-progress {
+  width: 240px;
+  height: 2px;
+  background: #e3dcd0;
+  margin: 30px auto 0;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.athoor-bs-progress__bar {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(90deg, #1a1a1a 0, #1a1a1a 60px, transparent 60px, transparent 240px);
+  background-size: 240px 100%;
+  animation: athoorProgressLoop 5s linear infinite;
+}
+@keyframes athoorProgressLoop {
+  from { background-position: 0 0; }
+  to { background-position: 240px 0; }
+}
+{%- endstyle -%}
+
+<section class="athoor-bestsellers" aria-label="Best Sellers">
+  <div class="athoor-bestsellers__header">
+    <p class="athoor-bestsellers__subtitle">{{ section.settings.subtitle }}</p>
+    <h2 class="athoor-bestsellers__title">{{ section.settings.title }}</h2>
+    {%- if section.settings.description != blank -%}
+      <p class="athoor-bestsellers__subtitle-text">{{ section.settings.description }}</p>
+    {%- endif -%}
+  </div>
+
+  <div class="swiper athoor-bs-swiper">
+    <div class="swiper-wrapper">
+      {%- assign collection_products = collections[section.settings.collection].products -%}
+      {%- comment -%} Duplicate products for seamless infinite loop {%- endcomment -%}
+      {%- for product in collection_products limit: section.settings.limit -%}
+        <div class="swiper-slide">
+          <div class="athoor-bs-card">
+            <div class="athoor-bs-card__imgwrap">
+              <a href="{{ product.url }}" class="athoor-bs-card__img">
+                {%- if product.handle == 'fragrance-discovery-set' -%}<span class="athoor-bs-soon">Coming Soon</span>{%- endif -%}
+                {%- if product.featured_image -%}
+                  <img src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy" width="600" height="600">
+                {%- endif -%}
+              </a>
+              <button type="button" class="athoor-bs-wish" data-bs-wish="{{ product.handle }}" aria-label="Add to Wishlist">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </button>
+              <button type="button" class="athoor-bs-addcart" data-bs-cart="{{ product.selected_or_first_available_variant.id }}" aria-label="Add to Cart">
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5.2 7.3h11.6l-.9 11.4H6.1L5.2 7.3z"/><path d="M8.4 7.3V6.6C8.4 5.2 9.6 4 11 4s2.6 1.2 2.6 2.6v.7"/></svg>
+              </button>
+            </div>
+            {%- if product.type != blank -%}
+              <p class="athoor-bs-card__type">{{ product.type }}</p>
+            {%- endif -%}
+            <p class="athoor-bs-card__name"><a href="{{ product.url }}">{{ product.title }}</a></p>
+            {% render 'athoor-stars', product: product %}
+            {%- assign tagline = product.metafields.descriptors.subtitle.value -%}
+            {%- if tagline != blank -%}
+              <p class="athoor-bs-card__tagline">{{ tagline }}</p>
+            {%- endif -%}
+          </div>
+        </div>
+      {%- endfor -%}
+      {%- comment -%} Duplicate set for seamless loop {%- endcomment -%}
+      {%- for product in collection_products limit: section.settings.limit -%}
+        <div class="swiper-slide">
+          <div class="athoor-bs-card">
+            <div class="athoor-bs-card__imgwrap">
+              <a href="{{ product.url }}" class="athoor-bs-card__img">
+                {%- if product.handle == 'fragrance-discovery-set' -%}<span class="athoor-bs-soon">Coming Soon</span>{%- endif -%}
+                {%- if product.featured_image -%}
+                  <img src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy" width="600" height="600">
+                {%- endif -%}
+              </a>
+              <button type="button" class="athoor-bs-wish" data-bs-wish="{{ product.handle }}" aria-label="Add to Wishlist">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </button>
+              <button type="button" class="athoor-bs-addcart" data-bs-cart="{{ product.selected_or_first_available_variant.id }}" aria-label="Add to Cart">
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5.2 7.3h11.6l-.9 11.4H6.1L5.2 7.3z"/><path d="M8.4 7.3V6.6C8.4 5.2 9.6 4 11 4s2.6 1.2 2.6 2.6v.7"/></svg>
+              </button>
+            </div>
+            {%- if product.type != blank -%}
+              <p class="athoor-bs-card__type">{{ product.type }}</p>
+            {%- endif -%}
+            <p class="athoor-bs-card__name"><a href="{{ product.url }}">{{ product.title }}</a></p>
+            {% render 'athoor-stars', product: product %}
+            {%- assign tagline = product.metafields.descriptors.subtitle.value -%}
+            {%- if tagline != blank -%}
+              <p class="athoor-bs-card__tagline">{{ tagline }}</p>
+            {%- endif -%}
+          </div>
+        </div>
+      {%- endfor -%}
+    </div>
+    <div class="athoor-bs-progress"><div class="athoor-bs-progress__bar"></div></div>
+  </div>
+
+  {%- if section.settings.show_bottle_image -%}
+    <div class="athoor-bestsellers__accent" aria-hidden="true">
+      <img
+        src="https://cdn.shopify.com/s/files/1/0954/4613/9219/files/Subject_copy.png?v=1781329880"
+        alt=""
+        width="200"
+        height="400"
+        loading="lazy"
+        class="athoor-bestsellers__bottle"
+      >
+    </div>
+    <style>
+      .athoor-bestsellers { position: relative; }
+      .athoor-bestsellers__accent {
+        position: absolute;
+        right: 3%;
+        bottom: 0;
+        pointer-events: none;
+        opacity: 0.12;
+        z-index: 0;
+      }
+      .athoor-bestsellers__bottle {
+        width: 120px;
+        height: auto;
+        object-fit: contain;
+      }
+      @media screen and (max-width: 749px) {
+        .athoor-bestsellers__accent { display: none; }
+      }
+    </style>
+  {%- endif -%}
+</section>
+
+<script src="{{ 'swiper-bundle.min.js' | asset_url }}" defer></script>
+<script>
+(function() {
+  /* Pure CSS marquee — no Swiper. Continuous scroll via CSS animation.
+     Desktop hover pause = animation-play-state:paused (pixel-perfect, zero shake).
+     Mobile continuous, no touch interaction. All handled in CSS. */
+
+  /* ===== Mobile touch pause/resume for CSS marquee ===== */
+  (function() {
+    var el = document.querySelector('.athoor-bs-swiper');
+    if (!el) return;
+    el.addEventListener('touchstart', function() { el.classList.add('is-touching'); }, { passive: true });
+    el.addEventListener('touchend', function() { el.classList.remove('is-touching'); }, { passive: true });
+    el.addEventListener('touchcancel', function() { el.classList.remove('is-touching'); }, { passive: true });
+  })();
+
+  /* ===== Bestsellers Wishlist + Add-to-Cart (event delegation) ===== */
+  (function() {
+    var WISH_KEY = 'shopify-wishlist';
+
+    function getWishlist() {
+      return (localStorage.getItem(WISH_KEY) || '').split(',').filter(Boolean);
+    }
+    function saveWishlist(list) {
+      if (list.length) localStorage.setItem(WISH_KEY, list.join(','));
+      else localStorage.removeItem(WISH_KEY);
+      var countEl = document.querySelector('.dtxc-wishlist-count');
+      if (countEl) countEl.setAttribute('count', list.length);
+    }
+
+    function bsToast(message) {
+      var existing = document.querySelector('.athoor-edp-toast, .athoor-bs-toast');
+      if (existing) existing.remove();
+      var toast = document.createElement('div');
+      toast.className = 'athoor-bs-toast';
+      toast.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>' + message + '</span>';
+      document.body.appendChild(toast);
+      requestAnimationFrame(function() { toast.classList.add('is-visible'); });
+      setTimeout(function() {
+        toast.classList.remove('is-visible');
+        setTimeout(function() { toast.remove(); }, 400);
+      }, 2500);
+    }
+
+    // Robust cart bubble updater — creates, updates, or removes the header cart count
+    function updateCartBubble(count) {
+      var cartIcon = document.getElementById('cart-icon-bubble');
+      if (!cartIcon) return;
+      var bubble = cartIcon.querySelector('.cart-count-bubble');
+      if (count > 0) {
+        if (!bubble) {
+          bubble = document.createElement('div');
+          bubble.className = 'cart-count-bubble';
+          bubble.innerHTML = '<span aria-hidden="true"></span>';
+          cartIcon.appendChild(bubble);
+        }
+        var span = bubble.querySelector('span[aria-hidden="true"]') || bubble.querySelector('span');
+        if (span) span.textContent = count < 100 ? count : '';
+        bubble.style.display = '';
+      } else {
+        // Cart empty — remove/hide the bubble
+        if (bubble) bubble.remove();
+      }
+    }
+
+    // Fly-to-header animation: a small dot flies from the clicked button to the header icon
+    function flyToHeader(sourceEl, targetSelector, color) {
+      var target = document.querySelector(targetSelector);
+      if (!target || !sourceEl) return;
+      var srcRect = sourceEl.getBoundingClientRect();
+      var tgtRect = target.getBoundingClientRect();
+      var dot = document.createElement('div');
+      dot.className = 'athoor-fly-dot';
+      dot.style.background = color || '#1a1a1a';
+      dot.style.left = (srcRect.left + srcRect.width / 2) + 'px';
+      dot.style.top = (srcRect.top + srcRect.height / 2) + 'px';
+      document.body.appendChild(dot);
+      requestAnimationFrame(function() {
+        dot.style.transform = 'translate(' + (tgtRect.left + tgtRect.width / 2 - srcRect.left - srcRect.width / 2) + 'px, ' + (tgtRect.top + tgtRect.height / 2 - srcRect.top - srcRect.height / 2) + 'px) scale(0.3)';
+        dot.style.opacity = '0.4';
+      });
+      setTimeout(function() {
+        dot.remove();
+        // Pulse the target icon
+        target.classList.add('athoor-header-pulse');
+        setTimeout(function() { target.classList.remove('athoor-header-pulse'); }, 500);
+      }, 500);
+    }
+
+    // Mark hearts active on load
+    function syncHearts() {
+      var list = getWishlist();
+      document.querySelectorAll('.athoor-bs-wish[data-bs-wish]').forEach(function(h) {
+        if (list.indexOf(h.getAttribute('data-bs-wish')) > -1) h.classList.add('is-active');
+        else h.classList.remove('is-active');
+      });
+    }
+    syncHearts();
+    setTimeout(syncHearts, 1000); // catch swiper clones
+
+    document.addEventListener('click', function(e) {
+      var wishBtn = e.target.closest('.athoor-bs-wish');
+      var cartBtn = e.target.closest('.athoor-bs-addcart');
+
+      if (wishBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var handle = wishBtn.getAttribute('data-bs-wish');
+        var list = getWishlist();
+        var idx = list.indexOf(handle);
+        if (idx > -1) {
+          list.splice(idx, 1);
+          saveWishlist(list);
+          // Unmark all hearts for this handle (clones included)
+          document.querySelectorAll('.athoor-bs-wish[data-bs-wish="' + handle + '"]').forEach(function(h){ h.classList.remove('is-active'); });
+          bsToast('Removed from Wishlist');
+        } else {
+          list.push(handle);
+          saveWishlist(list);
+          document.querySelectorAll('.athoor-bs-wish[data-bs-wish="' + handle + '"]').forEach(function(h){ h.classList.add('is-active'); });
+          wishBtn.classList.add('is-animating');
+          setTimeout(function(){ wishBtn.classList.remove('is-animating'); }, 400);
+          flyToHeader(wishBtn, '.header__icon--wishlist', '#c0392b');
+          bsToast('Added to Wishlist');
+        }
+        return;
+      }
+
+      if (cartBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var variantId = cartBtn.getAttribute('data-bs-cart');
+        if (!variantId) return;
+
+        // Toggle: if already added, remove from cart and reset color
+        if (cartBtn.classList.contains('is-added')) {
+          cartBtn.classList.remove('is-added');
+          bsToast('Removed from Cart');
+          // Remove item from cart
+          fetch('/cart/change.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: variantId, quantity: 0 })
+          }).then(function(r){ return r.json(); }).then(function(cart){
+            updateCartBubble(cart.item_count);
+          });
+          return;
+        }
+
+        // Add to cart
+        fetch('/cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [{ id: variantId, quantity: 1 }] })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function() {
+          cartBtn.classList.add('is-added');
+          flyToHeader(cartBtn, '#cart-icon-bubble', '#1a1a1a');
+          bsToast('Added to Cart');
+          fetch('/cart.js').then(function(r){ return r.json(); }).then(function(cart){
+            updateCartBubble(cart.item_count);
+          });
+        })
+        .catch(function(){ bsToast('Could not add to cart'); });
+        return;
+      }
+    });
+  })();
+})();
+</script>
+
+<style>
+/* Bestsellers toast (shared premium style) */
+.athoor-bs-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
+  z-index: 100000;
+  background: rgba(26, 26, 26, 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+.athoor-bs-toast svg { width: 16px; height: 16px; color: #c0392b; flex-shrink: 0; }
+.athoor-bs-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media screen and (max-width: 749px) {
+  .athoor-bs-toast { bottom: 20px; font-size: 12px; padding: 10px 16px; }
+}
+
+/* Fly-to-header dot animation */
+.athoor-fly-dot {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 1;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease;
+}
+/* Header icon pulse when item arrives */
+.athoor-header-pulse {
+  animation: athoorPulseHeader 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes athoorPulseHeader {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+</style>
+
+{% schema %}
+{
+  "name": "Bestsellers Marquee",
+  "settings": [
+    { "type": "text", "id": "subtitle", "label": "Subtitle", "default": "BEST SELLERS" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Bestsellers" },
+    { "type": "text", "id": "description", "label": "Description", "default": "Timeless favourites, loved by many." },
+    { "type": "collection", "id": "collection", "label": "Collection" },
+    { "type": "range", "id": "limit", "min": 3, "max": 12, "step": 1, "default": 6, "label": "Products to show" },
+    { "type": "checkbox", "id": "show_bottle_image", "label": "Show Identity bottle accent", "default": false }
+  ],
+  "presets": [ { "name": "Bestsellers Marquee" } ]
+}
+{% endschema %}

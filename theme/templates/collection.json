@@ -1,0 +1,44 @@
+{
+  "sections": {
+    "edp": {
+      "type": "athoor-edp",
+      "blocks": {
+        "p_gissah": {
+          "type": "product",
+          "settings": {
+            "product": "gissa-d-aura",
+            "tagline": "Dark, layered and non-negotiable."
+          }
+        },
+        "p_identity": {
+          "type": "product",
+          "settings": {
+            "product": "identity",
+            "tagline": "A sparkling ode to bold individuality."
+          }
+        },
+        "p_oldmoney": {
+          "type": "product",
+          "settings": {
+            "product": "old-money",
+            "tagline": "Quiet wealth, effortlessly refined."
+          }
+        }
+      },
+      "block_order": ["p_gissah", "p_identity", "p_oldmoney"],
+      "settings": {
+        "page_heading": "Fragrances & Ouds",
+        "title": "Extrait de Parfum",
+        "subtitle": "As intense, unique and unforgettable as your signature.",
+        "eyebrow": "EXTRAIT DE PARFUM",
+        "limit": 8,
+        "bg_color": "#faf8f5",
+        "text_color": "#1a1a1a",
+        "rule_color": "#c47b3f",
+        "padding_top": 56,
+        "padding_bottom": 72
+      }
+    }
+  },
+  "order": ["edp"]
+}

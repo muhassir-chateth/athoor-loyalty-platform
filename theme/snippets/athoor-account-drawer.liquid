@@ -1,0 +1,233 @@
+{%- comment -%}
+  Slide-in account login drawer (LV style). Rendered for logged-out visitors.
+  Trigger: any element with [data-account-drawer-open]. Falls back to /pages/account-landing.
+{%- endcomment -%}
+
+<style>
+  .acc-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .acc-drawer.active { visibility: visible; pointer-events: auto; }
+
+  .acc-drawer__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .acc-drawer.active .acc-drawer__overlay { opacity: 1; }
+
+  .acc-drawer__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 460px;
+    max-width: 92vw;
+    background: #fff;
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .acc-drawer.active .acc-drawer__panel { transform: translateX(0); }
+
+  .acc-login {
+    padding: 26px 30px 50px;
+    color: #1a1a1a;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  .acc-login__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .acc-login__top h2 { font-size: 18px; font-weight: 400; letter-spacing: 0.01em; margin: 0; }
+  .acc-login__close {
+    background: none; border: none; font-size: 22px; line-height: 1;
+    cursor: pointer; color: #1a1a1a; padding: 4px;
+  }
+
+  .acc-login__h3 { font-size: 15px; font-weight: 400; margin: 0 0 16px; }
+  .acc-welcome { font-size: 12.5px; line-height: 1.6; color: #8a8079; font-weight: 300; margin: 0 0 20px; }
+
+  .acc-social {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; height: 48px; border: 1px solid #1a1a1a; border-radius: 40px;
+    background: #fff; font-size: 13px; color: #1a1a1a; cursor: pointer;
+    margin-bottom: 10px; text-decoration: none; transition: background 0.2s ease;
+  }
+  .acc-social:hover { background: #f9f7f4; }
+  .acc-social svg { width: 16px; height: 16px; }
+
+  .acc-or { text-align: center; font-size: 13px; margin: 18px 0; }
+  .acc-mandatory { text-align: right; font-size: 11px; margin-bottom: 10px; }
+
+  .acc-field { margin-bottom: 18px; position: relative; }
+  .acc-field label { display: block; font-size: 12px; margin-bottom: 6px; }
+  .acc-field input {
+    width: 100%; height: 48px; padding: 0 40px 0 14px;
+    border: 1px solid #cfcac2; border-radius: 2px; background: #fff;
+    font-size: 14px; color: #1a1a1a; box-sizing: border-box; transition: border-color 0.2s ease;
+  }
+  .acc-field input:focus { outline: none; border-color: #1a1a1a; }
+  .acc-eye {
+    position: absolute; right: 12px; top: 32px; background: none; border: none;
+    cursor: pointer; padding: 4px; color: #5a5450;
+  }
+  .acc-eye svg { width: 18px; height: 18px; }
+
+  .acc-forgot {
+    display: inline-block; font-size: 12px; color: #1a1a1a;
+    text-decoration: underline; text-underline-offset: 3px; margin-bottom: 16px;
+  }
+  .acc-otl { font-size: 12px; line-height: 1.5; margin: 0 0 18px; }
+  .acc-otl a { color: #1a1a1a; text-decoration: underline; text-underline-offset: 3px; }
+
+  .acc-btn {
+    display: flex; align-items: center; justify-content: center; width: 100%; height: 48px;
+    background: #000; color: #fff; border: none; border-radius: 40px; font-size: 13px;
+    cursor: pointer; text-decoration: none; transition: opacity 0.2s ease;
+  }
+  .acc-btn:hover { opacity: 0.85; }
+  .acc-btn--outline { background: #fff; color: #1a1a1a; border: 1px solid #1a1a1a; }
+  .acc-btn--outline:hover { background: #f9f7f4; opacity: 1; }
+
+  .acc-divider { border: none; border-top: 1px solid #e3dcd0; margin: 28px 0; }
+
+  .acc-noaccount h3 { font-size: 15px; font-weight: 400; margin: 0 0 8px; }
+  .acc-noaccount p { font-size: 12px; color: #6b6b6b; line-height: 1.6; margin: 0 0 16px; font-weight: 300; }
+
+  .acc-join { text-align: center; padding-top: 4px; }
+  .acc-join__title { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; margin: 0 0 20px; }
+  .acc-join__item { padding: 14px 0; border-top: 1px solid #ece6dd; }
+  .acc-join__item:first-of-type { border-top: none; }
+  .acc-join__item h4 { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; margin: 0 0 4px; }
+  .acc-join__item p { font-size: 11px; line-height: 1.5; color: #8a8079; margin: 0 auto; max-width: 280px; font-weight: 300; }
+
+  @media screen and (max-width: 749px) {
+    .acc-login { padding: 22px 20px 44px; }
+  }
+</style>
+
+<div class="acc-drawer" id="AccountDrawer" aria-hidden="true">
+  <div class="acc-drawer__overlay" data-account-drawer-close></div>
+  <div class="acc-drawer__panel" role="dialog" aria-modal="true" aria-label="My Account">
+    <div class="acc-login">
+      <div class="acc-login__top">
+        <h2>My Account</h2>
+        <button type="button" class="acc-login__close" data-account-drawer-close aria-label="Close">&times;</button>
+      </div>
+
+      <p class="acc-welcome">Welcome to My Athoor London. Sign in to track orders, earn points and enjoy member-only offers.</p>
+
+      <h3 class="acc-login__h3">I already have an account</h3>
+
+      <a href="{{ routes.account_login_url }}" class="acc-social">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Sign in with Google
+      </a>
+
+      <a href="{{ routes.account_login_url }}" class="acc-social">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#000" d="M16.36 12.78c-.02-2.02 1.65-2.99 1.72-3.04-.94-1.37-2.4-1.56-2.92-1.58-1.24-.13-2.43.73-3.06.73-.63 0-1.6-.71-2.64-.69-1.36.02-2.61.79-3.31 2-1.41 2.45-.36 6.07 1.01 8.06.67.97 1.47 2.06 2.51 2.02 1.01-.04 1.39-.65 2.61-.65 1.22 0 1.56.65 2.63.63 1.09-.02 1.78-.99 2.45-1.97.77-1.12 1.09-2.21 1.11-2.27-.02-.01-2.13-.82-2.15-3.24zM14.38 6.84c.56-.68.94-1.62.83-2.56-.81.03-1.79.54-2.37 1.21-.52.6-.97 1.56-.85 2.48.9.07 1.83-.46 2.39-1.13z"/></svg>
+        Sign in with Apple
+      </a>
+
+      <p class="acc-or">Or</p>
+      <p class="acc-mandatory">Mandatory Fields*</p>
+
+      <div class="acc-field">
+        <label for="AccEmail">Login*</label>
+        <input type="email" id="AccEmail" autocomplete="email" autocorrect="off" autocapitalize="off">
+      </div>
+
+      <div class="acc-field">
+        <label for="AccPassword">Password*</label>
+        <input type="password" id="AccPassword" autocomplete="current-password">
+        <button type="button" class="acc-eye" data-acc-eye aria-label="Show password">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><line x1="4" y1="4" x2="20" y2="20"/></svg>
+        </button>
+      </div>
+
+      <a href="{{ routes.account_login_url }}" class="acc-forgot">Forgot your password?</a>
+      <p class="acc-otl">Or use a one-time login link to sign in. <a href="{{ routes.account_login_url }}">Email me the link</a></p>
+
+      <a href="{{ routes.account_login_url }}" class="acc-btn">Sign In</a>
+
+      <hr class="acc-divider">
+
+      <div class="acc-noaccount">
+        <h3>I don't have an account</h3>
+        <p>Enjoy added benefits and a richer experience by creating a personal account</p>
+        <a href="{{ routes.account_register_url }}" class="acc-btn acc-btn--outline">Create an Account</a>
+      </div>
+
+      <hr class="acc-divider">
+
+      <div class="acc-join">
+        <h3 class="acc-join__title">Join My Athoor London</h3>
+        <div class="acc-join__item">
+          <h4>Track Your Orders</h4>
+          <p>Follow your orders every step of the way.</p>
+        </div>
+        <div class="acc-join__item">
+          <h4>Streamline Checkout</h4>
+          <p>Check out faster with saved addresses and payment methods.</p>
+        </div>
+        <div class="acc-join__item">
+          <h4>Book an Appointment</h4>
+          <p>Enjoy priority access to the boutique of your choice at the time and date that suits you.</p>
+        </div>
+        <a href="/pages/rewards" class="acc-btn acc-btn--outline" style="margin-top:16px;">View the Rewards Club</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    if (window.__athoorAccDrawerInit) return;
+    window.__athoorAccDrawerInit = true;
+
+    var drawer = document.getElementById('AccountDrawer');
+    if (!drawer) return;
+
+    function openDrawer() {
+      drawer.classList.add('active');
+      drawer.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDrawer() {
+      drawer.classList.remove('active');
+      drawer.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    // Trigger from profile icon / any opener
+    document.addEventListener('click', function (e) {
+      var opener = e.target.closest('[data-account-drawer-open]');
+      if (opener) { e.preventDefault(); openDrawer(); return; }
+      if (e.target.closest('[data-account-drawer-close]')) { e.preventDefault(); closeDrawer(); }
+    });
+
+    document.addEventListener('keyup', function (e) {
+      if (e.key === 'Escape' && drawer.classList.contains('active')) closeDrawer();
+    });
+
+    // Password eye toggle
+    var eye = drawer.querySelector('[data-acc-eye]');
+    if (eye) {
+      eye.addEventListener('click', function () {
+        var input = document.getElementById('AccPassword');
+        if (input) input.type = input.type === 'password' ? 'text' : 'password';
+      });
+    }
+  })();
+</script>

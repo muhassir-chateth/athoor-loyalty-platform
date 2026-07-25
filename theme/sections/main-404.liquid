@@ -1,0 +1,44 @@
+<style type="text/css">
+  .template-404{
+    margin-top: 0rem;
+    margin-bottom: 6.5rem;
+  }
+  .template-404 .title + * {
+    margin-top: 1rem;
+  }
+
+  @media screen and (min-width: 750px) {
+    .template-404 .title + * {
+      margin-top: 2rem;
+    }
+  }
+.template-404 .title + .button{
+      min-width: 21.5rem;
+  text-transform: uppercase;
+  transition: all .3s linear;
+}
+  .template-404 .title + .button:hover {
+    color: var(--color-icon);
+    
+}
+.template-404 .title + .button:before{
+  background: var(--gradient-base-background-2);
+}
+@media screen and (max-width: 989px){
+  .template-404{
+     margin-bottom: 5rem;
+    }
+}
+</style>
+
+<div class="template-404 page-width page-margin center">
+  <p>
+    {{ 'templates.404.subtext' | t }}
+  </p>
+  <h1 class="title">
+    {{ 'templates.404.title' | t }}
+  </h1>
+  <a href="{{ routes.all_products_collection_url }}" class="button">
+    {{ 'general.continue_shopping' | t }}
+  </a>
+</div>

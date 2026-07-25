@@ -1,0 +1,194 @@
+<!-- Image with text -->
+{%- if block.settings.image_1 != blank -%}
+  {%- assign tertiarySize = tertiarySize | plus: 1 -%}
+  <li class="dt-sc-menu-image-with-text top-level-link">
+    <div class="dt-sc-mega_menu text-center">
+      {%- capture dt_megaImage -%}
+      {%- if block.settings.image_1 != blank -%}
+        <img  class="dt-sc-brand-image"
+                        srcset="{%- if block.settings.image_1.width >= 375 -%}{{ block.settings.image_1 | image_url: width: 375 }} 375w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 550 -%}{{ block.settings.image_1 | image_url: width: 550 }} 550w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 750 -%}{{ block.settings.image_1 | image_url: width: 750 }} 750w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 1100 -%}{{ block.settings.image_1 | image_url: width: 1100 }} 1100w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 1500 -%}{{ block.settings.image_1 | image_url: width: 1500 }} 1500w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 1780 -%}{{ block.settings.image_1 | image_url: width: 1780 }} 1780w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 2000 -%}{{ block.settings.image_1 | image_url: width: 2000 }} 2000w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 3000 -%}{{ block.settings.image_1 | image_url: width: 3000 }} 3000w,{%- endif -%}
+                        {%- if block.settings.image_1.width >= 3840 -%}{{ block.settings.image_1 | image_url: width: 3840 }} 3840w,{%- endif -%}
+                        {{ block.settings.image_1 | image_url: width: 1500 }} {{ block.settings.image_1.width }}w"
+                        sizes="100vw"
+                        src="{{ block.settings.image_1 | image_url: width: 1500 }}"
+                        loading="lazy"              
+                        alt="{{ block.settings.image_1.alt | escape }}"
+                        width="{{ block.settings.image_1.width }}"
+                        height="{{ block.settings.image_1.width | divided_by: block.settings.image_1.aspect_ratio | round }}"
+                      >
+        {%- else -%}
+          {{ 'image' | placeholder_svg_tag: 'placeholder_svg' }}
+      
+      {%- endif -%}
+      {%- endcapture -%}
+      {%- unless block.settings.link_1 == blank -%}
+      <a href="{{ block.settings.link_1 }}"  class="dt-sc-mega_menu-link">{{ dt_megaImage }}</a>
+      {%- else -%}
+      {{ dt_megaImage }}
+      {%- endunless -%}
+      <div class="dt-sc-details">
+        {%- unless block.settings.title_1 == blank -%}
+        <h6 class="dt-sc-mega_menu-title"><a href="{% if block.settings.link_1 != blank %}{{ block.settings.link_1 }}{% else %}#{% endif %}" class="dt-sc-mega_menu-title-link">{{ block.settings.title_1 }}</a></h6>
+        {%- endunless -%}
+        {%- unless block.settings.button_1 == blank -%}
+        <a {% if block.settings.link_1 != blank %} href="{{ block.settings.link_1 }}"{% endif %} class="button">{{ block.settings.button_1 }}</a>
+        {%- endunless -%}
+      </div>
+    </div>
+  </li>
+  {%- endif -%}
+  <!-- Image with text  End-->
+  <!-- Image with text -->
+  {%- if block.settings.image_2 != blank -%}
+  {%- assign tertiarySize = tertiarySize | plus: 2 -%}
+  <li class="dt-sc-menu-image-with-text top-level-link">
+    <div class="dt-sc-mega_menu text-center">
+      {%- capture dt_megaImage -%}
+      {%- if block.settings.image_2 != blank -%}
+        <img  class="dt-sc-brand-image"
+                        srcset="{%- if block.settings.image_2.width >= 375 -%}{{ block.settings.image_2 | image_url: width: 375 }} 375w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 550 -%}{{ block.settings.image_2 | image_url: width: 550 }} 550w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 750 -%}{{ block.settings.image_2 | image_url: width: 750 }} 750w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 1100 -%}{{ block.settings.image_2 | image_url: width: 1100 }} 1100w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 1500 -%}{{ block.settings.image_2 | image_url: width: 1500 }} 1500w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 1780 -%}{{ block.settings.image_2 | image_url: width: 1780 }} 1780w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 2000 -%}{{ block.settings.image_2 | image_url: width: 2000 }} 2000w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 3000 -%}{{ block.settings.image_2 | image_url: width: 3000 }} 3000w,{%- endif -%}
+                        {%- if block.settings.image_2.width >= 3840 -%}{{ block.settings.image_2 | image_url: width: 3840 }} 3840w,{%- endif -%}
+                        {{ block.settings.image_2 | image_url: width: 1500 }} {{ block.settings.image_2.width }}w"
+                        sizes="100vw"
+                        src="{{ block.settings.image_2 | image_url: width: 1500 }}"
+                        loading="lazy"              
+                        alt="{{ block.settings.image_2.alt | escape }}"
+                        width="{{ block.settings.image_2.width }}"
+                        height="{{ block.settings.image_2.width | divided_by: block.settings.image_2.aspect_ratio | round }}"
+                      >
+        {%- else -%}
+          {{ 'image' | placeholder_svg_tag: 'placeholder_svg' }}
+      {%- endif -%}
+      {%- endcapture -%}
+      {%- unless block.settings.link_2 == blank -%}
+      <a href="{{ block.settings.link_2 }}"  class="dt-sc-mega_menu-link">{{ dt_megaImage }}</a>
+      {%- else -%}
+      {{ dt_megaImage }}
+      {%- endunless -%}
+      <div class="dt-sc-details">
+        {%- unless block.settings.title_2 == blank -%}
+        <h6 class="dt-sc-mega_menu-title"><a href="{% if block.settings.link_2 != blank %}{{ block.settings.link_2 }}{% else %}#{% endif %}" class="dt-sc-mega_menu-title-link">{{ block.settings.title_2 }}</a></h6>
+        {%- endunless -%}
+        {%- unless block.settings.button_2 == blank -%}
+        <a {% if block.settings.link_2 != blank %} href="{{ block.settings.link_2 }}"{% endif %} class="button">{{ block.settings.button_2 }}</a>
+        {%- endunless -%}
+      </div>
+    </div>
+  </li>
+  {%- endif -%}
+  <!-- Image with text  End-->
+  <!-- Image with text -->
+  {%- if block.settings.image_3 != blank -%}
+  {%- assign tertiarySize = tertiarySize | plus: 3 -%}
+  <li class="dt-sc-menu-image-with-text top-level-link">
+    <div class="dt-sc-mega_menu text-center">
+      {%- capture dt_megaImage -%}
+      {%- if block.settings.image_3 != blank -%}
+        <img  class="dt-sc-brand-image"
+                        srcset="{%- if block.settings.image_3.width >= 375 -%}{{ block.settings.image_3 | image_url: width: 375 }} 375w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 550 -%}{{ block.settings.image_3 | image_url: width: 550 }} 550w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 750 -%}{{ block.settings.image_3 | image_url: width: 750 }} 750w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 1100 -%}{{ block.settings.image_3 | image_url: width: 1100 }} 1100w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 1500 -%}{{ block.settings.image_3 | image_url: width: 1500 }} 1500w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 1780 -%}{{ block.settings.image_3 | image_url: width: 1780 }} 1780w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 2000 -%}{{ block.settings.image_3 | image_url: width: 2000 }} 2000w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 3000 -%}{{ block.settings.image_3 | image_url: width: 3000 }} 3000w,{%- endif -%}
+                        {%- if block.settings.image_3.width >= 3840 -%}{{ block.settings.image_3 | image_url: width: 3840 }} 3840w,{%- endif -%}
+                        {{ block.settings.image_3 | image_url: width: 1500 }} {{ block.settings.image_3.width }}w"
+                        sizes="100vw"
+                        src="{{ block.settings.image_3 | image_url: width: 1500 }}"
+                        loading="lazy"              
+                        alt="{{ block.settings.image_3.alt | escape }}"
+                        width="{{ block.settings.image_3.width }}"
+                        height="{{ block.settings.image_3.width | divided_by: block.settings.image_3.aspect_ratio | round }}"
+                      >
+        {%- else -%}
+          {{ 'image' | placeholder_svg_tag: 'placeholder_svg' }}
+       {%- endif -%}
+      {%- endcapture -%}
+      {%- unless block.settings.link_3 == blank -%}
+      <a href="{{ block.settings.link_3 }}"  class="dt-sc-mega_menu-link">{{ dt_megaImage }}</a>
+      {%- else -%}
+      {{ dt_megaImage }}
+      {%- endunless -%}
+      <div class="dt-sc-details">
+        {%- unless block.settings.title_3 == blank -%}
+        <h6 class="dt-sc-mega_menu-title"><a href="{% if block.settings.link_3 != blank %}{{ block.settings.link_3 }}{% else %}#{% endif %}" class="dt-sc-mega_menu-title-link">{{ block.settings.title_3 }}</a></h6>
+        {%- endunless -%}
+        {%- unless block.settings.button_3 == blank -%}
+        <a {% if block.settings.link_3 != blank %} href="{{ block.settings.link_3 }}"{% endif %} class="button">{{ block.settings.button_3 }}</a>
+        {%- endunless -%}
+      </div>
+    </div>
+  </li>
+  {%- endif -%}
+  <!-- Image with text  End-->
+  <!-- Image with text -->
+  {%- if block.settings.image_4 != blank -%}
+  {%- assign tertiarySize = tertiarySize | plus: 4 -%}
+  <li class="dt-sc-menu-image-with-text top-level-link">
+    <div class="dt-sc-mega_menu text-center">
+      {%- capture dt_megaImage -%}
+     {%- if block.settings.image_4 != blank -%}
+        <img  class="dt-sc-brand-image"
+                        srcset="{%- if block.settings.image_4.width >= 375 -%}{{ block.settings.image_4 | image_url: width: 375 }} 375w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 550 -%}{{ block.settings.image_4 | image_url: width: 550 }} 550w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 750 -%}{{ block.settings.image_4 | image_url: width: 750 }} 750w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 1100 -%}{{ block.settings.image_4 | image_url: width: 1100 }} 1100w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 1500 -%}{{ block.settings.image_4 | image_url: width: 1500 }} 1500w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 1780 -%}{{ block.settings.image_4 | image_url: width: 1780 }} 1780w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 2000 -%}{{ block.settings.image_4 | image_url: width: 2000 }} 2000w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 3000 -%}{{ block.settings.image_4 | image_url: width: 3000 }} 3000w,{%- endif -%}
+                        {%- if block.settings.image_4.width >= 3840 -%}{{ block.settings.image_4 | image_url: width: 3840 }} 3840w,{%- endif -%}
+                        {{ block.settings.image_4 | image_url: width: 1500 }} {{ block.settings.image_4.width }}w"
+                        sizes="100vw"
+                        src="{{ block.settings.image_4 | image_url: width: 1500 }}"
+                        loading="lazy"              
+                        alt="{{ block.settings.image_4.alt | escape }}"
+                        width="{{ block.settings.image_4.width }}"
+                        height="{{ block.settings.image_4.width | divided_by: block.settings.image_4.aspect_ratio | round }}"
+                      >
+        {%- else -%}
+          {{ 'image' | placeholder_svg_tag: 'placeholder_svg' }}
+       {%- endif -%}
+      {%- endcapture -%}
+      {%- unless block.settings.link_4 == blank -%}
+      <a href="{{ block.settings.link_4 }}"  class="dt-sc-mega_menu-link">{{ dt_megaImage }}</a>
+      {%- else -%}
+      {{ dt_megaImage }}
+      {%- endunless -%}
+  
+      <div class="dt-sc-details">
+        {%- unless block.settings.title_4 == blank -%}
+        <h6 class="dt-sc-mega_menu-title">
+          <a href="{% if block.settings.link_4 != blank %}{{ block.settings.link_4 }}{% else %}#{% endif %}" class="dt-sc-mega_menu-title-link">
+            {{ block.settings.title_4 }}
+          </a>
+        </h6>
+        {%- endunless -%}
+  
+        {%- unless block.settings.button_4 == blank -%}
+        <a {% if block.settings.link_4 != blank %} href="{{ block.settings.link_4 }}"{% endif %} class="button">
+          {{ block.settings.button_4 }}
+        </a>
+        {%- endunless -%}
+      </div>
+  
+    </div>
+  </li>
+  {%- endif -%}
+  <!-- Image with text  End-->

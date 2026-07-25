@@ -1,0 +1,643 @@
+{%- liquid
+  assign coll = section.settings.collection
+  assign products = coll.products
+  if section.settings.limit > 0
+    assign products = products | slice: 0, section.settings.limit
+  endif
+-%}
+
+{%- style -%}
+  /* Hide the default "Products" breadcrumb banner on pages using this section */
+  .breadcrumb { display: none !important; }
+
+  .athoor-edp {
+    background: {{ section.settings.bg_color }};
+    padding: {{ section.settings.padding_top }}px 0 {{ section.settings.padding_bottom }}px;
+  }
+  .athoor-edp__pagetitle-wrap { text-align: center; max-width: 900px; margin: 0 auto 44px; padding: 0 24px; }
+  .athoor-edp__pagetitle {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-size: 46px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: {{ section.settings.text_color }};
+    margin: 0 0 22px;
+  }
+  .athoor-edp__rule {
+    display: block;
+    width: 460px;
+    max-width: 78%;
+    height: 1px;
+    background: {{ section.settings.rule_color }};
+    margin: 0 auto;
+  }
+  .athoor-edp__head { text-align: center; max-width: 760px; margin: 0 auto 40px; padding: 0 24px; }
+  .athoor-edp__title {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-size: 42px;
+    letter-spacing: 0.01em;
+    color: {{ section.settings.text_color }};
+    margin: 0 0 12px;
+  }
+  .athoor-edp__subtitle {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #6b6258;
+    font-weight: 300;
+    margin: 0;
+  }
+
+  .athoor-edp__wrap { position: relative; max-width: 1240px; margin: 0 auto; padding: 0 40px; overflow: hidden; }
+  .athoor-edp__track {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    transform: translateX(0);
+    transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+    touch-action: pan-y;
+    will-change: transform;
+  }
+  .athoor-edp__card {
+    flex: 0 0 calc((100% - 3 * 32px) / 4);
+    text-align: center;
+    text-decoration: none;
+    display: block;
+  }
+  .athoor-edp__img {
+    height: 300px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    margin-bottom: 22px;
+    position: relative;
+  }
+  .athoor-edp__img img {
+    max-height: 300px;
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 16px 20px rgba(0,0,0,0.12));
+  }
+  .athoor-edp__eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8a8079;
+    margin: 0 0 8px;
+  }
+  .athoor-edp__name {
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: {{ section.settings.text_color }};
+    margin: 0 0 8px;
+  }
+  .athoor-edp__tagline {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #6b6258;
+    font-weight: 300;
+    margin: 0 0 12px;
+    min-height: 18px;
+  }
+  .athoor-edp__price { font-size: 14px; color: {{ section.settings.text_color }}; margin: 0; }
+
+  .athoor-edp__nav {
+    position: absolute;
+    top: 150px;
+    transform: translateY(-50%);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid #d8d2c8;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .athoor-edp__nav:hover { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .athoor-edp__nav svg { width: 14px; height: 14px; }
+  .athoor-edp__nav--prev { left: 0; }
+  .athoor-edp__nav--next { right: 0; }
+
+  @media screen and (max-width: 989px) {
+    .athoor-edp__card { flex: 0 0 calc((100% - 32px) / 2); }
+    .athoor-edp__wrap { padding: 0 44px; }
+  }
+  @media screen and (max-width: 749px) {
+    .athoor-edp { padding: 44px 0 48px; }
+    .athoor-edp__pagetitle { font-size: 28px; letter-spacing: 0.05em; }
+    .athoor-edp__pagetitle-wrap { margin-bottom: 32px; }
+    .athoor-edp__title { font-size: 28px; }
+    .athoor-edp__subtitle { font-size: 13px; }
+    .athoor-edp__wrap { padding: 0 20px; }
+    .athoor-edp__track { gap: 16px; }
+    .athoor-edp__card { flex: 0 0 70%; }
+    .athoor-edp__img { height: 230px; }
+    .athoor-edp__img img { max-height: 230px; }
+    .athoor-edp__name { font-size: 14px; }
+    .athoor-edp__tagline { font-size: 12px; }
+    .athoor-edp__nav { width: 32px; height: 32px; top: 115px; }
+    .athoor-edp__nav svg { width: 12px; height: 12px; }
+  }
+{%- endstyle -%}
+
+<section class="athoor-edp" aria-label="{{ section.settings.title | escape }}">
+  {%- if section.settings.page_heading != blank -%}
+    <div class="athoor-edp__pagetitle-wrap">
+      <h1 class="athoor-edp__pagetitle">{{ section.settings.page_heading }}</h1>
+      <span class="athoor-edp__rule"></span>
+    </div>
+  {%- endif -%}
+  <div class="athoor-edp__head">
+    {%- if section.settings.title != blank -%}
+      <h2 class="athoor-edp__title">{{ section.settings.title }}</h2>
+    {%- endif -%}
+    {%- if section.settings.subtitle != blank -%}
+      <p class="athoor-edp__subtitle">{{ section.settings.subtitle }}</p>
+    {%- endif -%}
+  </div>
+
+  <div class="athoor-edp__wrap">
+    <button type="button" class="athoor-edp__nav athoor-edp__nav--prev" data-edp-prev aria-label="Previous">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+
+    <div class="athoor-edp__track" id="AthoorEdpTrack-{{ section.id }}">
+      {%- if section.blocks.size > 0 -%}
+        {%- for block in section.blocks -%}
+          {%- assign product = block.settings.product -%}
+          {%- if product != blank -%}
+            <a href="{{ product.url }}" class="athoor-edp__card" {{ block.shopify_attributes }}>
+              <div class="athoor-edp__img">
+                {%- if product.featured_image -%}
+                  <img src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy" width="600" height="600">
+                {%- endif -%}
+              </div>
+              <p class="athoor-edp__eyebrow">{{ section.settings.eyebrow | default: product.type }}</p>
+              <h3 class="athoor-edp__name">{{ product.title }}</h3>
+              {% render 'athoor-stars', product: product %}
+              <p class="athoor-edp__tagline">{{ block.settings.tagline | default: product.metafields.descriptors.subtitle.value }}</p>
+              <p class="athoor-edp__price">{{ product.price | money }}</p>
+            </a>
+          {%- endif -%}
+        {%- endfor -%}
+      {%- else -%}
+        {%- for product in products -%}
+          <a href="{{ product.url }}" class="athoor-edp__card">
+            <div class="athoor-edp__img">
+              {%- if product.featured_image -%}
+                <img src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy" width="600" height="600">
+              {%- endif -%}
+            </div>
+            <p class="athoor-edp__eyebrow">{{ section.settings.eyebrow | default: product.type }}</p>
+            <h3 class="athoor-edp__name">{{ product.title }}</h3>
+            {% render 'athoor-stars', product: product %}
+            <p class="athoor-edp__tagline">{{ product.metafields.descriptors.subtitle.value }}</p>
+            <p class="athoor-edp__price">{{ product.price | money }}</p>
+          </a>
+        {%- else -%}
+          <p style="grid-column: 1 / -1; text-align:center; color:#8a8079;">Add product blocks or select a collection in the theme editor.</p>
+        {%- endfor -%}
+      {%- endif -%}
+    </div>
+
+    <button type="button" class="athoor-edp__nav athoor-edp__nav--next" data-edp-next aria-label="Next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var track = document.getElementById('AthoorEdpTrack-{{ section.id }}');
+    if (!track) return;
+    var wrap = track.closest('.athoor-edp__wrap');
+    var prev = wrap.querySelector('[data-edp-prev]');
+    var next = wrap.querySelector('[data-edp-next]');
+    var index = 0;
+
+    function step() {
+      var card = track.querySelector('.athoor-edp__card');
+      if (!card) return 0;
+      var cs = getComputedStyle(track);
+      var gap = parseFloat(cs.columnGap || cs.gap) || 16;
+      return card.getBoundingClientRect().width + gap;
+    }
+    function visibleCount() {
+      var s = step();
+      if (!s) return 1;
+      return Math.max(1, Math.round((wrap.clientWidth + 1) / s));
+    }
+    function maxIndex() {
+      return Math.max(0, track.children.length - visibleCount());
+    }
+    function apply() {
+      track.style.transform = 'translateX(' + (-(index * step())) + 'px)';
+    }
+    function go(i) {
+      index = Math.max(0, Math.min(maxIndex(), i));
+      apply();
+    }
+    function setArrows() {
+      var show = maxIndex() > 0;
+      if (prev) prev.style.display = show ? 'flex' : 'none';
+      if (next) next.style.display = show ? 'flex' : 'none';
+    }
+    function reset() {
+      if (maxIndex() <= 0) {
+        index = 0;
+        track.style.justifyContent = 'center';
+        track.style.transform = 'translateX(0)';
+      } else {
+        track.style.justifyContent = 'flex-start';
+        go(Math.min(index, maxIndex()));
+      }
+      setArrows();
+    }
+
+    if (prev) prev.addEventListener('click', function () { go(index - 1); });
+    if (next) next.addEventListener('click', function () { go(index + 1); });
+
+    var x0 = null, y0 = null;
+    track.addEventListener('touchstart', function (e) {
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    }, { passive: true });
+    track.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0;
+      var dy = e.changedTouches[0].clientY - y0;
+      if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy)) {
+        go(index + (dx < 0 ? 1 : -1));
+      }
+      x0 = null;
+    }, { passive: true });
+
+    window.addEventListener('resize', reset);
+    reset();
+
+    /* ===== Premium Wishlist Heart + Toast ===== */
+    var WISH_KEY = 'shopify-wishlist';
+
+    function getWishlist() {
+      return (localStorage.getItem(WISH_KEY) || '').split(',').filter(Boolean);
+    }
+    function addToWishlist(handle) {
+      var list = getWishlist();
+      if (list.indexOf(handle) === -1) list.push(handle);
+      localStorage.setItem(WISH_KEY, list.join(','));
+      // Update header count
+      var countEl = document.querySelector('.dtxc-wishlist-count');
+      if (countEl) countEl.setAttribute('count', list.length);
+    }
+    function removeFromWishlist(handle) {
+      var list = getWishlist();
+      var idx = list.indexOf(handle);
+      if (idx > -1) list.splice(idx, 1);
+      if (list.length > 0) {
+        localStorage.setItem(WISH_KEY, list.join(','));
+      } else {
+        localStorage.removeItem(WISH_KEY);
+      }
+      var countEl = document.querySelector('.dtxc-wishlist-count');
+      if (countEl) countEl.setAttribute('count', list.length);
+    }
+    function isInWishlist(handle) {
+      return getWishlist().indexOf(handle) !== -1;
+    }
+
+    // Inject hearts on each card
+    var cards = track.querySelectorAll('.athoor-edp__card');
+    cards.forEach(function(card) {
+      var imgWrap = card.querySelector('.athoor-edp__img');
+      if (!imgWrap) return;
+      var handle = card.getAttribute('href');
+      if (handle) handle = handle.replace('/products/', '').replace(/\/$/, '');
+
+      // Create heart button
+      var heart = document.createElement('button');
+      heart.type = 'button';
+      heart.className = 'athoor-edp-wish';
+      heart.setAttribute('aria-label', 'Add to Wishlist');
+      heart.setAttribute('data-handle', handle);
+      heart.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+
+      if (isInWishlist(handle)) heart.classList.add('is-active');
+      imgWrap.appendChild(heart);
+
+      // Create cart button (bottom-right of image)
+      var cartBtn = document.createElement('button');
+      cartBtn.type = 'button';
+      cartBtn.className = 'athoor-edp-addcart';
+      cartBtn.setAttribute('aria-label', 'Add to Cart');
+      cartBtn.setAttribute('data-variant', card.getAttribute('href'));
+      cartBtn.innerHTML = '<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5.2 7.3h11.6l-.9 11.4H6.1L5.2 7.3z"/><path d="M8.4 7.3V6.6C8.4 5.2 9.6 4 11 4s2.6 1.2 2.6 2.6v.7"/></svg>';
+      imgWrap.appendChild(cartBtn);
+
+      cartBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (cartBtn.classList.contains('is-added')) {
+          // Remove from cart
+          cartBtn.classList.remove('is-added');
+          showWishToast('Removed from Cart');
+          var storedVid = cartBtn.getAttribute('data-variant-id');
+          if (storedVid) {
+            fetch('/cart/change.js', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: storedVid, quantity: 0 })
+            }).then(function(r){ return r.json(); }).then(function(cart){
+              edpUpdateCartBubble(cart.item_count);
+            });
+          }
+          return;
+        }
+        // Get variant ID from the product page via AJAX
+        fetch('/products/' + handle + '.js')
+          .then(function(r) { return r.json(); })
+          .then(function(p) {
+            var vid = p.variants[0].id;
+            cartBtn.setAttribute('data-variant-id', vid);
+            return fetch('/cart/add.js', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: [{ id: vid, quantity: 1 }] })
+            });
+          })
+          .then(function(r) { return r.json(); })
+          .then(function() {
+            cartBtn.classList.add('is-added');
+            edpFlyToHeader(cartBtn, '#cart-icon-bubble', '#1a1a1a');
+            showWishToast('Added to Cart');
+            fetch('/cart.js').then(function(r){ return r.json(); }).then(function(cart){
+              edpUpdateCartBubble(cart.item_count);
+            });
+          })
+          .catch(function() { showWishToast('Could not add to cart'); });
+      });
+
+      heart.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (heart.classList.contains('is-active')) {
+          // Remove from wishlist
+          removeFromWishlist(handle);
+          heart.classList.remove('is-active');
+          showWishToast('Removed from Wishlist');
+        } else {
+          // Add to wishlist
+          addToWishlist(handle);
+          heart.classList.add('is-active');
+          heart.classList.add('is-animating');
+          setTimeout(function() { heart.classList.remove('is-animating'); }, 400);
+          edpFlyToHeader(heart, '.header__icon--wishlist', '#c0392b');
+          showWishToast('Added to Wishlist');
+        }
+      });
+    });
+
+    // Robust cart bubble updater
+    function edpUpdateCartBubble(count) {
+      var cartIcon = document.getElementById('cart-icon-bubble');
+      if (!cartIcon) return;
+      var bubble = cartIcon.querySelector('.cart-count-bubble');
+      if (count > 0) {
+        if (!bubble) {
+          bubble = document.createElement('div');
+          bubble.className = 'cart-count-bubble';
+          bubble.innerHTML = '<span aria-hidden="true"></span>';
+          cartIcon.appendChild(bubble);
+        }
+        var span = bubble.querySelector('span[aria-hidden="true"]') || bubble.querySelector('span');
+        if (span) span.textContent = count < 100 ? count : '';
+        bubble.style.display = '';
+      } else {
+        if (bubble) bubble.remove();
+      }
+    }
+
+    // Fly-to-header animation
+    function edpFlyToHeader(sourceEl, targetSelector, color) {
+      var target = document.querySelector(targetSelector);
+      if (!target || !sourceEl) return;
+      var srcRect = sourceEl.getBoundingClientRect();
+      var tgtRect = target.getBoundingClientRect();
+      var dot = document.createElement('div');
+      dot.style.cssText = 'position:fixed;width:12px;height:12px;border-radius:50%;z-index:2147483647;pointer-events:none;opacity:1;transition:transform 0.5s cubic-bezier(0.2,0.8,0.2,1),opacity 0.5s ease;background:' + (color || '#1a1a1a');
+      dot.style.left = (srcRect.left + srcRect.width / 2 - 6) + 'px';
+      dot.style.top = (srcRect.top + srcRect.height / 2 - 6) + 'px';
+      document.body.appendChild(dot);
+      requestAnimationFrame(function() {
+        dot.style.transform = 'translate(' + (tgtRect.left + tgtRect.width / 2 - srcRect.left - srcRect.width / 2) + 'px, ' + (tgtRect.top + tgtRect.height / 2 - srcRect.top - srcRect.height / 2) + 'px) scale(0.3)';
+        dot.style.opacity = '0.4';
+      });
+      setTimeout(function() {
+        dot.remove();
+        target.style.transform = 'scale(1.4)';
+        target.style.transition = 'transform 0.25s cubic-bezier(0.175,0.885,0.32,1.275)';
+        setTimeout(function() { target.style.transform = 'scale(1)'; }, 250);
+      }, 500);
+    }
+
+    // Toast notification
+    function showWishToast(message) {
+      var existing = document.querySelector('.athoor-edp-toast');
+      if (existing) existing.remove();
+      var toast = document.createElement('div');
+      toast.className = 'athoor-edp-toast';
+      toast.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>' + message + '</span>';
+      document.body.appendChild(toast);
+      requestAnimationFrame(function() { toast.classList.add('is-visible'); });
+      setTimeout(function() {
+        toast.classList.remove('is-visible');
+        setTimeout(function() { toast.remove(); }, 400);
+      }, 2500);
+    }
+  })();
+</script>
+
+<style>
+/* Premium Wishlist Heart — Top-right of product image */
+.athoor-edp-wish {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.athoor-edp-wish svg {
+  width: 18px;
+  height: 18px;
+  stroke: #1a1a1a;
+  fill: none;
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+.athoor-edp-wish:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.95);
+}
+.athoor-edp-wish.is-active svg {
+  fill: #c0392b;
+  stroke: #c0392b;
+}
+.athoor-edp-wish.is-animating {
+  animation: athoorWishPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes athoorWishPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Premium Toast Notification */
+.athoor-edp-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
+  z-index: 100000;
+  background: rgba(26, 26, 26, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+.athoor-edp-toast svg {
+  width: 16px;
+  height: 16px;
+  color: #c0392b;
+  flex-shrink: 0;
+}
+.athoor-edp-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media screen and (max-width: 749px) {
+  .athoor-edp-wish {
+    width: 32px;
+    height: 32px;
+    top: 8px;
+    right: 8px;
+  }
+  .athoor-edp-wish svg {
+    width: 16px;
+    height: 16px;
+  }
+  .athoor-edp-addcart {
+    width: 32px;
+    height: 32px;
+    bottom: 8px;
+    right: 8px;
+  }
+  .athoor-edp-addcart svg {
+    width: 16px;
+    height: 16px;
+  }
+  .athoor-edp-toast {
+    bottom: 20px;
+    font-size: 12px;
+    padding: 10px 16px;
+  }
+}
+
+/* Cart button — bottom-right of product image */
+.athoor-edp-addcart {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 3;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.athoor-edp-addcart svg {
+  width: 18px;
+  height: 18px;
+  stroke: #1a1a1a;
+  fill: none;
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+.athoor-edp-addcart:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.95);
+}
+.athoor-edp-addcart.is-added svg {
+  stroke: #1a1a1a;
+  fill: #1a1a1a;
+}
+</style>
+
+{% schema %}
+{
+  "name": "EDP Collection Row",
+  "tag": "section",
+  "settings": [
+    { "type": "text", "id": "page_heading", "label": "Top page heading", "default": "Fragrances & Ouds", "info": "Large heading with underline at the very top" },
+    { "type": "text", "id": "title", "label": "Heading", "default": "Eau De Parfum" },
+    { "type": "textarea", "id": "subtitle", "label": "Subtitle", "default": "As intense, unique and unforgettable as your signature." },
+    { "type": "text", "id": "eyebrow", "label": "Card eyebrow label", "default": "EAU DE PARFUM", "info": "Leave blank to use each product's type" },
+    { "type": "collection", "id": "collection", "label": "Collection" },
+    { "type": "range", "id": "limit", "min": 0, "max": 12, "step": 1, "label": "Max products (0 = all)", "default": 8 },
+    { "type": "header", "content": "Colours" },
+    { "type": "color", "id": "bg_color", "label": "Background", "default": "#faf8f5" },
+    { "type": "color", "id": "text_color", "label": "Text colour", "default": "#1a1a1a" },
+    { "type": "color", "id": "rule_color", "label": "Heading underline colour", "default": "#c47b3f" },
+    { "type": "header", "content": "Spacing" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding top", "default": 72 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding bottom", "default": 80 }
+  ],
+  "blocks": [
+    {
+      "type": "product",
+      "name": "Product",
+      "settings": [
+        { "type": "product", "id": "product", "label": "Product" },
+        { "type": "text", "id": "tagline", "label": "Tagline (optional)", "info": "Leave blank to use the product's subtitle metafield" }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [ { "name": "EDP Collection Row" } ]
+}
+{% endschema %}

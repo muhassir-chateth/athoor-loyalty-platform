@@ -1,0 +1,100 @@
+{% doc %}
+  @prompt
+    In the Dawn theme, I have a slideshow section. The third slide (block ID: template--25104111632723__slideshow_hFetqV__slide_C36QaP) contains a portrait/vertical video. On desktop, the video appears too small inside the wide slideshow area. Create a custom CSS block that:
+    1. Targets ONLY the third slide using the selector [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] 2. Makes the video element larger on desktop only, wrapped in @media (min-width: 990px) 3. Does NOT affect slides 1 or 2 4. Does NOT change any mobile styles
+    Use transform: scale() or increase the width and max-width of the video/media element inside that slide to make it fill more of the slideshow area on desktop.
+{% enddoc %}
+{% assign ai_gen_id = block.id | replace: '_', '' | downcase %}
+
+{% style %}
+  .ai-custom-css-{{ ai_gen_id }} {
+    display: block;
+    width: 100%;
+  }
+
+  @media (min-width: 990px) {
+    [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] .slideshow__media,
+    [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] video,
+    [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] .deferred-media__poster,
+    [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] .media {
+      {% if block.settings.scaling_method == 'transform' %}
+        transform: scale({{ block.settings.scale_factor }});
+        transform-origin: center center;
+      {% else %}
+        width: {{ block.settings.width_percent }}% !important;
+        max-width: {{ block.settings.width_percent }}% !important;
+        height: auto !important;
+        margin: 0 auto;
+      {% endif %}
+    }
+
+    {% if block.settings.scaling_method == 'width' %}
+      [id="template--25104111632723__slideshow_hFetqV__slide_C36QaP"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    {% endif %}
+  }
+{% endstyle %}
+
+<div class="ai-custom-css-{{ ai_gen_id }}" {{ block.shopify_attributes }}></div>
+
+{% schema %}
+{
+  "name": "Custom CSS for slide 3",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Video scaling settings"
+    },
+    {
+      "type": "paragraph",
+      "content": "This block targets only the third slide (slide_C36QaP) and makes the video larger on desktop screens (990px and above). It does not affect mobile or other slides."
+    },
+    {
+      "type": "select",
+      "id": "scaling_method",
+      "label": "Scaling method",
+      "options": [
+        {
+          "value": "transform",
+          "label": "Transform scale"
+        },
+        {
+          "value": "width",
+          "label": "Width adjustment"
+        }
+      ],
+      "default": "transform",
+      "info": "Transform scale enlarges the video from its center. Width adjustment changes the actual width of the video container."
+    },
+    {
+      "type": "range",
+      "id": "scale_factor",
+      "label": "Scale factor",
+      "min": 1,
+      "max": 3,
+      "step": 0.1,
+      "default": 1.5,
+      "info": "Only applies when using Transform scale method. 1 = original size, 2 = double size."
+    },
+    {
+      "type": "range",
+      "id": "width_percent",
+      "label": "Width",
+      "min": 100,
+      "max": 200,
+      "step": 5,
+      "unit": "%",
+      "default": 150,
+      "info": "Only applies when using Width adjustment method. 100% = original width, 150% = 1.5x wider."
+    }
+  ],
+  "presets": [
+    {
+      "name": "Custom CSS for slide 3"
+    }
+  ]
+}
+{% endschema %}

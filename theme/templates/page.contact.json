@@ -1,0 +1,127 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "disabled": true,
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "padding_top": 60,
+        "padding_bottom": 40
+      }
+    },
+    "form": {
+      "type": "contact-form",
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "heading": "Contact us now",
+        "heading_size": "h1",
+        "color_scheme": "accent-1",
+        "padding_top": 60,
+        "padding_bottom": 60
+      }
+    },
+    "5fc06070-c2e7-4290-b3f5-14e04376722a": {
+      "type": "support-block-contact",
+      "blocks": {
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-0": {
+          "type": "column",
+          "settings": {
+            "icon": "fa fa-phone",
+            "title": "Phone",
+            "text": "<p><strong>Call: </strong><a href=\"tel:01952948676\" title=\"tel:01952948676\">01952 948676</a></p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-1": {
+          "type": "column",
+          "settings": {
+            "icon": "fa fa-envelope",
+            "title": "Email",
+            "text": "<p><a href=\"mailto:iinfo@myathoorlondon.co.uk\" title=\"mailto:iinfo@myathoorlondon.co.uk\">info@myathoorlondon.co.uk</a></p>",
+            "link_label": "",
+            "link": ""
+          }
+        },
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-2": {
+          "type": "column",
+          "settings": {
+            "icon": "fa fa-location-arrow",
+            "title": "Address",
+            "text": "<p>21 Prince Andrew drive tf3 2JT Telford</p>",
+            "link_label": "",
+            "link": ""
+          }
+        }
+      },
+      "block_order": [
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-0",
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-1",
+        "template--19224948146478__5fc06070-c2e7-4290-b3f5-14e04376722a-1685084255677f1707-2"
+      ],
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "title": "It would be great to hear from you!",
+        "heading_size": "h1",
+        "sub_heading": "",
+        "description": "",
+        "button_label": "",
+        "button_link": "",
+        "button_style_secondary": false,
+        "column_alignment": "center",
+        "columns_desktop": 3,
+        "background_style": "primary",
+        "color_scheme": "accent-1",
+        "block_style": "grid__item",
+        "block_column_alignment": "center",
+        "icon_outer_size": "50",
+        "icon_size": "50",
+        "image_radius": "50%",
+        "block_color_scheme": "background-2",
+        "vertical_position": "veritcal_center",
+        "padding_top": 0,
+        "padding_bottom": 60,
+        "swiper_enable": false,
+        "desktop_column": 4,
+        "tablet_column": 3,
+        "mobile_column": 1,
+        "swiper_pagination": false,
+        "swiper_navigation": false,
+        "auto_play": 0,
+        "swipe_on_mobile": false,
+        "arrow_on_mobile": false,
+        "columns_mobile": "1",
+        "custom_class_name": ""
+      }
+    },
+    "ecdf9bb6-72e5-416a-ac42-2a05910a955a": {
+      "type": "custom-liquid",
+      "settings": {
+        "page_full_width": true,
+        "page_full_width_spacing": false,
+        "custom_liquid": "<iframe src=\"https://www.google.com/maps/embed?pb=!1m16!1m12!1m3!1d69868.73713084067!2d-76.66366768949287!3d39.29298751708703!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!2m1!1sNo%3A%2058%20A%2C%20East%20Madison%20Street%2CBaltimore%2C%20MD%2C%20USA%204508!5e0!3m2!1sen!2sin!4v1752950079880!5m2!1sen!2sin\" width=\"1920\" height=\"400\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+        "color_scheme": "background-1",
+        "padding_top": 0,
+        "padding_bottom": 0
+      }
+    }
+  },
+  "order": [
+    "main",
+    "form",
+    "5fc06070-c2e7-4290-b3f5-14e04376722a",
+    "ecdf9bb6-72e5-416a-ac42-2a05910a955a"
+  ]
+}

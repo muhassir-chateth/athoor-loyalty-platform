@@ -1,0 +1,16 @@
+{%- comment -%}
+  Renders review stars from the product's reviews.rating / reviews.rating_count metafields.
+  Usage: {% render 'athoor-stars', product: product %}
+{%- endcomment -%}
+{%- assign _rc = product.metafields.reviews.rating_count.value -%}
+{%- assign _rv = product.metafields.reviews.rating.value -%}
+{%- if _rc and _rc != 0 and _rv != blank -%}
+  {%- assign _rating = _rv.rating | default: _rv | times: 1.0 -%}
+  {%- assign _rounded = _rating | round -%}
+  <span class="athoor-stars" role="img" aria-label="{{ _rating }} out of 5 stars">
+    {%- for i in (1..5) -%}
+      <span class="athoor-stars__star{% if i <= _rounded %} is-on{% endif %}">&#9733;</span>
+    {%- endfor -%}
+    <span class="athoor-stars__count">({{ _rc }})</span>
+  </span>
+{%- endif -%}

@@ -1,0 +1,105 @@
+{%- style -%}
+  .athoor-house {
+    position: relative;
+    background: #1a1a1a;
+    overflow: hidden;
+    display: block;
+    width: 100%;
+  }
+  .athoor-house__link { display: block; }
+  .athoor-house__bg {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+  }
+  .athoor-house__overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.50) 100%);
+    {% unless section.settings.show_text %}display: none;{% endunless %}
+  }
+  .athoor-house__content {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 24px;
+    color: #fff;
+    {% unless section.settings.show_text %}display: none;{% endunless %}
+  }
+  .athoor-house__title {
+    font-family: Georgia, serif;
+    font-size: clamp(26px, 5vw, 46px);
+    letter-spacing: 0.08em;
+    font-weight: 400;
+    text-transform: uppercase;
+    margin: 0 0 16px 0;
+    color: #fff;
+  }
+  .athoor-house__text {
+    font-size: 14px;
+    letter-spacing: 0.03em;
+    line-height: 1.7;
+    max-width: 480px;
+    margin: 0 auto 28px auto;
+    color: #f0ede8;
+    font-weight: 300;
+  }
+  .athoor-house__btn {
+    display: inline-block;
+    padding: 15px 44px;
+    background: #fff;
+    color: #1a1a1a;
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+  }
+  .athoor-house__btn:hover {
+    background: #B8960C;
+    color: #fff;
+  }
+{%- endstyle -%}
+
+<div class="athoor-house">
+  {%- assign bg_src = section.settings.image | image_url: width: 1600 -%}
+  {%- if section.settings.image == blank -%}
+    {%- assign bg_src = 'https://cdn.shopify.com/s/files/1/0954/4613/9219/files/ChatGPT_Image_Jun_3_2026_at_01_42_01_AM.png?v=1780447356' -%}
+  {%- endif -%}
+
+  <a href="{{ section.settings.button_link | default: routes.all_products_collection_url }}" class="athoor-house__link" aria-label="{{ section.settings.title | escape }}">
+    <img class="athoor-house__bg" src="{{ bg_src }}" alt="{{ section.settings.title | escape }}" loading="lazy" width="1600" height="900">
+  </a>
+
+  <div class="athoor-house__overlay"></div>
+  <div class="athoor-house__content">
+    <h2 class="athoor-house__title">{{ section.settings.title }}</h2>
+    <p class="athoor-house__text">{{ section.settings.text }}</p>
+    <a href="{{ section.settings.button_link }}" class="athoor-house__btn">{{ section.settings.button_label }}</a>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Athoor House Banner",
+  "settings": [
+    { "type": "image_picker", "id": "image", "label": "Background Image" },
+    { "type": "checkbox", "id": "show_text", "label": "Show text overlay", "default": false, "info": "Turn off if your image already has text/buttons baked in" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Join My Athoor London House" },
+    { "type": "textarea", "id": "text", "label": "Text", "default": "Get 25% off your first order. Earn points with every purchase, redeem them for discounts, exclusive gifts and early access to new launches." },
+    { "type": "text", "id": "button_label", "label": "Button Label", "default": "Join Now" },
+    { "type": "url", "id": "button_link", "label": "Button Link" }
+  ],
+  "presets": [
+    { "name": "Athoor House Banner" }
+  ]
+}
+{% endschema %}

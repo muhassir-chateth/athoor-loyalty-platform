@@ -1,0 +1,55 @@
+<div class="social-proof-sales">
+  <!--{% render 'fire-icon' %}-->  <div class="flash_total_qty"></div>
+  <div class="flash_in_hour"> </div>
+</div>
+<script type="text/javascript">
+  function flashSoldBar() {  
+    var minQty = {{- block.settings.minqty | escape -}};
+    var maxQty = {{- block.settings.maxqty | escape -}};
+    //     var minQty = '05';
+    //     var maxQty = '20';
+    var minTime = '6';
+    var maxTime = '24';
+    minQty = Math.ceil(minQty);
+    maxQty = Math.floor(maxQty);
+    minTime = Math.ceil(minTime);
+    maxTime = Math.floor(maxTime);
+    var qty = Math.floor(Math.random() * (maxQty - minQty + 1)) + minQty;
+    qty = parseInt(qty);
+
+    if (qty <= minQty) {
+      qty = minQty;
+    }
+
+    if (qty > maxQty) {
+      qty = maxQty;
+    }
+    jQuery(".flash_total_qty").html('<i class="fa fa-fire" aria-hidden="true"></i> <span>{{ block.settings.item_sold }}</span>'+qty+'<span>{{ block.settings.products }}</span>');
+    var time = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
+    time = parseInt(time);
+    if (time <= minTime) {
+      time = minTime;
+    }
+
+    if (time > maxTime) {
+      time = maxTime;
+    }
+
+    jQuery(".flash_in_hour").html(time+" {{ block.settings.hours }}");
+    }
+    var flashinterval = window.setInterval(function(){
+    flashSoldBar();
+    }, 5000);
+
+</script>
+
+<style>
+  
+  .social-proof-sales { display: inline-flex; flex-wrap: wrap; margin: 0; }
+  .social-proof-sales > div span{ font-weight:normal;  color: var(--DTColor_Body); }
+  .social-proof-sales > div i{ color: var(--DTPrimaryColor); }
+  .flash_total_qty span { margin: 0 5px;  }
+  .flash_in_hour { /*     margin-left:10px; */ }
+  .social-proof-sales svg.icon.icon-fire {  position: relative;  top: 0;  bottom: 0;  margin: auto;}
+
+</style>

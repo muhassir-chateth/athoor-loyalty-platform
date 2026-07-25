@@ -1,0 +1,371 @@
+{{ 'athoor-loyalty.css' | asset_url | stylesheet_tag }}
+
+{%- comment -%}
+  Athoor Loyalty Dashboard — data source (task 6.7 / Migration M3 dashboard reads).
+
+  The Loyalty_Service /v1 API (reached via Shopify App Proxy at
+  /apps/loyalty/v1/*) is the authoritative source for balance, tier, history and
+  rewards. To guarantee zero visual regression (Req 8.2) and that every section
+  still renders when the API is slow/unavailable (Req 8.4), this section works by
+  PROGRESSIVE ENHANCEMENT:
+
+    1. Liquid renders the Metafield_Cache values below server-side as the
+       DEFAULT / fallback (exactly as the current dashboard does today).
+    2. assets/athoor-loyalty.js then fetches /apps/loyalty/v1/balance and
+       /apps/loyalty/v1/history and writes the live values into the SAME markup
+       (matched via the data-loyalty-* hooks), reusing the existing CSS classes
+       so nothing about the look changes.
+    3. On API error or a >3s timeout the fetch is abandoned and the
+       already-rendered metafield values are kept (Req 8.4).
+
+  ROLLBACK (Migration M3): the mailto: redemption CTA further down is
+  intentionally RETAINED, not removed. Automated /v1/redeem discount-code
+  issuance is cut over separately; until then (and for M3 rollback) redemption
+  falls back to email. Do NOT delete the mailto: snippet.
+{%- endcomment -%}
+
+<div
+  class="loyalty-dashboard"
+  data-loyalty-dashboard
+  data-loyalty-customer="{% if customer %}true{% else %}false{% endif %}"
+  data-loyalty-proxy-base="/apps/loyalty"
+  role="region"
+  aria-label="{{ 'loyalty.region_label' | t }}"
+>
+  {% if customer %}
+    {%- comment -%}
+      Metafield_Cache availability (Req 8.6). The cache is considered AVAILABLE
+      when the loyalty display metafields were written by the backend cache
+      writer (task 6.6) and are present at render time. When it is not available
+      AND the /v1 API also fails, athoor-loyalty.js reveals the temporary-
+      unavailable notice below while retaining all already-rendered content.
+    {%- endcomment -%}
+    {%- assign cache_available = false -%}
+    {%- if customer.metafields.loyalty.points_balance.value != blank or customer.metafields.loyalty.points.value != blank or customer.metafields.loyalty.tier.value != blank -%}
+      {%- assign cache_available = true -%}
+    {%- endif -%}
+
+    {%- comment -%} Config consumed by athoor-loyalty.js (App Proxy signs & injects the identity server-side). {%- endcomment -%}
+    <script type="application/json" data-loyalty-config>
+      {
+        "proxyBase": "/apps/loyalty",
+        "loggedIn": true,
+        "customerId": {{ customer.id | json }},
+        "currency": {{ shop.currency | json }},
+        "timeoutMs": 3000,
+        "cacheAvailable": {{ cache_available }}
+      }
+    </script>
+
+    {%- comment -%}
+      Localized strings for the progressive-enhancement script (task 20.2,
+      Req 21.5). All user-facing copy that athoor-loyalty.js writes into the DOM
+      is sourced here from the theme locale files via the `t` filter, so adding a
+      language is a translation-only change — the script logic never changes.
+      JS-side placeholders use single braces ({tier}, {amount}, {points}); the
+      script interpolates them. Shopify leaves single-brace tokens untouched.
+    {%- endcomment -%}
+    <script type="application/json" data-loyalty-strings>
+      {
+        "tier_bronze": {{ 'loyalty.tier_names.bronze' | t | json }},
+        "tier_silver": {{ 'loyalty.tier_names.silver' | t | json }},
+        "tier_gold": {{ 'loyalty.tier_names.gold' | t | json }},
+        "tier_royal_vip": {{ 'loyalty.tier_names.royal_vip' | t | json }},
+        "member_badge": {{ 'loyalty.js.member_badge' | t | json }},
+        "progress_next": {{ 'loyalty.js.progress_next' | t | json }},
+        "progress_aria": {{ 'loyalty.js.progress_aria' | t | json }},
+        "progress_remaining": {{ 'loyalty.js.progress_remaining' | t | json }},
+        "points_label": {{ 'loyalty.js.points_label' | t | json }},
+        "entry_earned": {{ 'loyalty.js.entry_earned' | t | json }},
+        "entry_spent": {{ 'loyalty.js.entry_spent' | t | json }},
+        "entry_expired": {{ 'loyalty.js.entry_expired' | t | json }},
+        "entry_default": {{ 'loyalty.js.entry_default' | t | json }}
+      }
+    </script>
+
+    {%- comment -%}
+      Temporary-unavailable notice (Req 8.6). Server-rendered but hidden so no
+      extra request is needed to show it. It is revealed ONLY when the /v1 API
+      is unavailable and there is no Metafield_Cache to fall back on. It is
+      inserted above the existing sections and never clears them, so any
+      already-rendered content is retained without data loss.
+    {%- endcomment -%}
+    <div
+      class="loyalty-error-state"
+      data-loyalty="error-state"
+      role="status"
+      aria-live="polite"
+      hidden
+    >
+      {{ 'loyalty.unavailable_notice' | t }}
+    </div>
+
+    {% assign total_spent = customer.total_spent | times: 1.0 %}
+    {% assign points = customer.metafields.loyalty.points_balance.value | default: customer.metafields.loyalty.points | default: 0 | times: 1 | round %}
+    
+    {% if total_spent >= 1500 %}
+      {% assign tier = 'VIP Royal' %}
+      {% assign tier_class = 'tier-royal' %}
+      {% assign points_multiplier = 3 %}
+      {% assign next_tier = 'Maximum' %}
+      {% assign next_tier_spend = 1500 %}
+      {% assign progress = 100 %}
+    {% elsif total_spent >= 750 %}
+      {% assign tier = 'Gold' %}
+      {% assign tier_class = 'tier-gold' %}
+      {% assign points_multiplier = 2 %}
+      {% assign next_tier = 'VIP Royal' %}
+      {% assign next_tier_spend = 1500 %}
+      {% assign progress = total_spent | divided_by: 15.0 | round %}
+    {% elsif total_spent >= 300 %}
+      {% assign tier = 'Silver' %}
+      {% assign tier_class = 'tier-silver' %}
+      {% assign points_multiplier = 1.5 %}
+      {% assign next_tier = 'Gold' %}
+      {% assign next_tier_spend = 750 %}
+      {% assign progress = total_spent | divided_by: 7.5 | round %}
+    {% else %}
+      {% assign tier = 'Bronze' %}
+      {% assign tier_class = 'tier-bronze' %}
+      {% assign points_multiplier = 1 %}
+      {% assign next_tier = 'Silver' %}
+      {% assign next_tier_spend = 300 %}
+      {% assign progress = total_spent | divided_by: 3.0 | round %}
+    {% endif %}
+    
+    {% if progress > 100 %}{% assign progress = 100 %}{% endif %}
+    {% if points == 0 and total_spent > 0 %}
+      {% assign points = total_spent | times: points_multiplier | round %}
+    {% endif %}
+
+    {%- comment -%} Use the real stored tier metafield for the badge/label when present {%- endcomment -%}
+    {% if customer.metafields.loyalty.tier.value != blank %}
+      {% assign tier = customer.metafields.loyalty.tier.value %}
+      {% assign tl = tier | downcase %}
+      {% if tl contains 'royal' or tl contains 'vip' %}{% assign tier_class = 'tier-royal' %}
+      {% elsif tl contains 'gold' %}{% assign tier_class = 'tier-gold' %}
+      {% elsif tl contains 'silver' %}{% assign tier_class = 'tier-silver' %}
+      {% else %}{% assign tier_class = 'tier-bronze' %}{% endif %}
+    {% endif %}
+
+    {%- comment -%}
+      Private-client presentation + personalised greeting (task 16.1, Req 16.1–16.5, 16.9).
+
+      GREETING (Req 16.3/16.4): rendered server-side so it is correct without JS.
+      When the member's name is available we show a name + Tier greeting; when it
+      is not, we fall back to a Tier-aware greeting that omits the name entirely —
+      never an empty value or a placeholder token like "Member". The Tier word is
+      wrapped in data-loyalty="greeting-tier-word" so athoor-loyalty.js can refresh
+      it from the live /v1/balance Tier (the metafield Tier is the fallback).
+
+      FIRST-VISIT vs RETURNING (Req 16.1/16.2): the welcome below is hidden by
+      default, so the returning-member experience (which omits the welcome) is the
+      no-JS, zero-regression default. athoor-loyalty.js calls
+      POST /apps/loyalty/v1/profile/visit and reveals the welcome only when the
+      service reports the customer's first recorded visit.
+    {%- endcomment -%}
+    {%- assign member_name = customer.first_name | strip -%}
+
+    <section class="pc-welcome" data-loyalty="welcome" aria-labelledby="pc-welcome-title" hidden>
+      <p class="pc-eyebrow">{{ 'loyalty.welcome.eyebrow' | t }}</p>
+      <h2 class="pc-welcome-title" id="pc-welcome-title">{{ 'loyalty.welcome.title' | t }}</h2>
+      <p class="pc-welcome-note">
+        {{ 'loyalty.welcome.note' | t }}
+      </p>
+    </section>
+
+    <header class="loyalty-header pc-greeting" data-loyalty="greeting">
+      <p class="pc-eyebrow">{{ 'loyalty.greeting.eyebrow' | t }}</p>
+      {%- if member_name != blank -%}
+        <h1 class="pc-greeting-title">{{ 'loyalty.greeting.hello_html' | t: name: member_name }}</h1>
+        <p class="subtitle pc-greeting-sub">{{ 'loyalty.greeting.membership_curated_html' | t: tier: tier }}</p>
+      {%- else -%}
+        <h1 class="pc-greeting-title" data-loyalty="greeting-fallback">{{ 'loyalty.greeting.fallback_title_html' | t: tier: tier }}</h1>
+        <p class="subtitle pc-greeting-sub">{{ 'loyalty.greeting.fallback_sub' | t }}</p>
+      {%- endif -%}
+      <span class="tier-badge {{ tier_class }}" data-loyalty="tier-badge">{{ 'loyalty.greeting.member_badge' | t: tier: tier }}</span>
+    </header>
+
+    <div class="loyalty-stats" role="group" aria-label="Membership summary">
+      <div class="stat-card">
+        <span class="stat-value" data-loyalty="spendable-balance">{{ points }}</span>
+        <span class="stat-label">{{ 'loyalty.stats.available_points' | t }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" data-loyalty="tier-name">{{ tier }}</span>
+        <span class="stat-label">{{ 'loyalty.stats.current_tier' | t }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ customer.orders_count }}</span>
+        <span class="stat-label">{{ 'loyalty.stats.orders' | t }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" data-loyalty="lifetime-spend">{{ total_spent | money }}</span>
+        <span class="stat-label">{{ 'loyalty.stats.total_spent' | t }}</span>
+      </div>
+    </div>
+
+    {%- comment -%}
+      Both progress variants are rendered from metafield-derived values as the
+      fallback. athoor-loyalty.js toggles/updates them from the live API using
+      the data-loyalty hooks, so there is no layout shift when live data arrives.
+    {%- endcomment -%}
+    <div
+      class="tier-progress"
+      data-loyalty="progress"
+      {% if tier == 'VIP Royal' %}style="text-align: center; display:none;"{% endif %}
+    >
+      <div class="tier-progress-label">
+        {%- assign next_tier_spend_money = next_tier_spend | money -%}
+        <span data-loyalty="progress-current">{{ 'loyalty.progress.current_member' | t: tier: tier }}</span>
+        <span data-loyalty="progress-next">{{ 'loyalty.progress.next' | t: tier: next_tier, amount: next_tier_spend_money }}</span>
+      </div>
+      <div
+        class="progress-bar"
+        data-loyalty="progress-bar"
+        role="progressbar"
+        aria-label="{{ 'loyalty.progress.aria_label' | t: tier: next_tier }}"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="{{ progress }}"
+      >
+        <div class="progress-bar-fill" data-loyalty="progress-fill" style="width: {{ progress }}%"></div>
+      </div>
+      {%- assign remaining_spend_money = next_tier_spend | minus: total_spent | at_least: 0 | money -%}
+      <p class="tier-progress-remaining" data-loyalty="progress-remaining" style="font-size: 12px; margin-top: 8px; text-align: center;">
+        {{ 'loyalty.progress.remaining' | t: tier: next_tier, amount: remaining_spend_money }}
+      </p>
+    </div>
+    <div
+      class="tier-progress"
+      data-loyalty="progress-top"
+      style="text-align: center;{% if tier != 'VIP Royal' %} display:none;{% endif %}"
+    >
+      <p class="tier-progress-top-note">{{ 'loyalty.progress.top_tier_note' | t }}</p>
+    </div>
+
+    {%- comment -%}
+      Reward cards. The point costs are the fixed catalog (Req 3.1) also returned
+      by /apps/loyalty/v1/rewards. The mailto: CTA is RETAINED for M3 rollback
+      (see header comment). athoor-loyalty.js re-evaluates each card's enabled
+      state against the LIVE Spendable_Balance using data-loyalty-cost, falling
+      back to the metafield-derived `points` value below.
+    {%- endcomment -%}
+    <div class="earn-methods">
+      <h2>{{ 'loyalty.rewards.heading' | t }}</h2>
+      <div class="rewards-grid" data-loyalty="rewards-grid">
+        <div class="reward-card" data-loyalty-reward data-loyalty-cost="100">
+          <div class="reward-points">100</div>
+          <div class="reward-value">{{ 'loyalty.rewards.discount_value' | t: amount: '£5' }}</div>
+          <a href="mailto:hello@myathoorlondon.co.uk?subject=Redeem%20100%20Points&body=I%20would%20like%20to%20redeem%20100%20points%20for%20a%20%C2%A35%20discount.%20My%20email:%20{{ customer.email }}" class="reward-btn {% if points < 100 %}disabled{% endif %}" data-loyalty="reward-btn" aria-label="{{ 'loyalty.rewards.redeem_aria' | t: points: 100, amount: '£5' }}"{% if points < 100 %} aria-disabled="true" tabindex="-1"{% endif %}>{{ 'loyalty.rewards.redeem' | t }}</a>
+        </div>
+        <div class="reward-card" data-loyalty-reward data-loyalty-cost="250">
+          <div class="reward-points">250</div>
+          <div class="reward-value">{{ 'loyalty.rewards.discount_value' | t: amount: '£15' }}</div>
+          <a href="mailto:hello@myathoorlondon.co.uk?subject=Redeem%20250%20Points&body=I%20would%20like%20to%20redeem%20250%20points.%20My%20email:%20{{ customer.email }}" class="reward-btn {% if points < 250 %}disabled{% endif %}" data-loyalty="reward-btn" aria-label="{{ 'loyalty.rewards.redeem_aria' | t: points: 250, amount: '£15' }}"{% if points < 250 %} aria-disabled="true" tabindex="-1"{% endif %}>{{ 'loyalty.rewards.redeem' | t }}</a>
+        </div>
+        <div class="reward-card" data-loyalty-reward data-loyalty-cost="500">
+          <div class="reward-points">500</div>
+          <div class="reward-value">{{ 'loyalty.rewards.discount_value' | t: amount: '£35' }}</div>
+          <a href="mailto:hello@myathoorlondon.co.uk?subject=Redeem%20500%20Points&body=I%20would%20like%20to%20redeem%20500%20points.%20My%20email:%20{{ customer.email }}" class="reward-btn {% if points < 500 %}disabled{% endif %}" data-loyalty="reward-btn" aria-label="{{ 'loyalty.rewards.redeem_aria' | t: points: 500, amount: '£35' }}"{% if points < 500 %} aria-disabled="true" tabindex="-1"{% endif %}>{{ 'loyalty.rewards.redeem' | t }}</a>
+        </div>
+        <div class="reward-card" data-loyalty-reward data-loyalty-cost="1000">
+          <div class="reward-points">1000</div>
+          <div class="reward-value">{{ 'loyalty.rewards.discount_value' | t: amount: '£75' }}</div>
+          <a href="mailto:hello@myathoorlondon.co.uk?subject=Redeem%201000%20Points&body=I%20would%20like%20to%20redeem%201000%20points.%20My%20email:%20{{ customer.email }}" class="reward-btn {% if points < 1000 %}disabled{% endif %}" data-loyalty="reward-btn" aria-label="{{ 'loyalty.rewards.redeem_aria' | t: points: 1000, amount: '£75' }}"{% if points < 1000 %} aria-disabled="true" tabindex="-1"{% endif %}>{{ 'loyalty.rewards.redeem' | t }}</a>
+        </div>
+      </div>
+    </div>
+
+    {%- comment -%}
+      Issued discount codes (Req 8.5). Progressively populated by
+      athoor-loyalty.js from redemption activity in /apps/loyalty/v1/history.
+      Hidden by default so there is no visual change when there are no codes or
+      the API is unavailable (Req 8.2/8.4).
+    {%- endcomment -%}
+    <div class="earn-methods" data-loyalty="codes-section" hidden>
+      <h2>{{ 'loyalty.codes.heading' | t }}</h2>
+      <div class="loyalty-codes" data-loyalty="codes-list"></div>
+    </div>
+
+    {%- comment -%}
+      Recent points activity (Req 8.5). Progressively populated by
+      athoor-loyalty.js from /apps/loyalty/v1/history (earned / spent / expired).
+      Hidden by default; reuses the existing .earn-item styling so it matches the
+      current design exactly (Req 8.2).
+    {%- endcomment -%}
+    <div class="earn-methods" data-loyalty="activity-section" hidden>
+      <h2>{{ 'loyalty.activity.heading' | t }}</h2>
+      <div data-loyalty="activity-list"></div>
+    </div>
+
+    <div class="earn-methods">
+      <h2>{{ 'loyalty.earn.heading' | t }}</h2>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.per_pound' | t }}</span><span class="earn-points">{{ 'loyalty.earn.per_pound_points' | t: points: points_multiplier }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.create_account' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_signup' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.first_purchase' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_first_purchase' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.product_review' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_review' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.birthday' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_birthday' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.refer_signup' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_refer_signup' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.refer_purchase' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_refer_purchase' | t }}</span></div>
+      <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.instagram' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_instagram' | t }}</span></div>
+    </div>
+
+    <div class="referral-section">
+      <h2>{{ 'loyalty.referral.heading' | t }}</h2>
+      <p>{{ 'loyalty.referral.description' | t }}</p>
+      <div class="referral-code">
+        <span id="ref-code">{% if customer.metafields.loyalty.referral_code.value != blank %}{{ customer.metafields.loyalty.referral_code.value }}{% else %}ATHOOR-{{ customer.first_name | upcase | truncate: 4, '' }}{{ customer.id | modulo: 9999 }}{% endif %}</span>
+        <button type="button" aria-label="{{ 'loyalty.referral.copy_aria' | t }}" data-copy-label="{{ 'loyalty.referral.copy' | t }}" data-copied-label="{{ 'loyalty.referral.copied' | t }}" onclick="navigator.clipboard.writeText(document.getElementById('ref-code').innerText); this.innerText=this.dataset.copiedLabel; setTimeout(()=>this.innerText=this.dataset.copyLabel, 2000)">{{ 'loyalty.referral.copy' | t }}</button>
+      </div>
+    </div>
+
+    <div class="earn-methods">
+      <h2>{{ 'loyalty.circles.heading' | t }}</h2>
+      <div class="tiers-table-wrap">
+      <table class="tiers-table">
+        <caption class="sr-only">{{ 'loyalty.circles.table_caption' | t }}</caption>
+        <thead><tr><th scope="col">{{ 'loyalty.circles.col_tier' | t }}</th><th scope="col">{{ 'loyalty.circles.col_qualification' | t }}</th><th scope="col">{{ 'loyalty.circles.col_points' | t }}</th><th scope="col">{{ 'loyalty.circles.col_benefits' | t }}</th></tr></thead>
+        <tbody>
+          <tr {% if tier == 'Bronze' %}class="current-tier"{% endif %}><td><span class="tier-badge tier-bronze" style="font-size:10px;padding:4px 12px;">{{ 'loyalty.tier_names.bronze' | t }}</span></td><td>{{ 'loyalty.circles.bronze_qualification' | t }}</td><td>{{ 'loyalty.circles.bronze_points' | t }}</td><td>{{ 'loyalty.circles.bronze_benefits' | t }}</td></tr>
+          <tr {% if tier == 'Silver' %}class="current-tier"{% endif %}><td><span class="tier-badge tier-silver" style="font-size:10px;padding:4px 12px;">{{ 'loyalty.tier_names.silver' | t }}</span></td><td>{{ 'loyalty.circles.silver_qualification' | t }}</td><td>{{ 'loyalty.circles.silver_points' | t }}</td><td>{{ 'loyalty.circles.silver_benefits' | t }}</td></tr>
+          <tr {% if tier == 'Gold' %}class="current-tier"{% endif %}><td><span class="tier-badge tier-gold" style="font-size:10px;padding:4px 12px;">{{ 'loyalty.tier_names.gold' | t }}</span></td><td>{{ 'loyalty.circles.gold_qualification' | t }}</td><td>{{ 'loyalty.circles.gold_points' | t }}</td><td>{{ 'loyalty.circles.gold_benefits' | t }}</td></tr>
+          <tr {% if tier == 'VIP Royal' %}class="current-tier"{% endif %}><td><span class="tier-badge tier-royal" style="font-size:10px;padding:4px 12px;">{{ 'loyalty.tier_names.royal_vip' | t }}</span></td><td>{{ 'loyalty.circles.royal_qualification' | t }}</td><td>{{ 'loyalty.circles.royal_points' | t }}</td><td>{{ 'loyalty.circles.royal_benefits' | t }}</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+  {% else %}
+    <div class="loyalty-header" style="padding: 60px 20px;">
+      <h1>{{ 'loyalty.join.title' | t }}</h1>
+      <p class="subtitle" style="max-width: 500px; margin: 16px auto; line-height: 1.7; font-size: 14px;">
+        {{ 'loyalty.join.subtitle' | t }}
+      </p>
+      <div style="margin: 40px 0;">
+        <div class="loyalty-stats">
+          <div class="stat-card"><span class="stat-value" style="font-size:24px;">{{ 'loyalty.join.earn_rate_value' | t }}</span><span class="stat-label">{{ 'loyalty.join.earn_rate_label' | t }}</span></div>
+          <div class="stat-card"><span class="stat-value" style="font-size:24px;">{{ 'loyalty.join.tiers_value' | t }}</span><span class="stat-label">{{ 'loyalty.join.tiers_label' | t }}</span></div>
+          <div class="stat-card"><span class="stat-value" style="font-size:24px;">{{ 'loyalty.join.signup_value' | t }}</span><span class="stat-label">{{ 'loyalty.join.signup_label' | t }}</span></div>
+        </div>
+      </div>
+      <a href="{{ routes.account_register_url }}" style="display:inline-block;padding:14px 40px;background:#1a1a1a;color:#fff;text-decoration:none;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;border-radius:4px;">{{ 'loyalty.join.cta' | t }}</a>
+      <p style="margin-top:16px;font-size:12px;color:var(--athoor-muted-text);">{{ 'loyalty.join.member_prompt' | t }} <a href="{{ routes.account_login_url }}" style="color:var(--athoor-gold-text);text-decoration:underline;">{{ 'loyalty.join.signin' | t }}</a></p>
+    </div>
+  {% endif %}
+</div>
+
+{%- comment -%}
+  Progressive-enhancement script (task 6.7). Deferred so it never blocks render;
+  the dashboard is fully usable from the server-rendered metafield values before
+  (and without) this script. It reads the App Proxy /v1 API and updates the
+  markup in place, falling back silently to the metafield values on error/timeout.
+{%- endcomment -%}
+<script src="{{ 'athoor-loyalty.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Loyalty Dashboard",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,245 @@
+{%- comment -%}
+  Athoor — Tasting Notes + Accordion (SunnaMusk / Atkinsons luxury style)
+  Tasting notes are per-product, driven by metafields (namespace: athoor):
+    top_note, top_note_desc, top_note_img
+    heart_note, heart_note_desc, heart_note_img
+    base_note, base_note_desc, base_note_img
+  Accordion rows are section blocks (shared FAQ/shipping etc.).
+  Renders the notes block only when at least a top note exists.
+{%- endcomment -%}
+
+{%- liquid
+  assign mf = product.metafields.athoor
+  assign top = mf.top_note.value
+  assign heart = mf.heart_note.value
+  assign base = mf.base_note.value
+  assign has_notes = false
+  if top != blank or heart != blank or base != blank
+    assign has_notes = true
+  endif
+  assign fam = mf.fragrance_family.value
+  assign longevity = mf.longevity.value
+  assign projection = mf.projection.value
+  assign concentration = mf.concentration.value
+  assign has_stats = false
+  if fam != blank or longevity != blank or projection != blank or concentration != blank
+    assign has_stats = true
+  endif
+-%}
+
+{%- style -%}
+  .athoor-tn {
+    background: {{ section.settings.bg_color }};
+    padding: {{ section.settings.padding_top }}px 0 {{ section.settings.padding_bottom }}px;
+  }
+  .athoor-tn__inner { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .athoor-tn__title {
+    font-family: var(--font-heading-family);
+    font-weight: var(--font-heading-weight);
+    font-size: calc(var(--font-heading-scale) * 2.4rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: center;
+    color: {{ section.settings.text_color }};
+    margin: 0 0 44px;
+    padding-bottom: 20px;
+    position: relative;
+  }
+  .athoor-tn__title::after {
+    content: "";
+    position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+    width: 48px; height: 1px; background: {{ section.settings.accent_color }};
+  }
+  /* Notes grid */
+  .athoor-tn__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 44px;
+    margin-bottom: 56px;
+  }
+  .athoor-tn__note { display: flex; align-items: flex-start; gap: 20px; }
+  .athoor-tn__media {
+    flex: 0 0 96px; width: 96px; height: 96px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .athoor-tn__media img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+  .athoor-tn__monogram {
+    width: 84px; height: 84px; border-radius: 50%;
+    border: 1px solid {{ section.settings.accent_color }};
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-heading-family);
+    font-size: 32px; color: {{ section.settings.accent_color }};
+    background: rgba(201, 169, 110, 0.06);
+    transition: background 0.3s ease;
+  }
+  .athoor-tn__note:hover .athoor-tn__monogram { background: rgba(201, 169, 110, 0.14); }
+  .athoor-tn__info { flex: 1; min-width: 0; padding-top: 4px; }
+  .athoor-tn__kind {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 600; color: {{ section.settings.accent_color }}; margin: 0 0 8px;
+  }
+  .athoor-tn__name {
+    font-family: var(--font-heading-family);
+    font-size: 18px; color: {{ section.settings.text_color }}; margin: 0 0 10px; line-height: 1.3;
+  }
+  .athoor-tn__desc { font-size: 13px; line-height: 1.65; color: #6b6258; font-weight: 300; margin: 0; }
+
+  /* Stat row — Fragrance Family / Longevity / Projection / Concentration */
+  .athoor-tn__stats {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 0; margin: 0 0 48px;
+    border-top: 1px solid #e3dcd0; border-bottom: 1px solid #e3dcd0;
+  }
+  .athoor-tn__stat {
+    flex: 1 1 0; min-width: 140px; text-align: center;
+    padding: 20px 16px; border-left: 1px solid #e3dcd0;
+  }
+  .athoor-tn__stat:first-child { border-left: none; }
+  .athoor-tn__stat-k {
+    display: block; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: {{ section.settings.accent_color }}; margin: 0 0 8px;
+  }
+  .athoor-tn__stat-v {
+    display: block; font-family: var(--font-heading-family);
+    font-size: 16px; color: {{ section.settings.text_color }}; line-height: 1.3;
+  }
+
+  /* Accordion (Atkinsons-style underlined rows) */
+  .athoor-tn__acc { border-top: 1px solid #e3dcd0; }
+  .athoor-tn__row { border-bottom: 1px solid #e3dcd0; }
+  .athoor-tn__row summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center;
+    justify-content: space-between; padding: 22px 4px;
+    font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 500; color: {{ section.settings.text_color }};
+    transition: color 0.25s ease;
+  }
+  .athoor-tn__row summary:hover { color: {{ section.settings.accent_color }}; }
+  .athoor-tn__row summary::-webkit-details-marker { display: none; }
+  .athoor-tn__row summary::after { content: "+"; font-size: 18px; color: #8a8079; line-height: 1; transition: color 0.25s ease; }
+  .athoor-tn__row summary:hover::after { color: {{ section.settings.accent_color }}; }
+  .athoor-tn__row[open] summary::after { content: "\2013"; }
+  .athoor-tn__row[open] summary { color: {{ section.settings.text_color }}; }
+  .athoor-tn__row-content { padding: 0 4px 24px; font-size: 13px; line-height: 1.75; color: #6b6258; font-weight: 300; max-width: 760px; }
+  .athoor-tn__row-content p { margin: 0 0 10px; }
+
+  @media screen and (max-width: 749px) {
+    .athoor-tn { padding: 40px 0 44px; }
+    .athoor-tn__inner { padding: 0 20px; }
+    .athoor-tn__title { font-size: 22px; margin-bottom: 26px; }
+    .athoor-tn__grid { grid-template-columns: 1fr; gap: 26px; margin-bottom: 36px; }
+    .athoor-tn__media, .athoor-tn__media img { flex-basis: 72px; width: 72px; height: 72px; }
+    .athoor-tn__monogram { width: 64px; height: 64px; font-size: 24px; }
+    .athoor-tn__stat { flex: 1 1 50%; min-width: 50%; border-top: 1px solid #e3dcd0; }
+    .athoor-tn__stat:first-child, .athoor-tn__stat:nth-child(2) { border-top: none; }
+    .athoor-tn__stat:nth-child(odd) { border-left: none; }
+  }
+{%- endstyle -%}
+
+<section class="athoor-tn" aria-label="{{ section.settings.title | escape }}">
+  <div class="athoor-tn__inner">
+    {%- if has_notes -%}
+      {%- if section.settings.title != blank -%}
+        <h2 class="athoor-tn__title">{{ section.settings.title }}</h2>
+      {%- endif -%}
+      <div class="athoor-tn__grid">
+        {%- assign kinds = 'Top Note,Heart Note,Base Note' | split: ',' -%}
+        {%- for kind in kinds -%}
+          {%- liquid
+            case forloop.index
+              when 1
+                assign nname = top
+                assign ndesc = mf.top_note_desc.value
+                assign nimg = mf.top_note_img.value
+              when 2
+                assign nname = heart
+                assign ndesc = mf.heart_note_desc.value
+                assign nimg = mf.heart_note_img.value
+              when 3
+                assign nname = base
+                assign ndesc = mf.base_note_desc.value
+                assign nimg = mf.base_note_img.value
+            endcase
+          -%}
+          {%- if nname != blank -%}
+            <div class="athoor-tn__note">
+              <div class="athoor-tn__media">
+                {%- if nimg != blank -%}
+                  <img src="{{ nimg | image_url: width: 200 }}" alt="{{ nname | escape }}" loading="lazy" width="96" height="96">
+                {%- else -%}
+                  <span class="athoor-tn__monogram">{{ nname | slice: 0 }}</span>
+                {%- endif -%}
+              </div>
+              <div class="athoor-tn__info">
+                <p class="athoor-tn__kind">{{ kind }}</p>
+                <p class="athoor-tn__name">{{ nname }}</p>
+                {%- if ndesc != blank -%}<p class="athoor-tn__desc">{{ ndesc }}</p>{%- endif -%}
+              </div>
+            </div>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    {%- if has_stats -%}
+      <div class="athoor-tn__stats">
+        {%- if fam != blank -%}<div class="athoor-tn__stat"><span class="athoor-tn__stat-k">Fragrance Family</span><span class="athoor-tn__stat-v">{{ fam }}</span></div>{%- endif -%}
+        {%- if longevity != blank -%}<div class="athoor-tn__stat"><span class="athoor-tn__stat-k">Longevity</span><span class="athoor-tn__stat-v">{{ longevity }}</span></div>{%- endif -%}
+        {%- if projection != blank -%}<div class="athoor-tn__stat"><span class="athoor-tn__stat-k">Projection</span><span class="athoor-tn__stat-v">{{ projection }}</span></div>{%- endif -%}
+        {%- if concentration != blank -%}<div class="athoor-tn__stat"><span class="athoor-tn__stat-k">Concentration</span><span class="athoor-tn__stat-v">{{ concentration }}</span></div>{%- endif -%}
+      </div>
+    {%- endif -%}
+
+    {%- if section.blocks.size > 0 -%}
+      <div class="athoor-tn__acc">
+        {%- for block in section.blocks -%}
+          <details class="athoor-tn__row" {{ block.shopify_attributes }}{% if block.settings.open %} open{% endif %}>
+            <summary>{{ block.settings.heading }}</summary>
+            <div class="athoor-tn__row-content">{{ block.settings.content }}</div>
+          </details>
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Tasting Notes",
+  "tag": "section",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Heading", "default": "Tasting Notes" },
+    { "type": "paragraph", "content": "Top/Heart/Base notes are set per product via metafields (namespace 'athoor'). Accordion rows below are shared across all products." },
+    { "type": "header", "content": "Colours" },
+    { "type": "color", "id": "bg_color", "label": "Background", "default": "#faf8f5" },
+    { "type": "color", "id": "text_color", "label": "Text colour", "default": "#1a1a1a" },
+    { "type": "color", "id": "accent_color", "label": "Accent (monogram/gold)", "default": "#B8960C" },
+    { "type": "header", "content": "Spacing" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding top", "default": 64 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding bottom", "default": 72 }
+  ],
+  "blocks": [
+    {
+      "type": "row",
+      "name": "Accordion row",
+      "settings": [
+        { "type": "text", "id": "heading", "label": "Heading", "default": "How to apply this fragrance?" },
+        { "type": "richtext", "id": "content", "label": "Content", "default": "<p>Apply to pulse points — wrists, neck, inner elbow. Do not rub; let it settle naturally.</p>" },
+        { "type": "checkbox", "id": "open", "label": "Open by default", "default": false }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Tasting Notes",
+      "blocks": [
+        { "type": "row", "settings": { "heading": "How to apply this fragrance?", "content": "<p>Apply to pulse points — wrists, neck, inner elbow. Do not rub your wrists together; this crushes the top notes.</p>" } },
+        { "type": "row", "settings": { "heading": "How should I store my fragrance?", "content": "<p>Keep away from direct sunlight and heat. A cool, dry place preserves the composition and longevity.</p>" } },
+        { "type": "row", "settings": { "heading": "What can I layer this fragrance with?", "content": "<p>Layer with an unscented moisturiser to extend longevity, or pair with complementary notes from the House Collection.</p>" } },
+        { "type": "row", "settings": { "heading": "Shipping & Returns", "content": "<p>Dispatched within 24 hours. 14-day easy returns. Complimentary luxury packaging on every order.</p>" } }
+      ]
+    }
+  ]
+}
+{% endschema %}

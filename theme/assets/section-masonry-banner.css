@@ -1,0 +1,321 @@
+.grid-banner-section.masonry-grid-banner{
+  display: flex;
+  flex-wrap: wrap;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+  -ms-flex-flow: inherit;
+  flex-flow: inherit;
+  justify-content: space-around;
+  align-content: center;
+  flex-direction: row-reverse;
+  gap: 20px;
+}
+.grid-banner-section.masonry-grid-banner .main-grid{
+  margin-left: 0px;
+  max-height: 100%;
+}
+
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-1.overlay_style {
+    grid-column: 1/3;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-2.overlay_style {
+    grid-column: 3/5;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-3.overlay_style {
+    grid-column: 1/4;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-4.overlay_style {
+    grid-column: 4/5;
+}
+/* h4.main-title {
+  width: fit-content;
+  position:relative;
+} */
+h4.main-title a{
+  width: fit-content;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 3px;
+  text-decoration: underline;
+  transition: all .5s linear;
+  text-decoration-color: var(--gradient-base-accent-3);
+  color: var(--color-icon);
+  position:relative;
+}
+h4.main-title a:after {
+    content: '';
+    background: black;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    position: absolute;
+    bottom: -1px;
+    transform: scaleX(1);
+    transition: transform 0.5s linear;
+    transform-origin: left;
+}
+h4.main-title:hover a:after {
+    transform-origin: right;
+    transform: scaleX(0);
+}
+
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style p {
+    font-size: 1.6rem;
+    margin: 0;
+    letter-spacing: 0.32px;
+    line-height: 25px;
+}
+.masonry-grid-banner.main-grid .grid-banner-inner.left.color-background-1.gradient h4 {
+    padding-bottom: 10px;
+}
+/* .grid-banner .main-title:hover a{
+    color: #13b5bb;
+    transition: color 0.3s linear;
+} */
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:first-child p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:last-child p {
+    padding-right: 25%;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(2) p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(3) p {
+    padding-right: 49%;
+}
+.masonry-grid-banner.main-grid .primary-button {
+    --color-button: var(--color-base-background-1);
+    --color-button-text: 0, 0, 0;
+    --alpha-button-background: 1;
+    font-size: 1.2rem;
+    letter-spacing: .3rem;
+    line-height: calc(1 + .2 / var(--font-body-scale));
+  min-width: 21.5rem;
+}
+
+.grid-banner-section.masonry-grid-banner .additional-grids{display:grid; gap:var(--grid-desktop-horizontal-spacing);height: 100%;}
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner { height: 100%;}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner{}
+.grid-banner-section.masonry-grid-banner .grid-banner-content .grid-banner-inner{padding:10px;}
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image img,
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image{ height: 100%;display: flex}
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style{position:relative;}
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image{position:relative;}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image{position:absolute;height: 100%; width: 100%; display: flex;}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image > .grid-banner-image{height:100%; width: 100%;}
+
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image img{ height: 100%;}
+
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-content,
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-content {position: absolute;}
+
+@media(min-width:750px) {
+
+  .grid-banner-section.masonry-grid-banner .additional-grids.two-items.default,
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-5,
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items,
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-3,
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-4 { grid-template-columns: none; }
+  .grid-banner-section.masonry-grid-banner .additional-grids[class*="style-"] .grid-banner:only-child { grid-column: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-2 .grid-banner.grid-style:first-child { grid-row-end: 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-2 .grid-banner:first-child { grid-column: 1 / 3; grid-row-start: 1; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-3 .grid-banner:first-child { grid-column: 1 / 3; grid-row-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-4 .grid-banner:first-child { grid-row: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-4 .grid-banner:first-child { grid-row: 1 / 3; grid-column-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.three-items.style-5 .grid-banner:first-child { grid-row: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-3 .grid-banner:first-child { grid-row: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-3 .grid-banner:last-child { grid-column: 1 / 3; grid-row-start: 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-4 .grid-banner:first-child { grid-row: 1 / 4; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-5 .grid-banner:first-child { grid-row: 1 / 4; grid-column-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-6 { grid-template-columns: auto; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-6 .grid-banner:first-child { grid-column: 1 / 4; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-7 .grid-banner:first-child { grid-row: 1 / 3; grid-column-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.four-items.style-7 .grid-banner:last-child { grid-column: 1 / 3; grid-row-start: 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-9,
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-10 { grid-template-columns: repeat(3, 1fr); }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-2 .grid-banner:first-child { grid-column: 1 / 3; grid-row-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-3 .grid-banner:first-child { grid-row: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-4 .grid-banner:first-child { grid-row: 1 / 5; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-5 .grid-banner:first-child { grid-column: 1 / 5; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-6 .grid-banner:first-child { grid-column: 1 / 5; grid-row-start: 2; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-7 .grid-banner:first-child { grid-column: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-8 .grid-banner:first-child,
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-9 .grid-banner:first-child { grid-column-start: 2; grid-row: 1 / 3; }
+  .grid-banner-section.masonry-grid-banner .additional-grids.five-items.style-10 .grid-banner:first-child { grid-column-start: 1;	grid-row: 1 / 3; }
+
+
+}
+.grid-banner-section.masonry-grid-banner .grid-banner-content .grid-banner-inner.left { text-align: left; color: var(--color-icon); background: transparent; margin-left: 30px;margin-bottom: 30px;}
+.grid-banner-section.masonry-grid-banner .grid-banner-content .grid-banner-inner.center { text-align: center;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.center{ top: 0; left: 0; right: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.center-left{ top: 0; left: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.center-right{ top: 0; right: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.top-left{top: 0; left: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.top-center{top: 0; left: 0; right: 0;  width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.top-right {top: 0; right: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.bottom-left{ left: 0; bottom: 0; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.bottom-center{ left: 0; right: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto;}
+.grid-banner-section.masonry-grid-banner .grid-banner.overlay_style .grid-banner-content.bottom-right{ right: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto;}
+
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image:before{ background: linear-gradient(225deg, rgba(0, 0, 0, 0.4), rgba(255, 255, 255, 0.8) 85% );;width: 100%; height: 100%; z-index: 0;position: absolute;content: "";opacity:0;transition:all 0.5s linear;}
+.grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style:hover .grid-banner-image:before{ opacity:0.5;}
+
+.masonry-banner .title-wrapper-with-link{
+  text-align: center;
+  display: block;
+  margin-top: 0;
+}
+.masonry-banner .title-wrapper-with-link>.grid-banner-list-title__text{
+  font-size: 1.2rem;
+  letter-spacing: .275rem;
+  font-weight: 600;
+  margin-bottom: 0;
+  font-family: var(--font-body-family);
+  line-height: calc(1 + .2 / var(--font-body-scale));
+  text-transform: uppercase;
+}
+.masonry-banner .title-wrapper-with-link>.title{
+  margin-top: 0;
+  font-size: calc(var(--font-heading-scale) * 3rem);
+  color: var(--color-icon);
+  padding-top: 5px;
+  margin:0
+}
+@media screen and (min-width: 320px) and (max-width: 749px) {
+
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style{
+  grid-column: 1/3!important; /*All the additional grids are set to be centered*/
+}
+.grid-banner-section.masonry-grid-banner .additional-grids{
+  justify-items: center;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(2) p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(3) p {
+  padding-right: 40%;
+}
+.masonry-grid-banner.main-grid:hover .grid-banner.overlay_style .grid-banner-image:before{  filter: drop-shadow(0px 0px 2px var(--color-icon));}
+
+  /***********testing**********/
+  .grid-banner-section.masonry-grid-banner .additional-grids{
+    grid-template-columns: repeat(1,1fr);
+  }
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style{
+    width: 100%;
+    height: 100%;
+  }
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image {
+    position: absolute;
+    height: 100%;
+    display: flex;
+  }
+/***********End-testing**********/
+  
+}
+
+@media screen and (max-width: 991px) {
+  .grid-banner-section.masonry-grid-banner .grid-banner-content .grid-banner-inner.left{
+    margin-left: 15px;
+    margin-bottom: 15px;
+  }
+}
+@media screen and (min-width: 576px) and (max-width: 991px) {
+
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-1.overlay_style {
+    grid-column: 1/3;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-2.overlay_style {
+    grid-column: 3/5;
+}
+
+.grid-banner-section.masonry-grid-banner .additional-grids{
+    justify-items: center;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(2) p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(3) p{
+    padding-right: 13%;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:first-child p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:last-child p {
+    padding-right: 13%;
+}
+
+}
+@media only screen and (max-width: 1199px){
+/*   .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image img{
+  width: 100%;
+   height: 100%;
+} */
+  .grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image img{
+    width: 100%;
+}
+.grid-banner-section.masonry-grid-banner .main-grid {
+  margin-left: 0;
+  height: 500px;
+}
+}
+@media screen and (min-width: 992px) and (max-width: 1199px) {
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(2) p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(3) p {
+    padding-right: 45%;
+}
+}
+
+@media screen and (min-width: 576px) and (max-width: 1539px) {
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-3.overlay_style {
+    grid-column: 1/3;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-4.overlay_style {
+    grid-column: 3/5;
+}
+}
+@media screen and (min-width: 1200px) and (max-width: 1539px) {
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(2) p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:nth-child(3) p {
+    padding-right: 33%;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:first-child p, .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner:last-child p {
+    padding-right: 33%;
+}
+.grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image img{
+  width: 100%;
+}
+}
+@media screen and (min-width: 750px) and (max-width: 1539px) {
+   /***********testing**********/
+  .grid-banner-section.masonry-grid-banner .additional-grids{
+    grid-template-columns: repeat(2,1fr);
+  }
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style{
+    width: 100%;
+    height: 100%;
+  }
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay_style .grid-banner-block-image {
+    position: absolute;
+    height: 100%;
+    display: flex;
+  }
+/***********End-testing**********/
+}
+@media only screen and (min-width: 1540px){
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-2.overlay_style {
+    grid-column: 3/6;
+  }
+  .grid-banner-section.masonry-grid-banner .additional-grids .grid-banner.overlay-4.overlay_style {
+    grid-column: 4/6;
+  }
+}
+
+@media only screen and (min-width: 1921px){
+  .grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image img, 
+  .grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style .grid-banner-image{ 
+    height: 100%;
+    display: flex;
+    width: 100%;
+  }
+  .grid-banner-section.masonry-grid-banner{
+    justify-content: center;
+    max-width: 1920px;
+    margin: 0 auto;
+  }
+  .grid-banner-section.masonry-grid-banner .main-grid .grid-banner.overlay_style{
+    max-height:800px;
+  }
+
+}
+@media only screen and (min-width: 2000px){
+  .grid-banner-section.masonry-grid-banner{
+    justify-content: center;
+    max-width: 1920px;
+    margin: 0 auto;
+    gap: 20px;
+  }
+}

@@ -1,0 +1,433 @@
+slideshow-component {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+@media screen and (max-width:1200px) {
+.slideshow__media.banner__media.media{opacity:0.5;}
+  }
+
+.slideshow__media img{width:100%;}
+/*slider*/
+
+button.slideshow__autoplay.slider-button.no-js-hidden {
+    display: block;
+    background:var(--gradient-base-background-2);
+    left: 0;
+    right: 0;
+    margin: auto;
+}
+@media screen and (max-width: 750px) {
+.slideshow__media img.desktop-slider{display:none;}
+.slideshow__media img.mobile-slider{display:block;}
+.slideshow__media:after{opacity:0.3;}  
+}
+@media screen and (min-width: 750px) {
+.slideshow__media img.mobile-slider{display:none;}
+.slideshow__media img.desktop-slider{display:block;}
+} 
+
+
+
+@media screen and (max-width: 989px) {
+  .no-js slideshow-component .slider {
+    padding-bottom: 3rem;
+  }
+}
+
+slideshow-component .slideshow.banner {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  margin: 0;
+  gap: 0;
+}
+
+.slideshow__slide {
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@media screen and (max-width: 749px) {
+  .slideshow--placeholder.banner--mobile-bottom.banner--adapt_image .slideshow__media,
+  .slideshow--placeholder.banner--adapt_image:not(.banner--mobile-bottom) {
+    height: 60rem;
+  }
+}
+
+@media screen and (min-width: 750px) {
+  .slideshow--placeholder.banner--adapt_image {
+    height: 90vh;
+  }
+}
+
+.slideshow__text.banner__box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 66.5rem;
+  padding: 4rem 2rem;
+/*   background: var(--gradient-background); */
+/*   padding-top: 190px; */
+}
+
+.slideshow__text > * {
+  max-width: 100%;
+}
+.slideshow__text.banner__box .banner__buttons a.button.button--primary{ margin-top: 0rem;}
+.slideshow__text.banner__box .banner__buttons { margin-top: 3rem;}
+@media screen and (max-width: 749px) {
+  slideshow-component.page-width .slideshow__text {
+    border-right: var(--text-boxes-border-width) solid rgba(var(--color-foreground), var(--text-boxes-border-opacity));
+    border-left: var(--text-boxes-border-width) solid rgba(var(--color-foreground), var(--text-boxes-border-opacity));
+  }
+
+  .banner--mobile-bottom .slideshow__text.banner__box {
+    max-width: 100%;
+  }
+
+  .banner--mobile-bottom .slideshow__text-wrapper {
+    flex-grow: 1;
+  }
+
+  .banner--mobile-bottom .slideshow__text.banner__box {
+    height: 100%;
+    background:rgba(var(--color-background), 0)
+  }
+  .banner--mobile-bottom .slideshow__media.banner__media.media, .banner--stacked:not(.banner--mobile-bottom) .slideshow__media.banner__media.media{position:absolute;}
+  .slideshow.banner--large.banner--mobile-bottom:not(.banner--adapt) .slideshow__media, .slideshow.banner--large.banner--stacked:not(.banner--mobile-bottom):not(.banner--adapt)>.slideshow__media{height:100%;}
+  .banner--mobile-bottom .slideshow__text .button {
+    flex-grow: 0;
+  }
+
+  .slideshow__text.slideshow__text-mobile--left {
+    align-items: center;
+    text-align: center;
+  }
+
+  .slideshow__text.slideshow__text-mobile--right {
+    align-items: center;
+    text-align: center;
+  }
+  .slideshow__text.banner__box{margin: auto auto 3rem;}
+}
+
+@media screen and (min-width: 750px) {
+  .slideshow__text.slideshow__text--left {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .slideshow__text.slideshow__text--right {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+
+.slideshow:not(.banner--mobile-bottom) .slideshow__text-wrapper {  height: 100%;  max-width: var(--page-width);  left: 50%;  top: 50%;  transform: translate(-50%, -50%);}
+
+@media screen and (min-width: 750px) {
+  .slideshow__text-wrapper.banner__content {
+    height: 100%;
+/*     padding: 5rem; */
+  }
+}
+
+/* .slideshow__controls {
+  border: 0.1rem solid rgba(var(--color-foreground), 0.08);
+} */
+
+.slideshow__controls--top {
+  order: 2;
+  z-index: 1;
+}
+
+@media screen and (max-width: 749px) {
+  .slideshow__controls--border-radius-mobile {
+    border-bottom-right-radius: var(--text-boxes-radius);
+    border-bottom-left-radius: var(--text-boxes-radius);
+  }
+}
+
+.spaced-section--full-width:last-child slideshow-component:not(.page-width) .slideshow__controls {
+  border-bottom: none;
+}
+
+@media screen and (min-width: 750px) {
+  .slideshow__controls {
+    position: relative;
+  }
+}
+
+slideshow-component:not(.page-width) .slider-buttons {
+  border-right: 0;
+  border-left: 0;
+}
+
+.slideshow__control-wrapper {
+  display: flex;
+}
+
+.slideshow__autoplay {
+  position: absolute;
+  right: 0;
+  border-left: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@media screen and (max-width: 749px) {
+  slideshow-component.page-width .slideshow__autoplay {
+    right: 1.5rem;
+  }
+  .slideshow__text.banner__box .banner__buttons {    justify-content: center;}
+}
+
+@media screen and (min-width: 750px) {
+  .slideshow__autoplay.slider-button {
+    position: inherit;
+    margin-left: 0.6rem;
+    padding: 0 0 0 0.6rem;
+    border-left: 0.1rem solid rgba(var(--color-foreground), 0.08);
+  }
+}
+
+.slideshow__autoplay .icon.icon-play,
+.slideshow__autoplay .icon.icon-pause {
+  display: block;
+  position: absolute;
+  opacity: 1;
+  transform: scale(1);
+  transition: transform 150ms ease, opacity 150ms ease;
+  width: 0.8rem;
+  height: 1.2rem;
+  left: 0;
+  right: 0;
+  margin: auto;
+  bottom: 0;
+  top: 0;
+}
+
+.slideshow__autoplay .icon.icon-play {
+  height: 1rem;
+}
+
+.slideshow__autoplay path {
+  fill: rgba(var(--color-foreground), 0.75);
+}
+
+.slideshow__autoplay:hover path {
+  fill: rgb(var(--color-foreground));
+}
+
+@media screen and (forced-colors: active) {
+  .slideshow__autoplay path,
+  .slideshow__autoplay:hover path{
+    fill: CanvasText;
+  }
+}
+
+.slideshow__autoplay:hover svg {
+  transform: scale(1.1);
+}
+
+.slideshow__autoplay--paused .icon-pause,
+.slideshow__autoplay:not(.slideshow__autoplay--paused) .icon-play {
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(.8)
+}
+.slideshow__text-wrapper .slideshow__text h2.banner__heading {
+   margin-bottom: 0;
+   color: var(--color-foreground);
+  line-height: 1.2;
+    margin-top: 1rem;
+  animation: fadeIn 2s ease both;
+}
+.slideshow__text .banner__text{
+    margin-bottom: 0;
+    color: var(--color-foreground);
+    font-family: var(--font-body-family);
+    font-weight: 400;
+    font-size: 1.6rem;
+    line-height: 1.6;
+}
+.slideshow__text .banner__sub_heading{
+    color: var(--color-foreground);
+    margin-bottom: 0;
+    font-family: var(--font-body-family);
+    font-weight: 600;
+    letter-spacing: 3px;
+    font-size: 1.2rem;
+}
+.slide-banner .swiper-slide {
+    cursor: grab;
+}
+@media screen and (max-width: 1199px) {
+  slideshow-component .swiper :where(.swiper-button-next, .swiper-button-prev){    top: auto;  bottom: 1em;}
+  slideshow-component .slideshow__media:after {     background: var(--gradient-base-background-1); opacity: 0.6;}
+}
+@media screen and (max-width: 575px) {
+  .slideshow__text-wrapper .slideshow__text h2.banner__heading{font-size: 3rem;}
+}
+/* @media screen and (min-width: 750px) and (max-width: 1540px){
+  .slideshow__text.banner__box{
+    padding: 4rem 10rem;
+  }
+} */
+.slide-banner.banner--medium{
+    min-height:700px !important;
+}
+/* Desktop only: hero fits within one screen (no scroll); full image, no crop */
+@media screen and (min-width: 990px){
+  .slide-banner.banner--medium{
+    min-height: 0 !important;
+    height: calc(100vh - 185px) !important;
+    max-height: 600px !important;
+  }
+  /* Video keeps filling the frame */
+  .slide-banner.banner--medium .swiper-slide:first-child video {
+    height: calc(100vh - 185px) !important;
+    max-height: 600px !important;
+    object-fit: cover !important;
+    object-position: center center !important;
+  }
+  /* Image shows in full (fit), centred, on a matching dark backdrop */
+  .slide-banner.banner--medium .swiper-slide:first-child .slideshow__media { background: #0b0b0e; }
+  .slide-banner.banner--medium .swiper-slide:first-child img {
+    height: calc(100vh - 185px) !important;
+    max-height: 600px !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
+}
+.slideshow__slide:not(:first-child) .slideshow__media video,
+.slideshow__slide:not(:first-child) .banner__media video,
+.slideshow__slide:not(:first-child) .media > video,
+.slideshow__slide:not(:first-child) video {
+  object-fit: cover !important;
+  object-position: center center !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  display: block !important;
+}
+
+/* ============================================
+   PRODUCT VIDEO SLIDER (.banner--small)
+   Single consistent portrait layout for ALL
+   slides + swipe states. Hero (banner--medium)
+   is intentionally NOT affected.
+   ============================================ */
+.banner--small .swiper-slide .slideshow__media,
+.banner--small .swiper-slide .banner__media {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #000 !important;
+  position: relative !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.banner--small .swiper-slide video {
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  margin: 0 !important;
+}
+
+/* Remove white fade overlay on product video slides */
+.banner--small .swiper-slide .slideshow__media:after {
+  display: none !important;
+}
+
+/* Consistent portrait height for every slide */
+.banner--small .swiper-slide,
+.banner--small .swiper-slide .slideshow__slide,
+.banner--small .swiper-slide .slideshow__media,
+.banner--small .swiper-slide .banner__media {
+  min-height: 68vh !important;
+  max-height: 68vh !important;
+  height: 68vh !important;
+}
+
+/* Desktop — show full video (contain) with invisible letterbox (page bg) */
+@media screen and (min-width: 750px) {
+  .banner--small .swiper-slide .slideshow__media,
+  .banner--small .swiper-slide .banner__media {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    background: transparent !important;
+    overflow: hidden !important;
+  }
+  .banner--small .swiper-slide video {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+    transform: none !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+}
+
+@media screen and (max-width: 749px) {
+  .banner--small .swiper-slide,
+  .banner--small .swiper-slide .slideshow__slide,
+  .banner--small .swiper-slide .slideshow__media,
+  .banner--small .swiper-slide .banner__media {
+    min-height: 75vh !important;
+    max-height: 75vh !important;
+    height: 75vh !important;
+  }
+
+  /* Force-fill on mobile — no black bars/gaps on any slide */
+  .banner--small .swiper-slide video {
+    object-fit: cover !important;
+    object-position: center center !important;
+    transform: none !important;
+  }
+
+  /* Nav arrows centered, pagination at bottom */
+  .banner--small ~ * .swiper-button-next,
+  slideshow-component .swiper :where(.swiper-button-next, .swiper-button-prev) {
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translateY(-50%) !important;
+  }
+
+  slideshow-component .swiper-pagination {
+    bottom: 12px !important;
+  }
+}
+
+
+
+
+/* Fix fade effect glitch — prevent two slides showing during transition */
+.swiper-fade .swiper-slide {
+  pointer-events: none !important;
+  transition-property: opacity !important;
+}
+
+.swiper-fade .swiper-slide-active {
+  pointer-events: auto !important;
+}

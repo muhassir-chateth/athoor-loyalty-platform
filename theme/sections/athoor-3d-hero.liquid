@@ -1,0 +1,140 @@
+{%- comment -%}
+  Athoor London — 3D Bee Hero
+  A photoreal-style perfume bottle with a bee orbiting / landing / taking off (Three.js + GSAP).
+  Heavy assets (bee GLB, bottle GLB, HDRI) must be uploaded to Settings > Content > Files
+  and the resulting CDN URLs pasted into this section's settings.
+  Safe by design: if the device can't run WebGL (or prefers reduced motion), a static
+  fallback image is shown instead. Engine lazy-loads only when scrolled into view.
+{%- endcomment -%}
+
+{%- style -%}
+  #abh-{{ section.id }} {
+    position: relative;
+    background: {{ section.settings.bg_color }};
+    min-height: {{ section.settings.height }}px;
+    overflow: hidden;
+  }
+  #abh-{{ section.id }} .abh__stage { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  #abh-{{ section.id }} .abh__canvas { width: 100%; height: 100%; display: block; position: relative; z-index: 1; }
+  #abh-{{ section.id }} .abh__fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+  #abh-{{ section.id }} .abh__word {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 0; margin: 0; pointer-events: none; white-space: nowrap;
+    font-family: var(--font-heading-family); font-weight: var(--font-heading-weight);
+    text-transform: uppercase; letter-spacing: 0.04em; line-height: 1;
+    font-size: clamp(56px, 13vw, 200px);
+    color: {{ section.settings.word_color }};
+    opacity: 0; transition: opacity 0.9s ease;
+  }
+  #abh-{{ section.id }} .abh__word.is-visible { opacity: 1; }
+  #abh-{{ section.id }} .abh__col {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    z-index: 2; max-width: 30%; padding: 0 48px; pointer-events: none;
+  }
+  #abh-{{ section.id }} .abh__col a { pointer-events: auto; }
+  #abh-{{ section.id }} .abh__col--left { left: 0; }
+  #abh-{{ section.id }} .abh__col--right { right: 0; text-align: right; }
+  #abh-{{ section.id }} .abh__eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: {{ section.settings.accent_color }}; margin: 0 0 12px; }
+  #abh-{{ section.id }} .abh__title { font-family: var(--font-heading-family); font-weight: var(--font-heading-weight); font-size: calc(var(--font-heading-scale) * 2.2rem); line-height: 1.1; color: {{ section.settings.text_color }}; margin: 0 0 16px; }
+  #abh-{{ section.id }} .abh__text { font-size: 14px; line-height: 1.8; color: {{ section.settings.text_color }}; opacity: 0.8; margin: 0 0 20px; }
+  #abh-{{ section.id }} .abh__cta { display: inline-block; padding: 12px 26px; border-radius: 999px; background: {{ section.settings.text_color }}; color: {{ section.settings.bg_color }}; text-decoration: none; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; transition: transform 0.25s ease, opacity 0.25s ease; }
+  #abh-{{ section.id }} .abh__cta:hover { transform: translateY(-2px); opacity: 0.9; }
+
+  @media screen and (max-width: 749px) {
+    /* mobile: clean vertical stack — stage on top, text fully below (no overlap) */
+    #abh-{{ section.id }} { display: flex; flex-direction: column; min-height: 0; }
+    #abh-{{ section.id }} .abh__stage {
+      position: relative; inset: auto; order: 0;
+      width: 100%; height: 58vw; max-height: 380px;
+    }
+    #abh-{{ section.id }} .abh__col {
+      position: static; inset: auto; transform: none; order: 1;
+      max-width: 100%; text-align: right; padding: 6px 30px 30px;
+    }
+    #abh-{{ section.id }} .abh__col--right:empty { display: none; }
+    /* mobile text tweaks: smaller, aligned right, extra space above the button */
+    #abh-{{ section.id }} .abh__eyebrow { font-size: 8px !important; letter-spacing: 0.18em; margin-bottom: 6px; }
+    #abh-{{ section.id }} .abh__title { font-size: 15px !important; line-height: 1.25; margin-bottom: 0; }
+    #abh-{{ section.id }} .abh__cta { margin-top: 20px; font-size: 11px; padding: 10px 22px; }
+  }
+{%- endstyle -%}
+
+<section
+  id="abh-{{ section.id }}"
+  data-athoor-bee-hero
+  data-bee-url="{{ section.settings.bee_model_url }}"
+  data-bottle-url="{{ section.settings.bottle_model_url }}"
+  data-bottle-image="{{ section.settings.bottle_image_url }}"
+  data-hdri-url="{{ section.settings.hdri_url }}"
+  data-bottle-color="{{ section.settings.bottle_color }}"
+  data-bg="{{ section.settings.bg_color }}"
+  data-bloom="{{ section.settings.bloom }}"
+  data-bee-scale="{{ section.settings.bee_scale }}"
+>
+  <div class="abh__stage">
+    {%- if section.settings.bg_word != blank -%}
+      <div class="abh__word" data-bee-word>{{ section.settings.bg_word }}</div>
+    {%- endif -%}
+    <canvas class="abh__canvas" data-bee-canvas></canvas>
+    {%- if section.settings.fallback_image != blank -%}
+      <img class="abh__fallback" data-bee-fallback
+           src="{{ section.settings.fallback_image | image_url: width: 1000 }}"
+           alt="{{ section.settings.left_title | escape }}" width="1000" height="1000" loading="lazy">
+    {%- endif -%}
+  </div>
+
+  {%- if section.settings.left_title != blank or section.settings.left_text != blank -%}
+    <div class="abh__col abh__col--left">
+      {%- if section.settings.left_eyebrow != blank -%}<p class="abh__eyebrow">{{ section.settings.left_eyebrow }}</p>{%- endif -%}
+      {%- if section.settings.left_title != blank -%}<h2 class="abh__title">{{ section.settings.left_title }}</h2>{%- endif -%}
+      {%- if section.settings.left_text != blank -%}<div class="abh__text">{{ section.settings.left_text }}</div>{%- endif -%}
+      {%- if section.settings.cta_text != blank -%}<a class="abh__cta" href="{{ section.settings.cta_link | default: '#' }}">{{ section.settings.cta_text }}</a>{%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {%- if section.settings.right_title != blank or section.settings.right_text != blank -%}
+    <div class="abh__col abh__col--right">
+      {%- if section.settings.right_eyebrow != blank -%}<p class="abh__eyebrow">{{ section.settings.right_eyebrow }}</p>{%- endif -%}
+      {%- if section.settings.right_title != blank -%}<h2 class="abh__title">{{ section.settings.right_title }}</h2>{%- endif -%}
+      {%- if section.settings.right_text != blank -%}<div class="abh__text">{{ section.settings.right_text }}</div>{%- endif -%}
+    </div>
+  {%- endif -%}
+</section>
+
+<script type="module" src="{{ 'athoor-3d-hero.js' | asset_url }}"></script>
+
+{% schema %}
+{
+  "name": "3D Bee Hero",
+  "tag": "section",
+  "settings": [
+    { "type": "header", "content": "3D Assets (paste Shopify Files URLs)" },
+    { "type": "text", "id": "bee_model_url", "label": "Bee model URL (.glb)", "default": "https://cdn.shopify.com/3d/models/1ef4246e97934870/Flying_bee.glb", "info": "Leave blank to use a placeholder bee" },
+    { "type": "text", "id": "bottle_model_url", "label": "Bottle model URL (.glb)", "info": "Leave blank to use a placeholder bottle" },
+    { "type": "text", "id": "bottle_image_url", "label": "Bottle photo URL (PNG)", "default": "https://cdn.shopify.com/s/files/1/0954/4613/9219/files/identityoldmoney-7381173.png?v=1782618688", "info": "Floats a product photo as the bottle (option B)" },
+    { "type": "text", "id": "hdri_url", "label": "HDRI environment URL (.hdr)", "info": "Optional — improves reflections" },
+    { "type": "image_picker", "id": "fallback_image", "label": "Fallback image", "info": "Shown on low-power devices / reduced-motion" },
+    { "type": "header", "content": "Appearance" },
+    { "type": "color", "id": "bg_color", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#1a1a1a" },
+    { "type": "color", "id": "accent_color", "label": "Accent", "default": "#B8960C" },
+    { "type": "text", "id": "bg_word", "label": "Background word", "default": "IDENTITY", "info": "Large faded name behind the bottle (shows while the bee flies)" },
+    { "type": "color", "id": "word_color", "label": "Background word colour", "default": "#ece7df" },
+    { "type": "color", "id": "bottle_color", "label": "Placeholder bottle colour", "default": "#5a2a16" },
+    { "type": "range", "id": "bloom", "min": 0, "max": 2, "step": 0.1, "label": "Bloom intensity", "default": 0.6 },
+    { "type": "range", "id": "bee_scale", "min": 0.2, "max": 3, "step": 0.1, "label": "Bee size", "default": 1 },
+    { "type": "range", "id": "height", "min": 400, "max": 900, "step": 20, "unit": "px", "label": "Section height", "default": 640 },
+    { "type": "header", "content": "Left column" },
+    { "type": "text", "id": "left_eyebrow", "label": "Eyebrow" },
+    { "type": "text", "id": "left_title", "label": "Title", "default": "Smell Is A Word" },
+    { "type": "richtext", "id": "left_text", "label": "Text" },
+    { "type": "text", "id": "cta_text", "label": "Button label", "default": "Shop Now" },
+    { "type": "url", "id": "cta_link", "label": "Button link" },
+    { "type": "header", "content": "Right column" },
+    { "type": "text", "id": "right_eyebrow", "label": "Eyebrow" },
+    { "type": "text", "id": "right_title", "label": "Title" },
+    { "type": "richtext", "id": "right_text", "label": "Text" }
+  ],
+  "presets": [{ "name": "3D Bee Hero" }]
+}
+{% endschema %}

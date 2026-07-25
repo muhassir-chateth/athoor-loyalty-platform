@@ -1,0 +1,130 @@
+{{ 'page-wishlist.css' | asset_url | stylesheet_tag }}
+
+<style>
+  .breadcrumb { display: none !important; }
+</style>
+
+<div class="page-width wishlist">
+  <div id="AthoorWishlistRoot">
+    <!-- Empty state -->
+    <div class="dtx-grid-empty dtx-grid-show" id="AthoorWishlistEmpty">
+      <h1 class="wl-page-title">Don't forget your favourites</h1>
+      <p class="wl-page-subtitle">Tap the heart on any fragrance to save it here.</p>
+      <div class="wl-page-actions">
+        <a href="/account/login" class="wl-btn wl-btn--filled">Sign In</a>
+        <a href="{{ routes.all_products_collection_url }}" class="wl-btn wl-btn--outline">Continue Shopping</a>
+      </div>
+    </div>
+
+    <!-- Grid (populated by JS) -->
+    <table class="dtx-table" id="AthoorWishlistTable">
+      <tbody id="AthoorWishlistBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function() {
+  var WISH_KEY = 'shopify-wishlist';
+
+  function getWishlist() {
+    return (localStorage.getItem(WISH_KEY) || '').split(',').filter(Boolean);
+  }
+  function saveWishlist(list) {
+    if (list.length) localStorage.setItem(WISH_KEY, list.join(','));
+    else localStorage.removeItem(WISH_KEY);
+    var countEl = document.querySelector('.dtxc-wishlist-count');
+    if (countEl) countEl.setAttribute('count', list.length);
+  }
+
+  function buildRow(parts) {
+    var id = parts[0];
+    var title = parts[1];
+    var handle = parts[2];
+    var image = parts[3];
+    var price = parts[6];
+    var url = '/products/' + handle;
+
+    var tr = document.createElement('tr');
+    tr.id = 'wlrow_' + handle;
+    tr.innerHTML =
+      '<td class="product-thumbnail"><a href="' + url + '"><img loading="lazy" src="' + image + '" alt="' + title + '"></a></td>' +
+      '<td class="product-name"><a href="' + url + '">' + title + '</a></td>' +
+      '<td class="product-price-cart">' + price + '</td>' +
+      '<td class="product-wishlist-cart"><a href="' + url + '" class="dt-sc-btn button product-cart"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></a></td>' +
+      '<td><a href="javascript:void(0);" class="remove-item product-cart" data-remove="' + handle + '"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></a></td>';
+    return tr;
+  }
+
+  function render() {
+    var wishlist = getWishlist();
+    var empty = document.getElementById('AthoorWishlistEmpty');
+    var table = document.getElementById('AthoorWishlistTable');
+    var tbody = document.getElementById('AthoorWishlistBody');
+    if (!empty || !table || !tbody) return;
+
+    // Update count
+    var countEl = document.querySelector('.dtxc-wishlist-count');
+    if (countEl) countEl.setAttribute('count', wishlist.length);
+
+    if (wishlist.length === 0) {
+      empty.classList.add('dtx-grid-show');
+      empty.classList.remove('dtx-grid-hide');
+      table.classList.remove('dtx-grid-show');
+      table.classList.add('dtx-grid-hide');
+      return;
+    }
+
+    var fetches = wishlist.map(function(handle) {
+      return fetch('/products/' + handle + '?view=json')
+        .then(function(r) { return r.ok ? r.text() : ''; })
+        .then(function(t) { return t ? t.trim() : ''; })
+        .catch(function() { return ''; });
+    });
+
+    Promise.all(fetches).then(function(results) {
+      tbody.innerHTML = '';
+      var count = 0;
+      results.forEach(function(record) {
+        if (!record || record.indexOf('~~') === -1) return;
+        var parts = record.split('~~');
+        if (parts.length < 7) return;
+        tbody.appendChild(buildRow(parts));
+        count++;
+      });
+
+      if (count > 0) {
+        empty.classList.remove('dtx-grid-show');
+        empty.classList.add('dtx-grid-hide');
+        table.classList.add('dtx-grid-show');
+        table.classList.remove('dtx-grid-hide');
+      } else {
+        empty.classList.add('dtx-grid-show');
+        table.classList.remove('dtx-grid-show');
+        table.classList.add('dtx-grid-hide');
+      }
+    });
+  }
+
+  // Remove handler (event delegation)
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-remove]');
+    if (!btn) return;
+    e.preventDefault();
+    var handle = btn.getAttribute('data-remove');
+    var list = getWishlist();
+    var idx = list.indexOf(handle);
+    if (idx > -1) list.splice(idx, 1);
+    saveWishlist(list);
+    var row = document.getElementById('wlrow_' + handle);
+    if (row) row.remove();
+    if (list.length === 0) render();
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', render);
+  } else {
+    render();
+  }
+})();
+</script>

@@ -1,0 +1,434 @@
+{% doc %}
+  @prompt
+    Create a sticky banner/announcement bar that remains permanently fixed and visible at the top of the page while users scroll, across all pages and devices (desktop and mobile). The banner should stay in place using CSS position:sticky or position:fixed, and should not disappear or hide on scroll. It should work alongside the existing header and not overlap content awkwardly.
+{% enddoc %}
+{% assign ai_gen_id = block.id | replace: '_', '' | downcase %}
+
+{% style %}
+  .ai-sticky-banner-{{ ai_gen_id }} {
+    display: block;
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 999;
+    background-color: {{ block.settings.background_color }};
+    color: {{ block.settings.text_color }};
+    padding: {{ block.settings.padding_vertical }}px {{ block.settings.padding_horizontal }}px;
+    text-align: {{ block.settings.text_alignment }};
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .ai-sticky-banner-content-{{ ai_gen_id }} {
+    max-width: {{ block.settings.max_width }}px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: {{ block.settings.content_justify }};
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .ai-sticky-banner-text-{{ ai_gen_id }} {
+    font-size: {{ block.settings.font_size }}px;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .ai-sticky-banner-link-{{ ai_gen_id }} {
+    color: {{ block.settings.link_color }};
+    text-decoration: underline;
+    font-weight: 600;
+  }
+
+  .ai-sticky-banner-link-{{ ai_gen_id }}:hover {
+    color: {{ block.settings.link_hover_color }};
+  }
+
+  .ai-sticky-banner-button-{{ ai_gen_id }} {
+    display: inline-block;
+    padding: 8px 20px;
+    background-color: {{ block.settings.button_background }};
+    color: {{ block.settings.button_text_color }};
+    text-decoration: none;
+    border-radius: {{ block.settings.button_border_radius }}px;
+    font-size: {{ block.settings.button_font_size }}px;
+    font-weight: 600;
+    transition: background-color 0.3s ease;
+  }
+
+  .ai-sticky-banner-button-{{ ai_gen_id }}:hover {
+    background-color: {{ block.settings.button_hover_background }};
+  }
+
+  .ai-sticky-banner-close-{{ ai_gen_id }} {
+    background: none;
+    border: none;
+    color: {{ block.settings.text_color }};
+    cursor: pointer;
+    padding: 4px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+  }
+
+  .ai-sticky-banner-close-{{ ai_gen_id }}:hover {
+    opacity: 1;
+  }
+
+  .ai-sticky-banner-close-{{ ai_gen_id }} svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .ai-sticky-banner-{{ ai_gen_id }}.hidden {
+    display: none;
+  }
+
+  @media screen and (max-width: 749px) {
+    .ai-sticky-banner-{{ ai_gen_id }} {
+      padding: {{ block.settings.mobile_padding_vertical }}px {{ block.settings.mobile_padding_horizontal }}px;
+    }
+
+    .ai-sticky-banner-text-{{ ai_gen_id }} {
+      font-size: {{ block.settings.mobile_font_size }}px;
+    }
+
+    .ai-sticky-banner-content-{{ ai_gen_id }} {
+      justify-content: center;
+    }
+  }
+{% endstyle %}
+
+<sticky-banner-{{ ai_gen_id }}
+  class="ai-sticky-banner-{{ ai_gen_id }}"
+  data-banner-id="{{ block.id }}"
+  {{ block.shopify_attributes }}
+>
+  <div class="ai-sticky-banner-content-{{ ai_gen_id }}">
+    {% if block.settings.message != blank %}
+      <div class="ai-sticky-banner-text-{{ ai_gen_id }}">
+        {{ block.settings.message }}
+        {% if block.settings.link_text != blank and block.settings.link_url != blank %}
+          <a href="{{ block.settings.link_url }}" class="ai-sticky-banner-link-{{ ai_gen_id }}">
+            {{ block.settings.link_text }}
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if block.settings.show_button and block.settings.button_text != blank and block.settings.button_url != blank %}
+      <a href="{{ block.settings.button_url }}" class="ai-sticky-banner-button-{{ ai_gen_id }}">
+        {{ block.settings.button_text }}
+      </a>
+    {% endif %}
+
+    {% if block.settings.show_close_button %}
+      <button
+        class="ai-sticky-banner-close-{{ ai_gen_id }}"
+        aria-label="Close banner"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    {% endif %}
+  </div>
+</sticky-banner-{{ ai_gen_id }}>
+
+<script>
+  (function() {
+    class StickyBanner{{ ai_gen_id }} extends HTMLElement {
+      constructor() {
+        super();
+        this.bannerId = this.dataset.bannerId;
+        this.storageKey = `banner_closed_${this.bannerId}`;
+      }
+
+      connectedCallback() {
+        if (this.isBannerClosed()) {
+          this.classList.add('hidden');
+          return;
+        }
+
+        const closeButton = this.querySelector('.ai-sticky-banner-close-{{ ai_gen_id }}');
+        if (closeButton) {
+          closeButton.addEventListener('click', () => this.closeBanner());
+        }
+      }
+
+      isBannerClosed() {
+        try {
+          return localStorage.getItem(this.storageKey) === 'true';
+        } catch (e) {
+          return false;
+        }
+      }
+
+      closeBanner() {
+        this.classList.add('hidden');
+        try {
+          localStorage.setItem(this.storageKey, 'true');
+        } catch (e) {
+          console.warn('Unable to save banner state');
+        }
+      }
+    }
+
+    customElements.define('sticky-banner-{{ ai_gen_id }}', StickyBanner{{ ai_gen_id }});
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Sticky banner",
+  "tag": null,
+  "settings": [
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    {
+      "type": "inline_richtext",
+      "id": "message",
+      "label": "Message",
+      "default": "Free shipping on orders over £50"
+    },
+    {
+      "type": "inline_richtext",
+      "id": "link_text",
+      "label": "Link text"
+    },
+    {
+      "type": "url",
+      "id": "link_url",
+      "label": "Link URL"
+    },
+    {
+      "type": "header",
+      "content": "Button"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_button",
+      "label": "Show button",
+      "default": false
+    },
+    {
+      "type": "inline_richtext",
+      "id": "button_text",
+      "label": "Button text"
+    },
+    {
+      "type": "url",
+      "id": "button_url",
+      "label": "Button URL"
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "label": "Button background",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_hover_background",
+      "label": "Button hover background",
+      "default": "#333333"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "button_font_size",
+      "min": 10,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "label": "Button font size",
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "button_border_radius",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "label": "Button border radius",
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Style"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "link_color",
+      "label": "Link color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "link_hover_color",
+      "label": "Link hover color",
+      "default": "#cccccc"
+    },
+    {
+      "type": "select",
+      "id": "text_alignment",
+      "label": "Text alignment",
+      "options": [
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "select",
+      "id": "content_justify",
+      "label": "Content position",
+      "options": [
+        {
+          "value": "flex-start",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "flex-end",
+          "label": "Right"
+        },
+        {
+          "value": "space-between",
+          "label": "Space between"
+        }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "min": 800,
+      "max": 1600,
+      "step": 100,
+      "unit": "px",
+      "label": "Maximum width",
+      "default": 1400
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "min": 12,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "label": "Font size",
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "padding_vertical",
+      "min": 8,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "label": "Vertical padding",
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "padding_horizontal",
+      "min": 10,
+      "max": 60,
+      "step": 5,
+      "unit": "px",
+      "label": "Horizontal padding",
+      "default": 20
+    },
+    {
+      "type": "header",
+      "content": "Mobile"
+    },
+    {
+      "type": "range",
+      "id": "mobile_font_size",
+      "min": 10,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "label": "Font size",
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "mobile_padding_vertical",
+      "min": 6,
+      "max": 30,
+      "step": 2,
+      "unit": "px",
+      "label": "Vertical padding",
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "mobile_padding_horizontal",
+      "min": 10,
+      "max": 40,
+      "step": 5,
+      "unit": "px",
+      "label": "Horizontal padding",
+      "default": 15
+    },
+    {
+      "type": "header",
+      "content": "Close button"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_close_button",
+      "label": "Show close button",
+      "default": true,
+      "info": "Banner will stay hidden until browser storage is cleared"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Sticky banner"
+    }
+  ]
+}
+{% endschema %}

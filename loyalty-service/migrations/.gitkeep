@@ -1,0 +1,2 @@
+# Ledger schema migrations live here (added by task 1.2). Kept tracked so the
+# migration tooling (node-pg-migrate) has its target directory available.

@@ -1,0 +1,162 @@
+{% if section.settings.show_gdpr %}
+
+<!-- Main cookie consent modal -->
+<div id="athoor-cookie-modal" style="position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);">
+  <div id="athoor-cookie-main" style="background:#fff;width:92%;max-width:620px;padding:44px 48px;position:relative;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
+    <a href="javascript:void(0);" data-cookie-skip style="position:absolute;top:18px;right:20px;font-size:11px;color:#666;text-decoration:none;letter-spacing:0.02em;">Continue without accepting</a>
+    <h2 style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;color:#1a1a1a;margin:0 0 24px;">Your Cookie Preferences</h2>
+    <p style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#1a1a1a;margin:0 0 12px;">Welcome to myathoorlondon.co.uk</p>
+    <p style="font-size:13px;line-height:1.7;color:#3a3a3a;font-weight:300;margin:0 0 10px;">{{ section.settings.text }}</p>
+    <p style="font-size:12px;line-height:1.6;color:#555;margin:0 0 28px;">You can either accept these cookies by clicking "Accept and Continue", or click "Set Cookie Preferences" to set your preferences.</p>
+    <div style="display:flex;gap:14px;margin-bottom:20px;">
+      <button type="button" data-cookie-open-prefs style="flex:1;padding:15px 20px;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;background:#fff;color:#1a1a1a;border:1px solid #1a1a1a;cursor:pointer;">Set Cookie Preferences</button>
+      <button type="button" data-cookie-accept style="flex:1;padding:15px 20px;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;background:#1a1a1a;color:#fff;border:1px solid #1a1a1a;cursor:pointer;">Accept and Continue</button>
+    </div>
+    <p style="font-size:11px;line-height:1.6;color:#777;margin:0;">You can change your preferences at any time by going to the "Cookies" module or to the "Privacy Policy" section.<br><a href="javascript:void(0);" data-cookie-open-prefs-link style="color:#1a1a1a;text-decoration:underline;font-size:11px;">See the list of cookies used on our site</a><br>For more information on our cookie policy, please click <a href="javascript:void(0);" data-cookie-open-prefs-link style="color:#1a1a1a;text-decoration:underline;">here</a></p>
+    <p style="font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#1a1a1a;margin:28px 0 0;text-align:center;">My Athoor London</p>
+  </div>
+
+  <!-- Preferences panel (hidden initially) -->
+  <div id="athoor-cookie-prefs-panel" style="display:none;background:#fff;width:92%;max-width:620px;padding:44px 48px;position:relative;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,0.12);max-height:85vh;overflow-y:auto;">
+    <a href="javascript:void(0);" data-cookie-skip style="position:absolute;top:18px;right:20px;font-size:11px;color:#666;text-decoration:none;">Continue without accepting</a>
+    <h2 style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;color:#1a1a1a;margin:0 0 20px;">Your Cookie Preferences</h2>
+    <p style="font-size:12px;font-weight:600;margin:0 0 10px;color:#1a1a1a;">What is a cookie?</p>
+    <p style="font-size:12px;line-height:1.65;color:#3a3a3a;margin:0 0 16px;">A cookie is a small text file that is stored in a dedicated location on your computer, tablet, smartphone or other device when you use your browser to visit an online service. A cookie allows its sender to identify the device on which it is stored during the period of validity of consent, which does not exceed 13 months.</p>
+    <p style="font-size:12px;line-height:1.65;color:#3a3a3a;margin:0 0 24px;">You may accept or reject the cookies listed below using the check box provided.</p>
+
+    <!-- Cookie categories -->
+    <div class="athoor-ck-cat">
+      <div class="athoor-ck-toggles"><span class="athoor-ck-x">✕</span><span class="athoor-ck-v is-on">✓</span></div>
+      <div><p class="athoor-ck-title">Functional cookies (non-optional)</p><p class="athoor-ck-desc">These cookies are required for optimum operation of the website, and cannot be configured. They allow us to offer you the key functions of the website (language used, display resolution, account access, shopping bag, wish list, etc.), provide you with online advice and secure our website against any attempted fraud.</p></div>
+    </div>
+    <div class="athoor-ck-cat">
+      <div class="athoor-ck-toggles"><span class="athoor-ck-x" data-ck-toggle="stats">✕</span><span class="athoor-ck-v is-on" data-ck-toggle="stats">✓</span></div>
+      <div><p class="athoor-ck-title">Statistical analysis cookies</p><p class="athoor-ck-desc">These cookies are used to measure and analyse our website audience (visitor volume, pages viewed, average browsing time, etc.) to help us improve its performance. By accepting these cookies, you are helping us to improve our website.</p></div>
+    </div>
+    <div class="athoor-ck-cat">
+      <div class="athoor-ck-toggles"><span class="athoor-ck-x" data-ck-toggle="personalise">✕</span><span class="athoor-ck-v is-on" data-ck-toggle="personalise">✓</span></div>
+      <div><p class="athoor-ck-title">Cookies to personalise the My Athoor London experience</p><p class="athoor-ck-desc">These cookies allow us to provide you with online recommendations of products, services and content that match your expectations and preferences. By accepting these cookies, you are opting for an enriched and personalised experience.</p></div>
+    </div>
+    <div class="athoor-ck-cat">
+      <div class="athoor-ck-toggles"><span class="athoor-ck-x" data-ck-toggle="ads">✕</span><span class="athoor-ck-v is-on" data-ck-toggle="ads">✓</span></div>
+      <div><p class="athoor-ck-title">Advertising and social media cookies</p><p class="athoor-ck-desc">These cookies are used for advertisements displayed on third-party websites, including social media, and are tailored to your preferences and to help us measure the effectiveness of our advertising campaigns. If you refuse these cookies, advertising will continue to be displayed but will not be specific to your personal interests.</p></div>
+    </div>
+    <div class="athoor-ck-cat">
+      <div class="athoor-ck-toggles"><span class="athoor-ck-x" data-ck-toggle="chat">✕</span><span class="athoor-ck-v is-on" data-ck-toggle="chat">✓</span></div>
+      <div><p class="athoor-ck-title">Cookies required for remote "chat" assistance</p><p class="athoor-ck-desc">In order to provide you with the most personalised assistance and to recommend the products and services that best meet your expectations and preferences, we would like to track your experience on the site. If you refuse these cookies, the chat functionality will not be available on the site.</p></div>
+    </div>
+
+    <button type="button" data-cookie-save style="width:100%;padding:14px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;background:#e8e4de;color:#888;border:none;border-radius:26px;margin:20px 0 10px;cursor:pointer;transition:background 0.2s,color 0.2s;">Save</button>
+    <button type="button" data-cookie-back style="width:100%;padding:14px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;background:#fff;color:#1a1a1a;border:1px solid #1a1a1a;border-radius:26px;cursor:pointer;">Back</button>
+
+    <p style="font-size:10px;line-height:1.6;color:#777;margin:18px 0 0;">You can change your preferences at any time by going to the "Cookies" module or to the "Privacy Policy" sub-section of the "LEGAL & PRIVACY" section.<br><a href="/policies/privacy-policy#cookies" style="color:#1a1a1a;text-decoration:underline;">See the list of cookies used on our site</a><br>For more information on our cookie policy, please click <a href="/policies/privacy-policy" style="color:#1a1a1a;text-decoration:underline;">here</a></p>
+  </div>
+</div>
+
+<style>
+.athoor-ck-cat { display:flex; gap:14px; margin-bottom:20px; align-items:flex-start; }
+.athoor-ck-toggles { display:flex; gap:6px; flex-shrink:0; padding-top:2px; }
+.athoor-ck-x, .athoor-ck-v { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; border:1px solid #ccc; background:#e8e4de; color:#666; transition:all 0.2s; }
+.athoor-ck-v.is-on { background:#c8e6c9; color:#2e7d32; border-color:#a5d6a7; }
+.athoor-ck-x.is-on { background:#ffcdd2; color:#c62828; border-color:#ef9a9a; }
+.athoor-ck-v:not(.is-on) { background:#e8e4de; color:#999; }
+.athoor-ck-title { font-size:13px; font-weight:600; color:#1a1a1a; margin:0 0 6px; }
+.athoor-ck-desc { font-size:11.5px; line-height:1.6; color:#555; margin:0; }
+
+/* Mobile: both panels as bottom card */
+@media screen and (max-width: 749px) {
+  #athoor-cookie-modal { align-items:flex-end !important; padding-bottom:20px !important; padding-top:0 !important; background:rgba(0,0,0,0.12) !important; }
+  #athoor-cookie-main, #athoor-cookie-prefs-panel { width:92% !important; max-width:400px !important; padding:18px 22px 22px !important; border-radius:16px !important; box-shadow:0 6px 30px rgba(0,0,0,0.12) !important; }
+  #athoor-cookie-prefs-panel { max-height:80vh !important; overflow-y:auto !important; border-radius:16px !important; }
+  #athoor-cookie-modal h2 { font-size:15px !important; margin-bottom:10px !important; margin-top:18px !important; }
+  #athoor-cookie-modal p { font-size:10.5px !important; line-height:1.5 !important; margin-bottom:8px !important; }
+  #athoor-cookie-modal [data-cookie-skip] { font-size:9px !important; top:10px !important; right:14px !important; position:absolute !important; }
+  #athoor-cookie-main > div { flex-direction:column !important; gap:8px !important; margin-bottom:10px !important; }
+  #athoor-cookie-main > div button { width:100% !important; flex:none !important; padding:13px 18px !important; border-radius:26px !important; font-size:10.5px !important; }
+  #athoor-cookie-main [data-cookie-accept] { order:-1 !important; }
+  .athoor-ck-title { font-size:12px !important; }
+  .athoor-ck-desc { font-size:10.5px !important; }
+  .athoor-ck-x, .athoor-ck-v { width:28px !important; height:28px !important; font-size:12px !important; }
+  #club-popup { display:none !important; }
+}
+
+/* Save button: turn black on hover/active */
+[data-cookie-save]:hover,
+[data-cookie-save]:active {
+  background: #1a1a1a !important;
+  color: #fff !important;
+}
+</style>
+
+<script>
+(function() {
+  var modal = document.getElementById('athoor-cookie-modal');
+  var main = document.getElementById('athoor-cookie-main');
+  var prefs = document.getElementById('athoor-cookie-prefs-panel');
+  if (!modal) return;
+
+  function getCookie(name) { var m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)')); return m ? m[2] : ''; }
+  if (getCookie('athoor_cookie_consent')) { modal.style.display = 'none'; return; }
+
+  function dismiss() {
+    modal.style.display = 'none';
+    var d = new Date(); d.setTime(d.getTime() + 365*24*60*60*1000);
+    document.cookie = 'athoor_cookie_consent=accepted; expires=' + d.toUTCString() + '; path=/';
+  }
+
+  // Accept buttons
+  modal.querySelectorAll('[data-cookie-accept]').forEach(function(b) { b.addEventListener('click', dismiss); });
+  modal.querySelectorAll('[data-cookie-skip]').forEach(function(b) { b.addEventListener('click', dismiss); });
+
+  // Open preferences
+  modal.querySelector('[data-cookie-open-prefs]').addEventListener('click', function() {
+    main.style.display = 'none';
+    prefs.style.display = 'block';
+  });
+
+  // "See list" and "here" links also open preferences
+  modal.querySelectorAll('[data-cookie-open-prefs-link]').forEach(function(b) {
+    b.addEventListener('click', function(e) {
+      e.preventDefault();
+      main.style.display = 'none';
+      prefs.style.display = 'block';
+    });
+  });
+
+  // Back button
+  modal.querySelector('[data-cookie-back]').addEventListener('click', function() {
+    prefs.style.display = 'none';
+    main.style.display = 'block';
+  });
+
+  // Save button
+  modal.querySelector('[data-cookie-save]').addEventListener('click', dismiss);
+
+  // Toggle cookie categories
+  modal.querySelectorAll('[data-ck-toggle]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var cat = el.getAttribute('data-ck-toggle');
+      var siblings = el.parentElement.querySelectorAll('[data-ck-toggle="' + cat + '"]');
+      siblings.forEach(function(s) { s.classList.toggle('is-on'); });
+    });
+  });
+})();
+</script>
+
+{% endif %}
+
+{% schema %}
+{
+"name": "t:sections.cookie-banner.name",
+"class": "gdpr-section",
+"settings": [
+  { "type": "checkbox", "id": "show_gdpr", "label": "t:sections.cookie-banner.settings.show_gdpr.label" },
+  { "type": "select", "id": "style", "label": "t:sections.cookie-banner.settings.style.label", "default": "bottom", "options": [{ "value": "bottom", "label": "t:sections.cookie-banner.settings.style.options__1.label" },{ "value": "left", "label": "t:sections.cookie-banner.settings.style.options__2.label" },{ "value": "right", "label": "t:sections.cookie-banner.settings.style.options__3.label" }] },
+  { "type": "select", "id": "color_scheme", "options": [{ "value": "accent-1", "label": "t:sections.all.colors.accent_1.label" },{ "value": "accent-2", "label": "t:sections.all.colors.accent_2.label" },{ "value": "background-1", "label": "t:sections.all.colors.background_1.label" },{ "value": "background-2", "label": "t:sections.all.colors.background_2.label" },{ "value": "inverse", "label": "t:sections.all.colors.inverse.label" }], "default": "background-1", "label": "t:sections.all.colors.label", "info": "t:sections.cookie-banner.settings.color_scheme.info" },
+  { "type": "textarea", "id": "text", "label": "t:sections.cookie-banner.settings.text.label", "default": "My Athoor London uses cookies, including third-party cookies, for functional reasons, for statistical analysis, to personalise your experience, offer you content that targets your particular interests and analyse the performance of our advertising campaigns." },
+  { "type": "text", "id": "accept", "label": "t:sections.cookie-banner.settings.accept.label", "default": "Accept" },
+  { "type": "text", "id": "decline", "label": "t:sections.cookie-banner.settings.decline.label", "default": "Decline" },
+  { "type": "text", "id": "button_padding", "label": "t:sections.cookie-banner.settings.button_padding.label", "default": "10px 20px 10px 20px", "info": "t:sections.cookie-banner.settings.button_padding.info" }
+]
+}
+{% endschema %}

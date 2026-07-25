@@ -1,0 +1,44 @@
+{
+  "sections": {
+    "main": {
+      "type": "main-login",
+      "blocks": {
+        "benefit_1": {
+          "type": "benefit",
+          "settings": {
+            "heading": "Track Your Orders",
+            "text": "Follow your orders every step of the way."
+          }
+        },
+        "benefit_2": {
+          "type": "benefit",
+          "settings": {
+            "heading": "Streamline Checkout",
+            "text": "Check out faster with saved addresses and payment methods."
+          }
+        },
+        "benefit_3": {
+          "type": "benefit",
+          "settings": {
+            "heading": "Book an Appointment",
+            "text": "Enjoy priority access to the boutique of your choice at the time and date that suits you."
+          }
+        }
+      },
+      "block_order": ["benefit_1", "benefit_2", "benefit_3"],
+      "settings": {
+        "page_title": "My Account",
+        "signin_heading": "I already have an account",
+        "login_label": "Login",
+        "show_google": true,
+        "show_apple": true,
+        "show_onetime": true,
+        "noaccount_heading": "I don't have an account",
+        "noaccount_text": "Enjoy added benefits and a richer experience by creating a personal account",
+        "cta_label": "Create an Account",
+        "join_title": "Join My Athoor London"
+      }
+    }
+  },
+  "order": ["main"]
+}

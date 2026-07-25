@@ -1,0 +1,34 @@
+
+{{ 'component-rating.css' | asset_url | stylesheet_tag }}
+
+<div class="card-wrapper">
+  <div class="card card--product" tabindex="-1">
+    <span class="visually-hidden">{{ 'onboarding.product_title' | t }}</span>
+    <div class="card__inner">       
+      {{ 'product-apparel-1' | placeholder_svg_tag: 'placeholder-svg' }}    
+    </div>
+  </div>
+
+  <div class="card-information">
+    <div class="card-information__wrapper">      
+      {%- if show_vendor -%}
+      <span class="visually-hidden">{{ 'accessibility.vendor' | t }}</span>
+      <div class="caption-with-letter-spacing light">{{ 'products.product.vendor' | t }}</div>
+      {%- endif -%}
+
+      <span class="card-information__text">
+        <a href="{{ product_card_product.url | within: collection | default: '#' }}" class="full-unstyled-link"> {{ 'onboarding.product_title' | t }} </a>
+      </span>
+
+      {% comment %} TODO: metafield {% endcomment %}
+      <span class="caption-large light">{{ block.settings.description | escape }}</span>
+      {% render 'price', product: product_card_product, price_class: '' %}
+
+    </div>
+
+ 
+    <!-- Ratings -->    
+    <span class="shopify-product-reviews-badge" data-id="{{ product_card_product.id }}"></span>
+    <!-- Ratings End -->    
+  </div>
+</div>

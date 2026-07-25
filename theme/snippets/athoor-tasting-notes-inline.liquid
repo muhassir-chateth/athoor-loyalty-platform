@@ -1,0 +1,121 @@
+{%- comment -%}
+  Inline Tasting Notes — rendered inside the product info column, directly
+  under the Add to Cart / Buy buttons (Sunnamusk style). Notes stack
+  vertically to fit the column. Driven by the athoor product metafields.
+{%- endcomment -%}
+
+{%- liquid
+  assign mf = product.metafields.athoor
+  assign top = mf.top_note.value
+  assign heart = mf.heart_note.value
+  assign base = mf.base_note.value
+  assign fam = mf.fragrance_family.value
+  assign longevity = mf.longevity.value
+  assign projection = mf.projection.value
+  assign concentration = mf.concentration.value
+  assign has_notes = false
+  if top != blank or heart != blank or base != blank
+    assign has_notes = true
+  endif
+  assign has_stats = false
+  if fam != blank or longevity != blank or projection != blank or concentration != blank
+    assign has_stats = true
+  endif
+-%}
+
+{%- if has_notes or has_stats -%}
+<style>
+  /* Hide the duplicate in-page "The Composition" notes block — Tasting Notes covers it */
+  .athoor-notes { display: none !important; }
+  .athoor-tni { margin: 28px 0 4px; }
+  .athoor-tni__title {
+    font-family: var(--font-heading-family);
+    font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #1a1a1a; margin: 0 0 16px; padding-bottom: 11px;
+    border-bottom: 1px solid #e3dcd0;
+  }
+  .athoor-tni__note { display: flex; align-items: flex-start; gap: 13px; padding: 12px 0; border-bottom: 1px solid #f0ece4; }
+  .athoor-tni__media { flex: 0 0 48px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .athoor-tni__media img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+  .athoor-tni__monogram {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid #C9A96E; background: rgba(201,169,110,0.07);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-heading-family); font-size: 18px; color: #C9A96E;
+  }
+  .athoor-tni__info { flex: 1; min-width: 0; }
+  .athoor-tni__kind { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; color: #C9A96E; margin: 0 0 4px; }
+  .athoor-tni__name { font-family: var(--font-heading-family); font-size: 13px; color: #1a1a1a; margin: 0 0 4px; line-height: 1.25; }
+  .athoor-tni__desc { font-size: 11.5px; line-height: 1.5; color: #6b6258; font-weight: 300; margin: 0; }
+
+  .athoor-tni__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #e3dcd0; border: 1px solid #e3dcd0; margin: 18px 0 4px; }
+  .athoor-tni__stat { background: #faf8f5; text-align: center; padding: 12px 8px; }
+  .athoor-tni__stat-k { display: block; font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #C9A96E; margin: 0 0 5px; }
+  .athoor-tni__stat-v { display: block; font-family: var(--font-heading-family); font-size: 13px; color: #1a1a1a; line-height: 1.25; }
+
+  .athoor-tni__acc { margin-top: 10px; }
+  .athoor-tni__row { border-bottom: 1px solid #e3dcd0; }
+  .athoor-tni__row summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 13px 2px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; color: #1a1a1a; transition: color 0.25s ease; }
+  .athoor-tni__row summary:hover { color: #C9A96E; }
+  .athoor-tni__row summary::-webkit-details-marker { display: none; }
+  .athoor-tni__row summary::after { content: "+"; font-size: 15px; color: #8a8079; }
+  .athoor-tni__row[open] summary::after { content: "\2013"; }
+  .athoor-tni__row-content { padding: 0 2px 14px; font-size: 11.5px; line-height: 1.65; color: #6b6258; font-weight: 300; }
+</style>
+
+<div class="athoor-tni">
+  {%- if has_notes -%}
+    <h3 class="athoor-tni__title">Tasting Notes</h3>
+    {%- assign kinds = 'Top Note,Heart Note,Base Note' | split: ',' -%}
+    {%- for kind in kinds -%}
+      {%- liquid
+        case forloop.index
+          when 1
+            assign nname = top
+            assign ndesc = mf.top_note_desc.value
+            assign nimg = mf.top_note_img.value
+          when 2
+            assign nname = heart
+            assign ndesc = mf.heart_note_desc.value
+            assign nimg = mf.heart_note_img.value
+          when 3
+            assign nname = base
+            assign ndesc = mf.base_note_desc.value
+            assign nimg = mf.base_note_img.value
+        endcase
+      -%}
+      {%- if nname != blank -%}
+        <div class="athoor-tni__note">
+          <div class="athoor-tni__media">
+            {%- if nimg != blank -%}
+              <img src="{{ nimg | image_url: width: 140 }}" alt="{{ nname | escape }}" loading="lazy" width="56" height="56">
+            {%- else -%}
+              <span class="athoor-tni__monogram">{{ nname | slice: 0 }}</span>
+            {%- endif -%}
+          </div>
+          <div class="athoor-tni__info">
+            <p class="athoor-tni__kind">{{ kind }}</p>
+            <p class="athoor-tni__name">{{ nname }}</p>
+            {%- if ndesc != blank -%}<p class="athoor-tni__desc">{{ ndesc }}</p>{%- endif -%}
+          </div>
+        </div>
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+
+  {%- if has_stats -%}
+    <div class="athoor-tni__stats">
+      {%- if fam != blank -%}<div class="athoor-tni__stat"><span class="athoor-tni__stat-k">Fragrance Family</span><span class="athoor-tni__stat-v">{{ fam }}</span></div>{%- endif -%}
+      {%- if concentration != blank -%}<div class="athoor-tni__stat"><span class="athoor-tni__stat-k">Concentration</span><span class="athoor-tni__stat-v">{{ concentration }}</span></div>{%- endif -%}
+      {%- if longevity != blank -%}<div class="athoor-tni__stat"><span class="athoor-tni__stat-k">Longevity</span><span class="athoor-tni__stat-v">{{ longevity }}</span></div>{%- endif -%}
+      {%- if projection != blank -%}<div class="athoor-tni__stat"><span class="athoor-tni__stat-k">Projection</span><span class="athoor-tni__stat-v">{{ projection }}</span></div>{%- endif -%}
+    </div>
+  {%- endif -%}
+
+  <div class="athoor-tni__acc">
+    <details class="athoor-tni__row"><summary>How to apply this fragrance?</summary><div class="athoor-tni__row-content">Apply to pulse points — wrists, neck, inner elbow. Do not rub your wrists together; this crushes the top notes.</div></details>
+    <details class="athoor-tni__row"><summary>How should I store my fragrance?</summary><div class="athoor-tni__row-content">Keep away from direct sunlight and heat. A cool, dry place preserves the composition and longevity.</div></details>
+    <details class="athoor-tni__row"><summary>What can I layer this fragrance with?</summary><div class="athoor-tni__row-content">Layer with an unscented moisturiser to extend longevity, or pair with complementary notes from the House Collection.</div></details>
+  </div>
+</div>
+{%- endif -%}

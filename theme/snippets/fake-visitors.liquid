@@ -1,0 +1,49 @@
+<style>
+  p.fake_counter_p  { margin: 10px 0; align-items: center; display: flex; }
+  span.fake_counter_b i{ color: var(--DTPrimaryColor); } 
+  span.fake_counter_b { position: relative; margin-right: 10px; }
+  .fake_counter_b svg.icon.icon-eye { position: relative; top: 5px; bottom: 0; margin: auto;}
+</style>
+<script>
+  jQuery(function($) {
+
+    var min = {{- block.settings.min_count | escape -}};
+    var max = {{- block.settings.max_count | escape -}};
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    var  r =  Math.floor(Math.random() * (max - min + 1)) + min;
+    var inc = '0' ;
+    var mytimeAgo = ['1', '2', '3', '4', '5','10', '-1', '-2', '-3', '-4', '-5'];
+
+    var randomlytimeAgo='';
+    var currentmytimeAgo='';
+
+    var plus = ['10', '20', '15'];
+
+    var randomlytimeAgo='';
+    var currentmytimeAgo='';
+
+    var range='';
+
+    setInterval(function(){  
+      randomlytimeAgo =  Math.floor(Math.random() * mytimeAgo.length); 
+      currentmytimeAgo = mytimeAgo[randomlytimeAgo];
+      r = parseInt(r)+parseInt(currentmytimeAgo) ; 
+      if(r <=10 ){
+        range =  Math.floor(Math.random() * plus.length);  
+        var final =  plus[range];
+        r=r+final;
+      }
+      if(r>200){
+        range =  Math.floor(Math.random() * plus.length);  
+        var final =  plus[range];
+        r=r-final;
+      }
+      jQuery("#dynamic_counter").html(r); 
+
+    }, 2000);
+  });
+</script>
+<p class="fake_counter_p">
+  <span class="fake_counter_b"> {% render 'icon-eye' %} <b id="dynamic_counter"></b> </span> {{ block.settings.text | escape }}
+</p>

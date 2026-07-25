@@ -1,0 +1,313 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "disabled": true,
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "padding_top": 60,
+        "padding_bottom": 60
+      }
+    },
+    "1663905094553d81ae": {
+      "type": "multicolumn",
+      "blocks": {
+        "1663905094d859ffee-0": {
+          "type": "column",
+          "settings": {
+            "title": "Organic Creams",
+            "text": "<p>Adipiscing diam donec adipiscing tristique risus nec feugiat in sit amet sit amet justo</p>",
+            "link_label": "SHOP NOW",
+            "link": "shopify://collections/day-creams",
+            "icon_class": false
+          }
+        },
+        "1663905094d859ffee-1": {
+          "type": "column",
+          "settings": {
+            "title": "Herbal Cosmetics",
+            "text": "<p>Ultrices mi tempus imperdiet nulla malesuada pellentesque elit.Aliquam faucibus massa purusets</p>",
+            "link_label": "SHOP NOW",
+            "link": "shopify://collections/fairness-creams",
+            "icon_class": false
+          }
+        }
+      },
+      "block_order": [
+        "1663905094d859ffee-0",
+        "1663905094d859ffee-1"
+      ],
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "title": "Premium Beauty Cosmetics",
+        "heading_size": "h1",
+        "subtitle": "Beautician Recommended Products",
+        "text_style": "caption-with-letter-spacing",
+        "text_size": "medium",
+        "image_width": "full",
+        "image_ratio": "adapt",
+        "columns_desktop": 2,
+        "column_alignment": "center",
+        "background_style": "none",
+        "button_label": "",
+        "button_link": "",
+        "color_scheme": "accent-1",
+        "enable_overlay": true,
+        "columns_mobile": "2",
+        "swipe_on_mobile": false,
+        "padding_top": 80,
+        "padding_bottom": 72,
+        "custom_class_name": "about-multicolumn-overlay"
+      }
+    },
+    "1663904812be00b15d": {
+      "type": "image-with-text",
+      "blocks": {
+        "1663904812d57c36b3-0": {
+          "type": "heading",
+          "settings": {
+            "heading": "For Most Radiant Skin",
+            "enable_title_link": true,
+            "button_link": "shopify://collections/all",
+            "heading_size": "h1"
+          }
+        },
+        "1663904812d57c36b3-1": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Eget nunc scelerisque viverra mauris in aliquam sem. Nunc id cursus metus aliquam eleifend. Quis ipsum suspendisse ultric.</p>",
+            "text_style": "body"
+          }
+        },
+        "34d00011-5e25-48dc-8e64-34294f95cbac": {
+          "type": "button",
+          "settings": {
+            "button_label": "",
+            "button_link": "shopify://collections"
+          }
+        }
+      },
+      "block_order": [
+        "1663904812d57c36b3-0",
+        "1663904812d57c36b3-1",
+        "34d00011-5e25-48dc-8e64-34294f95cbac"
+      ],
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "enable_image2": true,
+        "height": "adapt",
+        "desktop_image_width": "medium",
+        "layout": "image_first",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "content_layout": "no-overlap",
+        "color_scheme": "background-1",
+        "mobile_content_alignment": "center",
+        "padding_top": 88,
+        "padding_bottom": 84,
+        "custom_class_name": "image-text-overlay"
+      }
+    },
+    "57edc0f8-7c6b-45f7-9be1-d158598cd438": {
+      "type": "image-with-text",
+      "blocks": {
+        "template--17199761457454__57edc0f8-7c6b-45f7-9be1-d158598cd438-167091339434340ff8-0": {
+          "type": "heading",
+          "settings": {
+            "heading": "Complete Environmental Protection",
+            "enable_title_link": true,
+            "button_link": "shopify://collections/all",
+            "heading_size": "h1"
+          }
+        },
+        "template--17199761457454__57edc0f8-7c6b-45f7-9be1-d158598cd438-167091339434340ff8-1": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Scelerisque viverra mauris in aliquam sem. Tincidunt vitae semper quis lectus. In volutpat sed metus vulputate eu sceler.</p>",
+            "text_style": "body"
+          }
+        },
+        "eae265a1-0f02-42ef-afdb-92789ac29e96": {
+          "type": "button",
+          "settings": {
+            "button_label": "",
+            "button_link": "shopify://collections"
+          }
+        }
+      },
+      "block_order": [
+        "template--17199761457454__57edc0f8-7c6b-45f7-9be1-d158598cd438-167091339434340ff8-0",
+        "template--17199761457454__57edc0f8-7c6b-45f7-9be1-d158598cd438-167091339434340ff8-1",
+        "eae265a1-0f02-42ef-afdb-92789ac29e96"
+      ],
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "enable_image2": true,
+        "height": "adapt",
+        "desktop_image_width": "medium",
+        "layout": "text_first",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "right",
+        "content_layout": "no-overlap",
+        "color_scheme": "background-1",
+        "mobile_content_alignment": "center",
+        "padding_top": 88,
+        "padding_bottom": 88,
+        "custom_class_name": "image-text-overlay text-overlay-2"
+      }
+    },
+    "46f71ea6-e2dd-4df3-9042-8d3012632881": {
+      "type": "image-with-text",
+      "blocks": {
+        "template--17199761457454__46f71ea6-e2dd-4df3-9042-8d3012632881-167091339434340ff8-0": {
+          "type": "heading",
+          "settings": {
+            "heading": "For Refreshing & Smooth Skin",
+            "enable_title_link": true,
+            "button_link": "shopify://collections/all",
+            "heading_size": "h1"
+          }
+        },
+        "template--17199761457454__46f71ea6-e2dd-4df3-9042-8d3012632881-167091339434340ff8-1": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Elementum tempus egestas sed sed risus pretium quam vulputate.   neque egestas aenean vel aenean vel congue quisque egestas. </p>",
+            "text_style": "body"
+          }
+        },
+        "77437c1b-5ac0-4c69-a74b-69e6badc6a53": {
+          "type": "button",
+          "settings": {
+            "button_label": "",
+            "button_link": "shopify://collections"
+          }
+        }
+      },
+      "block_order": [
+        "template--17199761457454__46f71ea6-e2dd-4df3-9042-8d3012632881-167091339434340ff8-0",
+        "template--17199761457454__46f71ea6-e2dd-4df3-9042-8d3012632881-167091339434340ff8-1",
+        "77437c1b-5ac0-4c69-a74b-69e6badc6a53"
+      ],
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "enable_image2": true,
+        "height": "adapt",
+        "desktop_image_width": "medium",
+        "layout": "image_first",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "content_layout": "no-overlap",
+        "color_scheme": "background-1",
+        "mobile_content_alignment": "center",
+        "padding_top": 60,
+        "padding_bottom": 80,
+        "custom_class_name": "image-text-overlay"
+      }
+    },
+    "8b2abbce-ffcd-4206-a455-3726e022f0e9": {
+      "type": "inner-page-team-section",
+      "blocks": {
+        "eef149a9-9f32-4d84-9d69-9097b9ceefb1": {
+          "type": "text",
+          "settings": {
+            "show_content": true,
+            "block_title": "Olivia Disosa",
+            "enable_title_link": false,
+            "block_sub_title": "CEO",
+            "block_description": "",
+            "block_button_text": "",
+            "block_button_link": "",
+            "desktop_content_alignment": "center"
+          }
+        },
+        "75e558dd-87f5-4c90-9ec6-65779049a18d": {
+          "type": "text",
+          "settings": {
+            "show_content": true,
+            "block_title": "Martina George",
+            "enable_title_link": false,
+            "block_sub_title": "Project Manager",
+            "block_description": "",
+            "block_button_text": "",
+            "block_button_link": "",
+            "desktop_content_alignment": "center"
+          }
+        },
+        "4192bda7-84d4-4fca-8b4b-2ae5faca36af": {
+          "type": "text",
+          "settings": {
+            "show_content": true,
+            "block_title": "Amelia Jack",
+            "enable_title_link": false,
+            "block_sub_title": "Production Controller",
+            "block_description": "",
+            "block_button_text": "",
+            "block_button_link": "",
+            "desktop_content_alignment": "center"
+          }
+        },
+        "0244419b-9802-4781-87d1-c7f53eb53c0a": {
+          "type": "text",
+          "settings": {
+            "show_content": true,
+            "block_title": "Daisy Arthur",
+            "enable_title_link": false,
+            "block_sub_title": "Store Manager",
+            "block_description": "",
+            "block_button_text": "",
+            "block_button_link": "",
+            "desktop_content_alignment": "center"
+          }
+        }
+      },
+      "block_order": [
+        "eef149a9-9f32-4d84-9d69-9097b9ceefb1",
+        "75e558dd-87f5-4c90-9ec6-65779049a18d",
+        "4192bda7-84d4-4fca-8b4b-2ae5faca36af",
+        "0244419b-9802-4781-87d1-c7f53eb53c0a"
+      ],
+      "disabled": true,
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "title": "Meet Our Team",
+        "heading_size": "h1",
+        "subtitle": "our beauty product experts",
+        "text_style": "caption-with-letter-spacing",
+        "text_size": "medium",
+        "column_alignment": "center",
+        "background_style": "primary",
+        "banner_style": "grid",
+        "team-section": "4",
+        "button_label": "",
+        "button_link": "",
+        "color_scheme": "background-1",
+        "padding_top": 60,
+        "padding_bottom": 100,
+        "custom_class_name": ""
+      }
+    }
+  },
+  "order": [
+    "main",
+    "1663905094553d81ae",
+    "1663904812be00b15d",
+    "57edc0f8-7c6b-45f7-9be1-d158598cd438",
+    "46f71ea6-e2dd-4df3-9042-8d3012632881",
+    "8b2abbce-ffcd-4206-a455-3726e022f0e9"
+  ]
+}

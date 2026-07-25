@@ -1,0 +1,41 @@
+<!-- Image with text -->
+{%- if block.settings.image_1 != blank -%}
+<li class="dt-sc-menu-image-with-text top-level-link">
+  <div class="dt-sc-mega_menu text-center">
+    {%- capture dt_megaImage -%}
+    {%- unless block.settings.image_1 == blank -%}
+    <img
+         srcset="{%- if block.settings.image_1.width >= 165 -%}{{ block.settings.image_1 | image_url: width: 165 }} 165w,{%- endif -%}
+                 {%- if block.settings.image_1.width >= 360 -%}{{ block.settings.image_1 | image_url: width: 360 }} 360w,{%- endif -%}
+                 {%- if block.settings.image_1.width >= 535 -%}{{ block.settings.image_1 | image_url: width: 535 }} 535w,{%- endif -%}
+                 {%- if block.settings.image_1.width >= 750 -%}{{ block.settings.image_1 | image_url: width: 750 }} 750w,{%- endif -%}
+                 {%- if block.settings.image_1.width >= 1070 -%}{{ block.settings.image_1 | image_url: width: 1070 }} 1070w,{%- endif -%}
+                 {%- if block.settings.image_1.width >= 1500 -%}{{ block.settings.image_1 | image_url: width: 1500 }} 1500w,{%- endif -%}
+                 {{ block.settings.image_1 | image_url }} {{ block.settings.image_1.width }}w"
+         src="{{ block.settings.image_1 | image_url: width: 1500 }}"
+         sizes="(min-width: {{ settings.page_width }}px) {{ settings.page_width | minus: 100 | divided_by: 2 }}px, (min-width: 750px) calc((100vw - 130px) / 2), calc((100vw - 50px) / 2)"
+         alt="{{ block.settings.image_1.alt | escape }}"
+         loading="lazy"
+         width="{{ block.settings.image_1.width }}"
+         height="{{ block.settings.image_1.height }}"
+         >        
+    {%- endunless -%}
+    {%- endcapture -%}
+    {%- unless block.settings.link_1 == blank -%}
+    <a href="{{ block.settings.link_1 }}"  class="dt-sc-mega_menu-link">{{ dt_megaImage }}</a>
+    {%- else -%}
+    {{ dt_megaImage }}
+    {%- endunless -%}
+    <div class="dt-sc-details">
+      {%- unless block.settings.title_1 == blank -%}
+      <h6 class="dt-sc-mega_menu-title"><a href="{% if block.settings.link_1 != blank %}{{ block.settings.link_1 }}{% else %}#{% endif %}" class="dt-sc-mega_menu-title-link">{{ block.settings.title_1 }}</a></h6>
+      {%- endunless -%}
+      {%- unless block.settings.button_1 == blank -%}
+      <a {% if block.settings.link_1 != blank %} href="{{ block.settings.link_1 }}"{% endif %} class="dt-sc-btn">{{ block.settings.button_1 }}</a>
+      {%- endunless -%}
+    </div>
+  </div>
+</li>
+{%- endif -%}
+<!-- Image with text  End-->
+

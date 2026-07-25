@@ -1,0 +1,105 @@
+.pagination-wrapper {
+  margin-top: 4rem;
+}
+
+@media screen and (min-width: 990px) {
+  .pagination-wrapper {
+    margin-top: 5rem;
+  }
+}
+
+.pagination__list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pagination__list > li {
+  flex: 1 0 3.2rem;
+  max-width: 3.2rem;
+  height: 3.2rem;
+  display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination__list > li:not(:last-child) {
+  margin-right: 1rem;
+}
+.pagination__list > li:last-child {
+  display: inline-flex;
+}
+
+.pagination__item {
+  color: rgb(var(--color-foreground));
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 3.2rem;
+  width: 100%;
+  padding: 0;
+  text-decoration: none;
+  font-size:1.6rem;
+  border-radius: 50%;
+  transition: all .3s linear;
+}
+.pagination__item:not(.pagination__item-arrow) {
+    color: var(--gradient-base-accent-2);
+    background:var(--gradient-base-accent-3);
+}
+.pagination__item.pagination__item--current:not(.pagination__item-arrow){
+  background:var(--gradient-base-accent-1);
+}
+.pagination__item:not(.pagination__item-arrow,.pagination__item--current):hover {
+    background: var(--gradient-base-accent-1);
+  box-shadow: 0 0 2px 3px #fff,0 0 2px 6px var(--color-icon);
+}
+.pagination__item-arrow:hover {
+    background: var(--gradient-base-accent-1);
+    box-shadow: 0 0 2px 3px #fff,0 0 2px 6px var(--color-icon);
+}
+
+a.pagination__item:hover::after {
+  height: 0.2rem;
+}
+
+.pagination__item .icon-caret {
+  height: 0.6rem;
+}
+
+.pagination__item--current::after {
+  height: 0.2rem;
+}
+
+.pagination__item--current::after,
+.pagination__item:hover::after {
+  content: '';
+  display: block;
+  width: 2rem;
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--hover-color);
+  background-color: currentColor;
+  transition: all .3s linear;
+  display:none;
+}
+
+.pagination__item--next .icon {
+  margin-left: -0.2rem;
+  transform: rotate(90deg);
+}
+.pagination__item--prev .icon {
+  margin-right: -0.2rem;
+  transform: rotate(-90deg);
+}
+
+.pagination__item-arrow:hover .icon {
+  color: var(--gradient-base-accent-2);
+}
+
+.pagination__item-arrow:hover::after {
+  display: none;
+}

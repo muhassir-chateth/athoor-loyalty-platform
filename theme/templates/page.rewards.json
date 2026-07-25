@@ -1,0 +1,9 @@
+{
+  "sections": {
+    "main": {
+      "type": "loyalty-dashboard",
+      "settings": {}
+    }
+  },
+  "order": ["main"]
+}

@@ -1,0 +1,140 @@
+{%- liquid
+  if product == empty 
+   assign section_onboarding = true 
+  endif 
+  %}
+  {% unless section_onboarding %}
+    {%- liquid
+    assign product1 = all_products[block.settings.product1] 
+    assign product2 = all_products[block.settings.product2] 
+    assign product3 = all_products[block.settings.product3] 
+    assign product4 = all_products[block.settings.product4] 
+  %}
+  {% if product1 != blank %}
+  <li class="dt-sc-menu-product">
+    <div class="dt-sc-menu-product__item">
+      <div class="dt-sc-menu-product_item-image">
+        <a href="{{ product1.url | within: collection }}">
+           <img
+                  srcset="{%- if product1.featured_media.width >= 165 -%}{{ product1.featured_media | image_url: width: 165 }} 165w,{%- endif -%}
+                    {%- if product1.featured_media.width >= 360 -%}{{ product1.featured_media | image_url: width: 360 }} 360w,{%- endif -%}
+                    {%- if product1.featured_media.width >= 533 -%}{{ product1.featured_media | image_url: width: 533 }} 533w,{%- endif -%}
+                    {%- if product1.featured_media.width >= 720 -%}{{ product1.featured_media | image_url: width: 720 }} 720w,{%- endif -%}
+                    {%- if product1.featured_media.width >= 940 -%}{{ product1.featured_media | image_url: width: 940 }} 940w,{%- endif -%}
+                    {%- if product1.featured_media.width >= 1066 -%}{{ product1.featured_media | image_url: width: 1066 }} 1066w,{%- endif -%}
+                    {{ product1.featured_media | image_url }} {{ product1.featured_media.width }}w"
+                  src="{{ product1.featured_media | image_url: width: 533 }}"
+                  sizes="(min-width: {{ settings.page_width }}px) {{ settings.page_width | minus: 130 | divided_by: 4 }}px, (min-width: 990px) calc((100vw - 130px) / 4), (min-width: 750px) calc((100vw - 120px) / 3), calc((100vw - 35px) / 2)"
+                  alt="{{ product1.featured_media.alt | escape }}"
+                  class="motion-reduce"
+                  loading="lazy"
+                  {% unless lazy_load == false %}loading="lazy"{% endunless %}
+                  width="{{ product1.featured_media.width }}"
+                  height="{{ product1.featured_media.height }}"
+                >
+        </a>
+      </div>
+      <div class="dt-sc-menu-product_item-info">
+        <a class="dt-sc-product__title" href="{{ product1.url | within: collection }}">{{ product1.title }}</a>
+        <span class="dt-sc-price">{{ product1.price | money }}</span>
+      </div>
+    </div>
+  </li>
+  {% endif %}
+  {% if product2 != blank %}
+  <li class="dt-sc-menu-product">
+    <div class="dt-sc-menu-product__item">
+      <div class="dt-sc-menu-product_item-image">
+        {%- assign product2 = all_products[block.settings.product2] -%}
+        <a href="{{ product2.url | within: collection }}">
+          <img
+                  srcset="{%- if product2.featured_media.width >= 165 -%}{{ product2.featured_media | image_url: width: 165 }} 165w,{%- endif -%}
+                    {%- if product2.featured_media.width >= 360 -%}{{ product2.featured_media | image_url: width: 360 }} 360w,{%- endif -%}
+                    {%- if product2.featured_media.width >= 533 -%}{{ product2.featured_media | image_url: width: 533 }} 533w,{%- endif -%}
+                    {%- if product2.featured_media.width >= 720 -%}{{ product2.featured_media | image_url: width: 720 }} 720w,{%- endif -%}
+                    {%- if product2.featured_media.width >= 940 -%}{{ product2.featured_media | image_url: width: 940 }} 940w,{%- endif -%}
+                    {%- if product2.featured_media.width >= 1066 -%}{{ product2.featured_media | image_url: width: 1066 }} 1066w,{%- endif -%}
+                    {{ product2.featured_media | image_url }} {{ product2.featured_media.width }}w"
+                  src="{{ product2.featured_media | image_url: width: 533 }}"
+                  sizes="(min-width: {{ settings.page_width }}px) {{ settings.page_width | minus: 130 | divided_by: 4 }}px, (min-width: 990px) calc((100vw - 130px) / 4), (min-width: 750px) calc((100vw - 120px) / 3), calc((100vw - 35px) / 2)"
+                  alt="{{ product2.featured_media.alt | escape }}"
+                  class="motion-reduce"
+                  loading="lazy"
+                  {% unless lazy_load == false %}loading="lazy"{% endunless %}
+                  width="{{ product2.featured_media.width }}"
+                  height="{{ product2.featured_media.height }}"
+                >
+        </a>
+      </div>
+      <div class="dt-sc-menu-product_item-info">
+        <a class="dt-sc-product__title" href="{{ product2.url | within: collection }}">{{ product2.title }}</a>
+        <span class="dt-sc-price">{{ product2.price | money }}</span>
+      </div>
+    </div>
+  </li>
+  {% endif %}
+  {% if product3 != blank %}
+  <li class="dt-sc-menu-product">
+    <div class="dt-sc-menu-product__item">
+      <div class="dt-sc-menu-product_item-image">
+        {%- assign product3 = all_products[block.settings.product3] -%}
+        <a href="{{ product3.url | within: collection }}">
+         <img
+                  srcset="{%- if product3.featured_media.width >= 165 -%}{{ product3.featured_media | image_url: width: 165 }} 165w,{%- endif -%}
+                    {%- if product3.featured_media.width >= 360 -%}{{ product3.featured_media | image_url: width: 360 }} 360w,{%- endif -%}
+                    {%- if product3.featured_media.width >= 533 -%}{{ product3.featured_media | image_url: width: 533 }} 533w,{%- endif -%}
+                    {%- if product3.featured_media.width >= 720 -%}{{ product3.featured_media | image_url: width: 720 }} 720w,{%- endif -%}
+                    {%- if product3.featured_media.width >= 940 -%}{{ product3.featured_media | image_url: width: 940 }} 940w,{%- endif -%}
+                    {%- if product3.featured_media.width >= 1066 -%}{{ product3.featured_media | image_url: width: 1066 }} 1066w,{%- endif -%}
+                    {{ product3.featured_media | image_url }} {{ product3.featured_media.width }}w"
+                  src="{{ product3.featured_media | image_url: width: 533 }}"
+                  sizes="(min-width: {{ settings.page_width }}px) {{ settings.page_width | minus: 130 | divided_by: 4 }}px, (min-width: 990px) calc((100vw - 130px) / 4), (min-width: 750px) calc((100vw - 120px) / 3), calc((100vw - 35px) / 2)"
+                  alt="{{ product3.featured_media.alt | escape }}"
+                  class="motion-reduce"
+                  loading="lazy"
+                  {% unless lazy_load == false %}loading="lazy"{% endunless %}
+                  width="{{ product3.featured_media.width }}"
+                  height="{{ product3.featured_media.height }}"
+                >
+        </a>
+      </div>
+      <div class="dt-sc-menu-product_item-info">
+        <a class="dt-sc-product__title" href="{{ product3.url | within: collection }}">{{ product3.title }}</a>
+        <span class="dt-sc-price">{{ product3.price | money }}</span>
+      </div>
+    </div>
+  </li>
+  {% endif %}
+  {% if product4 != blank %}
+  <li class="dt-sc-menu-product">
+    <div class="dt-sc-menu-product__item">
+      <div class="dt-sc-menu-product_item-image">
+        {%- assign product4 = all_products[block.settings.product4] -%}
+        <a href="{{ product4.url | within: collection }}">
+          <img
+                  srcset="{%- if product4.featured_media.width >= 165 -%}{{ product4.featured_media | image_url: width: 165 }} 165w,{%- endif -%}
+                    {%- if product4.featured_media.width >= 360 -%}{{ product4.featured_media | image_url: width: 360 }} 360w,{%- endif -%}
+                    {%- if product4.featured_media.width >= 533 -%}{{ product4.featured_media | image_url: width: 533 }} 533w,{%- endif -%}
+                    {%- if product4.featured_media.width >= 720 -%}{{ product4.featured_media | image_url: width: 720 }} 720w,{%- endif -%}
+                    {%- if product4.featured_media.width >= 940 -%}{{ product4.featured_media | image_url: width: 940 }} 940w,{%- endif -%}
+                    {%- if product4.featured_media.width >= 1066 -%}{{ product4.featured_media | image_url: width: 1066 }} 1066w,{%- endif -%}
+                    {{ product4.featured_media | image_url }} {{ product4.featured_media.width }}w"
+                  src="{{ product4.featured_media | image_url: width: 533 }}"
+                  sizes="(min-width: {{ settings.page_width }}px) {{ settings.page_width | minus: 130 | divided_by: 4 }}px, (min-width: 990px) calc((100vw - 130px) / 4), (min-width: 750px) calc((100vw - 120px) / 3), calc((100vw - 35px) / 2)"
+                  alt="{{ product4.featured_media.alt | escape }}"
+                  class="motion-reduce"
+                  loading="lazy"
+                  {% unless lazy_load == false %}loading="lazy"{% endunless %}
+                  width="{{ product4.featured_media.width }}"
+                  height="{{ product4.featured_media.height }}"
+                >
+        </a>
+      </div>
+      <div class="dt-sc-menu-product_item-info">
+        <a class="dt-sc-product__title" href="{{ product4.url | within: collection }}">{{ product4.title }}</a>
+        <span class="dt-sc-price">{{ product4.price | money }}</span>
+      </div>
+    </div>
+  </li>
+  {% endif %}
+  {% endunless %}

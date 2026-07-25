@@ -1,0 +1,202 @@
+{%- liquid
+  assign menuclass = menuclass
+  assign tabFrom = id
+  assign dt_mega = false
+  assign primary = false
+  if link.levels == 1
+  assign primary = true
+  endif
+  assign secondary = false
+  if link.levels == 2
+  assign secondary = true
+  endif
+  
+  if section.settings.enable_new
+  assign new_tag =  section.settings.new_tags | split: "," | strip | downcase | handle
+  assign new_label = section.settings.new_txt
+  endif
+  
+  if section.settings.enable_sale
+  assign sale_tag = section.settings.sale_tags | split: "," | strip | downcase | handle
+  assign sale_label = section.settings.sale_txt
+  endif
+  
+  if section.settings.enable_hot
+  assign hot_tag = section.settings.hot_tags | split: "," | strip | downcase | handle
+  assign hot_label = section.settings.hot_txt
+  endif
+  for block in section.blocks
+  for i in (1..10)
+  assign megamenu_title = ''
+  assign link_title = link.title | escape | strip | handleize
+  assign dt_menu_pick = i | prepend: 'mega_'
+  if block.settings[dt_menu_pick] != blank
+  assign megamenu_title = block.settings[dt_menu_pick] | handleize
+  
+  if  link_title == megamenu_title
+  assign columnSize = block.settings.mega_columns
+  if  block.settings.row_reverse
+  assign reverse = true
+  endif
+  
+  assign tabStyle =  block.settings.tab-menu
+  assign blockType = block.type
+  assign dt_mega = true
+  capture megaPromo
+  render 'dt-megaPromo', block: block
+  endcapture
+  capture megaBanner1
+  render 'dt-megaBanner-1', block: block
+  endcapture
+  
+  capture shopBrands
+  render 'dt-megaBrands', block: block, columnSize: columnSize
+  endcapture
+  
+  capture megaBanner2
+  render 'dt-megaBanner-2', block: block
+  endcapture
+  
+  capture megaProduct
+  render 'dt-megaProduct', block: block
+  endcapture
+
+  capture megaTabs
+  render 'dt-megaTabs', block: block, columnSize: columnSize, idVal: tabFrom
+  endcapture
+  
+  endif
+  endif
+  endfor
+  endfor
+  %}
+<li class="{{ link.levels }} {% if blockType == "promo_image" %}promo_image{% elsif blockType == "product" %}megaProduct{% elsif blockType == "promo_banner" %}promo_banner{% elsif blockType == "tab" %}tabs-menu{% else %}text-menu{% endif %}
+           top-level-link
+           {% if dt_mega %} has-mega-menu dt-sc-primary
+           {% elsif secondary %} dt-sc-secondary
+           {% else %} dt-sc-child
+           {% endif %}
+           {% if link.active %}active{% endif %} {% if primary or secondary or dt_mega %}menu-item-has-children{% endif %}">
+  <a href="{{ link.url }}" class=" {% if dt_mega %}mega-menu{% endif %} dt-sc-nav-link dropdown">
+    <span>
+      {{ link.title | escape }}
+      {% assign mainTag = link.handle %}
+      {% if sale_tag contains mainTag %}
+      <em class="sale tag">{{ sale_label }}</em>
+      {% elsif new_tag contains mainTag %}
+      <em class="new tag">{{ new_label }}</em>
+      {% elsif hot_tag contains mainTag %}
+      <em class="hot tag">{{ hot_label }}</em>
+      {% endif %}
+    </span>
+
+    {%- if section.settings.enable_menu_indicator -%}
+    {% if primary or secondary or dt_mega %}<span class="dt-sc-caret"></span>
+    {% endif %}
+    {% endif %}
+  </a>
+
+  {% if  dt_mega %}
+  <div class="sub-menu-block is-hidden mega-menu__content">    
+    <div class="dt-sc-dropdown-menu{% if dt_mega %} dt-sc--main-menu--mega{% endif %} {% if primary or secondary %} dt-sc_main-menu--has-links{% endif %}">
+      <ul class="sub-menu-lists {% if dt_mega %} {% unless blockType == "tab" %} dt-sc-column  {{ columnSize }} {% else %} {{ tabStyle -}}{% endunless %} {% if reverse %}row-reverse{% endif %} {% endif %} ">
+        {% if blockType == "promo_banner" %}
+        {{ megaBanner1 }}
+        {% endif %}
+
+        {% unless blockType == "tab" %}
+        {%- if link.links != blank -%}
+        {%- for child_link in link.links  limit: 5 -%}
+        <li class="{% if child_link.active %}active{% endif %}">
+           <a class="headding" href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+            {{ child_link.title }}
+            </a>
+          {%- if child_link.links != blank -%}
+          <ul>
+            {%- for grandchild_link in child_link.links -%}
+            <li class="{% if grandchild_link.active %}active{% endif %}">
+              <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                <span>
+                  {{ grandchild_link.title }}
+                  {% assign mapTag = grandchild_link.handle %}
+
+                  {% if sale_tag contains mapTag %}
+                  <em class="tag sale">{{ sale_label }}</em>
+                  {% endif %}
+
+                  {% if new_tag contains mapTag %}
+                  <em class="tag new">{{ new_label }}</em>
+                  {% endif %}
+
+                  {% if hot_tag contains mapTag %}
+                  <em class="tag hot">{{ hot_label }}</em>
+
+                  {% endif %}
+                </span>
+              </a>
+            </li>
+            {%- endfor -%}
+          </ul>
+          {%- endif -%}
+        </li>
+        {%- endfor -%}
+        {% endif %}
+        {% endunless %}
+
+        {% if blockType == "promo_image" %}
+        {{ megaPromo }}
+        {% endif %}
+
+        {% if blockType == "product" %}
+        {{ megaProduct }}
+        {% endif %}
+
+        {% if blockType == "tab" %}
+        {{ megaTabs }}
+        {% endif %}
+
+        {% if blockType == "promo_banner" %}
+        {{ megaBanner2 }}
+        {% endif %}
+      </ul>
+
+      {% if blockType == "brands" %} {{ shopBrands }} {% endif %}
+
+    </div>
+  </div>
+  {% else %}
+
+  {%- if link.links != blank -%}
+  <div class="sub-menu-block is-hidden">    
+    <div class="dt-sc-dropdown-menu{% if primary or secondary %} dt-sc_main-menu--has-links{% endif %}">
+      <ul class="sub-menu-lists">
+
+        {%- for child_link in link.links -%}
+        <li class="{% if primary or secondary %}  {%- if child_link.links != blank -%}menu-item-has-children{% endif %}{% endif %}{% if child_link.active %} active{% endif %}">
+          <a href="{{ child_link.url }}" {% if child_link.active %}aria-current="page"{% endif %}>
+            {{ child_link.title }}
+          </a>
+          {%- if child_link.links != blank -%}
+          <div class="sub-menu-block is-hidden">
+            <div class="dt-sc_main-menu--has-links">
+              <ul class="sub-menu-lists">
+                {%- for grandchild_link in child_link.links -%}
+                <li class="{% if grandchild_link.active %} active{% endif %}">
+                  <a href="{{ grandchild_link.url }}" {% if grandchild_link.active %}aria-current="page"{% endif %}>
+                    {{ grandchild_link.title }}
+                  </a>
+                </li>
+                {%- endfor -%}
+              </ul>
+            </div>
+          </div>
+          {%- endif -%}
+        </li>
+        {%- endfor -%}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+
+  {%- endif -%}
+</li>

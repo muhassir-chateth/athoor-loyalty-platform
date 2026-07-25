@@ -1,0 +1,76 @@
+.index-header .search__input.field__input {
+/*   padding-left: 8rem; */
+/*   background: #fae4e5; */
+  width: 29rem;
+  padding: 0 1rem 0 5rem;
+
+}
+.search__input.field__input {
+   background: var(--gradient-base-accent-2);
+  width: 29rem;
+  padding: 0 1rem 0 5rem;
+}
+
+.search__button {
+  left: var(--inputs-border-width);
+  top: var(--inputs-border-width);
+}
+
+.search__button:focus-visible {
+  background-color: rgb(var(--color-background));
+  z-index: 2;
+}
+
+.search__button:focus {
+  background-color: rgb(var(--color-background));
+  z-index: 2;
+}
+
+.search__button:not(:focus-visible):not(.focused){
+  box-shadow: inherit;
+/*   background-color: inherit; */
+  background-color:transparent;
+}
+
+.search__button .icon {
+  height: 2rem;
+  width: 2rem;
+  color: var(--color-icon);
+  background: none;
+}
+
+
+/* .search__input.field__input {
+    padding-left: 8rem;
+    background: var(--gradient-base-background-2);
+} */
+.field__input, .customer .field input {
+    flex-grow: 1;
+    text-align: left;
+    padding: 1rem;
+    margin: var(--inputs-border-width);
+    transition: box-shadow var(--duration-short) ease;
+}
+/* .field__input{height: 4rem;}
+.field__button{height: 4rem;} */
+.field__input{  
+    flex-grow: 1;
+    text-align: left;
+    padding: 1rem;
+    margin: var(--inputs-border-width);
+    transition: box-shadow var(--duration-short) ease;}
+.field__input:focus{padding: 0 1rem 0 5rem;}
+.field__label{    
+/*   top: calc(0.9rem + var(--inputs-border-width));   */
+  font-size: 1.4rem;
+    opacity: .5;
+    font-family: var(--font-heading-family);
+
+}
+/* Remove extra spacing for search inputs in Safari */
+input::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+header .field__label {
+    display: none;
+}

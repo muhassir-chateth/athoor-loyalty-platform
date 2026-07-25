@@ -1,0 +1,9 @@
+{
+    "kiroAgent.notifications.agent.success": true,
+    "kiroAgent.notifications.agent.failure": true,
+    "kiroAgent.trustedCommands": [
+        "npm*",
+        "npx*",
+        "node*"
+    ]
+}

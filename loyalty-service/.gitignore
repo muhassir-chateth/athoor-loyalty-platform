@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.log
+
+# Secrets — never commit. Only .env.example (placeholders) is tracked.
+.env
+.env.*
+!.env.example
+
+# Migration backup / export artefacts (may contain customer data)
+backups/
+*.backup.json
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+coverage/

@@ -1,0 +1,24 @@
+.badge,
+ .lists_container .product-list-carousel .card-wrapper .card__inner .card__badge:not(:empty) {
+  border-radius: 4rem;
+  display: flex;
+  font-size: 1.25rem;
+  letter-spacing: 0;
+  height: 48px;
+  line-height: 1.5rem;
+  width: 48px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  word-break: break-word;
+  background-color: var(--color-badge-background);
+    border-color: var(--color-badge-border);
+      color: var(--color-foreground);
+        }
+
+.lists_container .product-list-carousel .card-wrapper .card__inner .card__badge .badge {
+  margin: 0;
+}
+
+

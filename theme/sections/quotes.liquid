@@ -1,0 +1,351 @@
+{{ 'section-quotes.css' | asset_url | stylesheet_tag }}
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
+  }
+
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+<div class="testimonial color-{{ section.settings.color_scheme }} gradient{% unless section.settings.background_style == 'none' and settings.text_boxes_border_thickness > 0 or settings.text_boxes_shadow_opacity > 0 %} background-{{ section.settings.background_style }}{% endunless %}{% if section.settings.title == blank %} no-heading{% endif %}">
+ <div class="{% if section.settings.page_full_width %} page-full-width {% else %} page-width {% endif %} {% if section.settings.page_full_width_spacing %} page-full-width_spacing {% endif %}section-{{ section.id }}-padding isolate">
+<div class="row"> 
+  {%- if section.settings.title == blank  or section.settings.text == blank -%}
+    <div class="title-wrapper-with-link title-wrapper--self-padded-mobile title-wrapper--no-top-margin">
+      <h2 class="title {{ section.settings.heading_size }}">
+        {{ section.settings.title | escape }}
+      </h2>
+      {%- if section.settings.text == blank -%}
+      <div class="rich-text__text rte">{{ section.settings.text }}</div>
+      {%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <div class="quotes-slider swiper-container" slider-id={{ section.id }}  slidesperview="{{- section.settings.columns_desktop -}}" showArrows="{{ section.settings.show_arrows }}" showDotts="{{ section.settings.show_dotts }}" pauseonhover="true" slidedelay="5000">      
+      <div class="swiper-wrapper">
+        {%- for block in section.blocks -%}
+        <div class="testimonial-slide swiper-slide">
+          <div class="testimonial_box">
+            <div class="testimonial_box-inner">
+              <div class="testimonial_box-top">                               
+                {%- if block.settings.text != blank -%}
+                <div class="testimonial_box-text rich-text__text rte">
+                  {{ block.settings.text }}
+                </div>
+                {% endif %}
+                {%- if block.settings.image != blank %}
+                <div class="testimonial_box-img">
+                  <img srcset="{%- if block.settings.image.width >= 275 -%}{{ block.settings.image | image_url: width: 275 }} 275w,{%- endif -%}
+                               {%- if block.settings.image.width >= 550 -%}{{ block.settings.image | image_url: width: 550 }} 550w,{%- endif -%}
+                               {%- if block.settings.image.width >= 710 -%}{{ block.settings.image | image_url: width: 710 }} 710w,{%- endif -%}
+                               {%- if block.settings.image.width >= 1420 -%}{{ block.settings.image | image_url: width: 1420 }} 1420w,{%- endif -%}
+                               {{ block.settings.image | image_url }} {{ block.settings.image.width }}w"
+                       src="{{ block.settings.image | image_url: width: 550 }}"
+                       sizes="(min-width: 990px) {% if section.blocks.size <= 2 %}710px{% else %}550px{% endif %},
+                              (min-width: 750px) {% if section.blocks.size == 1 %}710px{% else %}550px{% endif %},
+                              calc(100vw - 30px)"
+                       alt="{{ block.settings.image.alt }}"
+                       height="{{ block.settings.image.height }}"
+                       width="{{ block.settings.image.width }}"
+                       loading="lazy"
+                       >
+                </div>
+                {% endif %}
+                {%- if block.settings.title != blank -%}
+                <div class="testimonial_box-name">
+                  <h4>{{ block.settings.title }}</h4>
+                </div>
+                {% endif %}
+                {%- if block.settings.html != blank -%}
+                <div class="testimonial_box-job">
+                  {{ block.settings.html }}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>                  
+         {%- endfor -%}
+      </div>
+      {%- if section.settings.show_dotts or section.settings.show_arrows -%}
+      <div class="nav-wrapper">
+        {%- if section.settings.show_dotts -%}
+        <!-- If we need pagination -->
+        <div class="swiper-pagination"></div>
+        {%- endif -%}
+        {%- if section.settings.show_dotts -%}
+        <!-- If we need navigation buttons -->
+        <div class="swiper-button-prev slider-button--next" id="prev-{{ section.id }}-btn">{% render 'icon-caret' %}</div>
+        <div class="swiper-button-next slider-button--prev" id="next-{{ section.id }}-btn">{% render 'icon-caret' %}</div>
+        {%- endif -%}
+      </div>
+      {%- endif -%}
+    </div>
+  </div>
+</div>
+</div>
+
+
+
+{% schema %}
+  {
+    "name": "t:sections.quotes.name",
+    "class": "section",
+    "tag": "section",
+    "settings": [
+      {
+      "type":"checkbox",
+      "id":"page_full_width",
+       "default": false,
+      "label": "t:sections.all.page_full_width.label"
+    },
+    {
+      "type":"checkbox",
+      "id":"page_full_width_spacing",
+       "default": false,
+      "label": "t:sections.all.page_full_width_spacing.label"
+    },
+   {
+      "type": "text",
+      "id": "title",
+      "default": "Testimonials",
+      "label": "t:sections.quotes.settings.title.label"
+    },
+    {
+      "type": "select",
+      "id": "heading_size",
+      "options": [
+        {
+          "value": "h2",
+          "label": "t:sections.all.heading_size.options__1.label"
+        },
+        {
+          "value": "h1",
+          "label": "t:sections.all.heading_size.options__2.label"
+        },
+        {
+          "value": "h0",
+          "label": "t:sections.all.heading_size.options__3.label"
+        }
+      ],
+      "default": "h1",
+      "label": "t:sections.all.heading_size.label"
+    },
+{
+      "type": "text",
+      "id": "text",
+      "default": "Pre heading",
+      "label": "t:sections.quotes.settings.text.label"
+    },
+{
+      "type": "select",
+      "id": "color_scheme",
+      "options": [
+        {
+          "value": "accent-1",
+          "label": "t:sections.all.colors.accent_1.label"
+        },
+        {
+          "value": "accent-2",
+          "label": "t:sections.all.colors.accent_2.label"
+        },
+        {
+          "value": "background-1",
+          "label": "t:sections.all.colors.background_1.label"
+        },
+        {
+          "value": "background-2",
+          "label": "t:sections.all.colors.background_2.label"
+        },
+        {
+          "value": "inverse",
+          "label": "t:sections.all.colors.inverse.label"
+        }
+      ],
+      "default": "background-1",
+      "label": "t:sections.all.colors.label"
+    },
+{
+      "type": "select",
+      "id": "column_alignment",
+      "options": [
+        {
+          "value": "left",
+          "label": "t:sections.quotes.settings.column_alignment.options__1.label"
+        },
+        {
+          "value": "center",
+          "label": "t:sections.quotes.settings.column_alignment.options__2.label"
+        }
+      ],
+      "default": "left",
+      "label": "t:sections.quotes.settings.column_alignment.label"
+    },
+    {
+      "type": "select",
+      "id": "background_style",
+      "options": [
+        {
+          "value": "none",
+          "label": "t:sections.quotes.settings.background_style.options__1.label"
+        },
+        {
+          "value": "primary",
+          "label": "t:sections.quotes.settings.background_style.options__2.label"
+        }
+      ],
+      "default": "primary",
+      "label": "t:sections.quotes.settings.background_style.label"
+    },
+  {
+      "type": "range",
+      "id": "columns_desktop",
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "default": 3,
+      "label": "t:sections.quotes.settings.columns_desktop.label"
+    },
+      {
+      "type": "checkbox",
+      "id": "show_arrows",
+      "label": "t:sections.quotes.settings.show_arrows.label",
+      "default": true
+      },
+      {
+      "type": "checkbox",
+      "id": "show_dotts",
+      "label": "t:sections.quotes.settings.show_dotts.label",
+      "default": true
+      },
+      {
+      "type": "header",
+      "content": "t:sections.all.padding.section_padding_heading"
+      },
+      {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_top",
+      "default": 36
+      },
+      {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_bottom",
+      "default": 36
+      }
+],
+ "blocks": [
+    {
+      "type": "text",
+      "name": "t:sections.quotes.blocks.text.name",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "t:sections.quotes.blocks.text.settings.image.label"
+        },
+        {
+          "type": "text",
+          "id": "title",
+          "default": "Text",
+          "label": "t:sections.quotes.blocks.text.settings.title.label"
+        },
+        {
+          "type": "richtext",
+          "id": "text",
+          "default": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.</p>",
+          "label": "t:sections.quotes.blocks.text.settings.text.label"
+        },
+        {
+          "type": "text",
+          "id": "html",
+          "label": "t:sections.quotes.blocks.text.settings.html.label"
+        }        
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "t:sections.quotes.presets.name",
+      "blocks": [
+        {
+          "type": "text"
+        },
+        {
+          "type": "text"
+        },
+        {
+          "type": "text"
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}
+
+{% javascript %}
+(function($) {
+    swipr = () => {
+        if($('.quotes-slider').length) {          
+            $(".quotes-slider").each(function(i) {
+                let slides_per_view = $(this).attr('slidesperview');
+                let pause_on_hover = $(this).attr('pauseonhover') ? true : false;
+                let slide_delay = $(this).attr('slidedelay');
+				let id = $(this).attr('slider-id');
+                let swiper = new Swiper($(this)[0], {
+                    loop: true,
+                    slidesPerView: slides_per_view,
+                    spaceBetween: 20,
+                    autoplay: {
+                        delay: slide_delay,
+                    },
+                  pagination: {
+                    el: '#pagination-' + id + '-btn',
+                    clickable: true
+                  },
+                  navigation: {
+                    nextEl: '#next-' + id + '-btn',
+                    prevEl: '#prev-' + id + '-btn'
+                  },
+              // Responsive breakpoints
+                breakpoints: {
+                  // when window width is >= 320px
+                  320: {
+                    slidesPerView: 1,
+                    spaceBetween: 20
+                  },
+                  // when window width is >= 480px
+                  480: {
+                    slidesPerView: 1,
+                    spaceBetween: 30
+                  },
+                  // when window width is >= 640px
+                  640: {
+                    slidesPerView: 2,
+                    spaceBetween: 40
+                  }
+                }
+                });
+            });
+        }
+    };
+     
+    document.addEventListener("DOMContentLoaded", () => { swipr() }); 
+})(jQuery);
+
+{% endjavascript %}

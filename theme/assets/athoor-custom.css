@@ -1,0 +1,1239 @@
+/* MY ATHOOR LONDON — Targeted Fixes */
+
+/* Hide broken empty elements on cart page */
+.cart__dynamic-checkout-buttons:empty,
+.cart__dynamic-checkout-buttons shopify-accelerated-checkout:empty,
+.shopify-accelerated-checkout:empty {
+  display: none !important;
+  height: 0 !important;
+}
+
+/* Product card hover on desktop */
+@media screen and (min-width: 750px) {
+  .card--product {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card--product:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  }
+}
+
+/* ============================================
+   STICKY HEADER — Bulletproof fixed positioning
+   ============================================ */
+.shopify-section-header-hidden {
+  transform: translateY(0) !important;
+}
+
+#shopify-section-headers.athoor-fixed {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  z-index: 9999 !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07) !important;
+}
+
+#shopify-section-headers.athoor-fixed .index-header,
+#shopify-section-headers.athoor-fixed header.index-header {
+  position: relative !important;
+  background: transparent !important;
+}
+
+/* Compact header when fixed */
+#shopify-section-headers.athoor-fixed .header {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* Prevent logo jerk — lock dimensions and use will-change */
+#shopify-section-headers .header__heading,
+#shopify-section-headers .header__heading-link {
+  display: flex !important;
+  align-items: center !important;
+}
+
+#shopify-section-headers .header__heading-logo,
+#shopify-section-headers .header__heading-link img {
+  transform: translateZ(0);
+}
+
+/* Dark, visible icons/menu/logo against white fixed background */
+#shopify-section-headers.athoor-fixed header svg {
+  fill: #1a1a1a !important;
+  color: #1a1a1a !important;
+}
+#shopify-section-headers.athoor-fixed .header__menu-item,
+#shopify-section-headers.athoor-fixed .header__active-menu-item,
+#shopify-section-headers.athoor-fixed .header__menu-item span,
+#shopify-section-headers.athoor-fixed a {
+  color: #1a1a1a !important;
+}
+
+/* DESKTOP — make sticky header noticeably smaller */
+@media screen and (min-width: 990px) {
+  #shopify-section-headers.athoor-fixed .header {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+  #shopify-section-headers.athoor-fixed .header__heading-logo,
+  #shopify-section-headers.athoor-fixed .header__heading-link img {
+    max-width: 60px !important;
+  }
+  /* Center logo in sticky when nav is hidden */
+  #shopify-section-headers.athoor-fixed .header__heading,
+  #shopify-section-headers.athoor-fixed .header__heading-link {
+    justify-self: center !important;
+  }
+  /* Hide Shop/Contact nav in sticky state */
+  #shopify-section-headers.athoor-fixed .header__inline-menu,
+  #shopify-section-headers.athoor-fixed nav#AccessibleNav {
+    display: none !important;
+  }
+  /* Reduce icon size slightly in sticky */
+  #shopify-section-headers.athoor-fixed header svg {
+    width: 1.4rem !important;
+    height: 1.4rem !important;
+  }
+}
+
+/* MOBILE sticky */
+@media screen and (max-width: 749px) {
+  #shopify-section-headers.athoor-fixed .header {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  #shopify-section-headers.athoor-fixed .header__heading-logo,
+  #shopify-section-headers.athoor-fixed .header__heading-link img {
+    max-width: 56px !important;
+  }
+}
+
+/* ============================================
+   SLIDESHOW TEXT — Force bottom-center position
+   ============================================ */
+.slideshow__text-wrapper.banner__content--bottom-center,
+.banner__content--bottom-center {
+  align-items: flex-end !important;
+  justify-content: center !important;
+}
+
+.slideshow .banner__content--bottom-center .banner__box,
+.slideshow .banner__content--bottom-center .slideshow__text,
+.banner__content--bottom-center > * {
+  margin-bottom: 5rem !important;
+  text-align: center !important;
+}
+
+@media screen and (max-width: 749px) {
+  .slideshow .banner__content--bottom-center .banner__box,
+  .slideshow .banner__content--bottom-center .slideshow__text,
+  .banner__content--bottom-center > * {
+    margin-bottom: 3.5rem !important;
+  }
+}
+
+/* Marquee — ensure visible on all sizes */
+.maqruee-section-wrapper {
+  display: block !important;
+}
+
+
+/* ============================================
+   MOBILE MARQUEE FIX — clean seamless scroll
+   ============================================ */
+@media screen and (max-width: 749px) {
+  /* Each block sizes to its own text (no overlap) */
+  .maqruee-section-wrapper .marquee-section .marquee-wrapper li.marquee-block {
+    width: auto !important;
+    flex-shrink: 0 !important;
+    padding: 0 1.4rem !important;
+    white-space: nowrap !important;
+  }
+
+  .maqruee-section-wrapper .marquee-section .marquee-wrapper li.marquee-block .marquee-title {
+    font-size: 1rem !important;
+    letter-spacing: 0.12em !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Full-width content row, animate with our own keyframe (content duplicated by JS) */
+  .maqruee-section-wrapper .marquee-section .marquee-wrapper.athoor-marquee-mobile {
+    width: max-content !important;
+    animation: athoorMarqueeScroll 22s linear infinite !important;
+  }
+
+  @keyframes athoorMarqueeScroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* Tidy marquee section height/padding on mobile */
+  .maqruee-section-wrapper .marquee-section {
+    height: auto !important;
+  }
+  .maqruee-section-wrapper .section-padding,
+  .maqruee-section-wrapper [class*="-padding"] {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+}
+
+/* ============================================
+   REWARDS BANNER — smaller on mobile
+   ============================================ */
+@media screen and (max-width: 749px) {
+  .athoor-rewards-banner {
+    padding: 6px 12px !important;
+  }
+  .athoor-rewards-banner a {
+    font-size: 9px !important;
+    letter-spacing: 0.04em !important;
+    line-height: 1.3 !important;
+  }
+}
+
+/* ============================================
+   LUXURY REDESIGN v2 — LV / Sunnamusk aesthetic
+   ============================================ */
+:root {
+  --athoor-gold: #B8960C;
+  --athoor-tan: #A8895C;
+  --athoor-cream: #F4F0E9;
+  --athoor-ink: #1A1A1A;
+  --athoor-muted: #8C8279;
+  --athoor-line: #E3DCD0;
+  --athoor-card-bg: #EDE7DD;
+}
+
+/* ---------- PRODUCT GRID — clean, spacious, large images ---------- */
+.product-grid,
+.collection .grid {
+  gap: 28px 18px !important;
+}
+
+/* Each product image sits on a soft luxury background, large */
+.card--product .card__inner,
+.card--media .card__inner,
+.card__media,
+.card--product .media {
+  background: var(--athoor-card-bg) !important;
+  border-radius: 3px !important;
+  overflow: hidden;
+}
+
+.card__media img,
+.card--product .media img {
+  mix-blend-mode: multiply;       /* blends white product bg into cream */
+  padding: 8% 12%;                /* breathing room around the bottle */
+  object-fit: contain !important;
+}
+
+/* Card text — minimal, elegant (LV style) */
+.card__content {
+  padding: 14px 2px 18px 2px !important;
+  border-bottom: none !important;
+  text-align: left;
+}
+
+.card__product-type {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--athoor-muted);
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+}
+
+.card__heading,
+.card__heading.h5 {
+  font-family: Georgia, serif !important;
+  font-size: 15px !important;
+  letter-spacing: 0.05em !important;
+  font-weight: 500 !important;
+  text-transform: uppercase;
+  margin: 0 0 6px 0 !important;
+  line-height: 1.35 !important;
+}
+
+.fragrance-notes {
+  font-size: 10.5px !important;
+  letter-spacing: 0.02em;
+  color: var(--athoor-muted) !important;
+  margin: 0 0 8px 0 !important;
+  line-height: 1.5;
+}
+
+.card__points {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--athoor-tan);
+  margin: 8px 0 0 0;
+  font-weight: 500;
+}
+
+.price-item--regular {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em;
+}
+
+/* Wishlist heart top-right (LV style) */
+.card__media .quick-add,
+.card-wrapper .icn-wishlist,
+.card-wrapper [data-wishlist] {
+  z-index: 3;
+}
+
+/* ---------- PRODUCT PAGE — large image, generous layout ---------- */
+.product__media-wrapper,
+.product__column-sticky,
+.product__media-list {
+  background: transparent;
+}
+
+.product__media .media,
+.product-media-container {
+  background: var(--athoor-card-bg) !important;
+  border-radius: 3px;
+}
+
+.product__media img {
+  mix-blend-mode: multiply;
+}
+
+.product__title,
+.product__title h1,
+.product__title.h1 {
+  font-family: Georgia, serif !important;
+  font-size: clamp(22px, 5vw, 30px) !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+  font-weight: 400 !important;
+}
+
+.product__text.subtitle,
+.product .price {
+  letter-spacing: 0.03em;
+}
+
+/* ---------- BEST SELLERS / FEATURED — horizontal slide mobile ---------- */
+
+}
+
+/* ---------- SECTION HEADINGS ---------- */
+.featured-collection .title,
+.collection .title,
+.title-wrapper h2,
+.section-header h2 {
+  font-family: Georgia, serif !important;
+  letter-spacing: 0.05em !important;
+  font-weight: 400 !important;
+  text-transform: uppercase;
+}
+
+/* ---------- HERO reveal-up ---------- */
+.slideshow__text-wrapper .banner__box,
+.slideshow .banner__content > * {
+  animation: athoorRevealUp 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes athoorRevealUp {
+  0% { opacity: 0; transform: translateY(28px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.slideshow .banner__heading,
+.banner__heading {
+  font-family: Georgia, serif !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* ---------- BUTTONS ---------- */
+.button, .product-form__submit, .cart__checkout-button {
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase;
+  font-size: 12px !important;
+  border-radius: 2px !important;
+}
+
+/* ---------- GOLD ACCENTS ---------- */
+.link, .underlined-link { color: var(--athoor-tan); }
+a:hover { color: var(--athoor-gold); }
+
+/* ---------- CART ---------- */
+.cart-item__name {
+  font-family: Georgia, serif !important;
+  font-size: 15px !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase;
+  font-weight: 500 !important;
+}
+.totals__total, .totals__subtotal { font-family: Georgia, serif; letter-spacing: 0.04em; }
+
+
+/* ============================================
+   LV-STYLE IMAGE BANNER (.athoor-lv-banner)
+   Side-by-side images + text below, SAME on mobile & desktop
+   ============================================ */
+
+/* Kill forced height + dark overlay */
+.athoor-lv-banner.image--banner,
+.athoor-lv-banner.banner--medium,
+.athoor-lv-banner.banner {
+  min-height: 0 !important;
+  height: auto !important;
+}
+.athoor-lv-banner .banner__content::before { display: none !important; }
+.athoor-lv-banner .banner__media::after { opacity: 0.12 !important; }
+
+/* Banner = row-wrap: [img | img] then text below — ALL screen sizes */
+.athoor-lv-banner.banner {
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: stretch !important;
+}
+
+/* Two images side by side, 50/50 */
+.athoor-lv-banner .banner__media,
+.athoor-lv-banner .banner__media-half {
+  position: relative !important;
+  flex: 0 0 50% !important;
+  width: 50% !important;
+  aspect-ratio: auto !important;
+  height: 60vh !important;
+  min-height: 0 !important;
+  max-height: 60vh !important;
+}
+
+/* Smaller image aspect on mobile so banner stays compact */
+@media screen and (max-width: 749px) {
+  .athoor-lv-banner .banner__media,
+  .athoor-lv-banner .banner__media-half {
+    aspect-ratio: 3 / 4 !important;
+    height: auto !important;
+    max-height: 46vh !important;
+  }
+}
+
+/* Images fill their half */
+.athoor-lv-banner .banner__media img,
+.athoor-lv-banner .banner__media video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+/* Text block — full width below the two images */
+.athoor-lv-banner .banner__content {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+  order: 9 !important;
+  position: relative !important;
+  inset: auto !important;
+  background: transparent !important;
+  padding: 26px 20px 34px 20px !important;
+  text-align: center !important;
+  align-items: center !important;
+  justify-content: center !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+.athoor-lv-banner .banner__box {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  max-width: 640px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Hide the duplicate 'list' label (same text as heading) */
+.athoor-lv-banner .banner__box [class*="banner-list"],
+.athoor-lv-banner .banner__box .list,
+.athoor-lv-banner .banner__box ul {
+  display: none !important;
+}
+
+/* Heading */
+.athoor-lv-banner .banner__heading {
+  font-family: Georgia, serif !important;
+  font-size: clamp(20px, 3.5vw, 30px) !important;
+  letter-spacing: 0.05em !important;
+  color: #1a1a1a !important;
+  font-weight: 400 !important;
+  margin: 0 0 12px 0 !important;
+  text-transform: uppercase !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Body text */
+.athoor-lv-banner .banner__text {
+  font-size: 13.5px !important;
+  line-height: 1.6 !important;
+  color: #3a3a3a !important;
+  margin: 0 0 20px 0 !important;
+  display: block !important;
+  visibility: visible !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* Button — force visible, LV outlined pill */
+.athoor-lv-banner .banner__buttons {
+  display: flex !important;
+  justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-top: 4px !important;
+}
+.athoor-lv-banner .banner__buttons .button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  color: #1a1a1a !important;
+  border: 1px solid #1a1a1a !important;
+  border-radius: 40px !important;
+  padding: 13px 36px !important;
+  font-size: 12px !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+.athoor-lv-banner .banner__buttons .button:hover {
+  background: #1a1a1a !important;
+  color: #fff !important;
+}
+
+.athoor-lv-banner.banner, .athoor-lv-banner.image--banner { overflow: visible !important; }
+
+/* FORCE center button alignment on ALL screens */
+.athoor-lv-banner .banner__buttons {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+.athoor-lv-banner .banner__box,
+.athoor-lv-banner .banner__content {
+  text-align: center !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.athoor-lv-banner .banner__box * {
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+
+/* ============================================
+   PRODUCT CARD — Sunnamusk exact match
+   ============================================ */
+
+/* --- Card image: SMALLER, contained on cream bg --- */
+.card--media .card__inner,
+.card__media {
+  background: #f5f1ec !important;
+  border-radius: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  overflow: hidden !important;
+}
+.card__media img {
+  object-fit: contain !important;
+  padding: 14% !important;
+  mix-blend-mode: multiply !important;
+}
+
+/* --- Product type: tiny like Sunnamusk "Eau De Parfum" --- */
+.card__product-type {
+  font-size: 10px !important;
+  letter-spacing: 0.03em !important;
+  color: #6b6b6b !important;
+  margin: 10px 0 2px 0 !important;
+  text-transform: capitalize !important;
+  font-weight: 400 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+/* --- Product name: bold, small, sans-serif --- */
+.card__heading, .card__heading.h5 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-size: 12px !important;
+  letter-spacing: 0.02em !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  margin: 0 0 3px 0 !important;
+  line-height: 1.3 !important;
+}
+
+/* --- Price --- */
+.card-information .price-item--regular,
+.card__information .price-item--regular {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+/* --- Hide fragrance notes on card (too cluttered) --- */
+.fragrance-notes { display: none !important; }
+
+/* --- Hide stars on card (Sunnamusk doesn't show them in slider) --- */
+.card-information .rating,
+.card-information .rating-text,
+.card-information .rating-count {
+  display: none !important;
+}
+
+/* --- Size "50ml" --- */
+.card__size {
+  font-size: 10px !important;
+  color: #6b6b6b !important;
+  margin: 1px 0 0 0 !important;
+  font-weight: 400 !important;
+}
+
+/* --- Earn Points with line above --- */
+.card__points {
+  font-size: 10px !important;
+  color: #6b6b6b !important;
+  margin: 6px 0 0 0 !important;
+  padding-top: 6px !important;
+  border-top: 1px solid #e0e0e0 !important;
+  font-weight: 400 !important;
+}
+
+/* --- Card content: left aligned, compact --- */
+.card__content {
+  padding: 0 4px 12px 4px !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+  text-align: left !important;
+}
+
+/* --- Quick Add: small luxury boxed icon (bag + plus) --- */
+.quick-add {
+  position: absolute !important;
+  bottom: 10px !important;
+  right: 10px !important;
+  z-index: 5 !important;
+}
+.quick-add__submit {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: 1px solid #ccc !important;
+  background: #fff !important;
+  color: #1a1a1a !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  letter-spacing: 0 !important;
+  font-size: 0 !important;
+}
+.quick-add__submit span { display: none !important; }
+.quick-add__submit::after {
+  content: '' !important;
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231a1a1a' stroke-width='1.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z'/%3E%3C/svg%3E") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+}
+
+/* --- Wishlist: clean heart outline top-right --- */
+.card-wrapper .icn-wishlist,
+.card-wrapper [data-wishlist],
+.card-wrapper .wishlist-btn,
+.card-wrapper .dt-sc-btn-wishlist {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  z-index: 5 !important;
+  background: transparent !important;
+  border: none !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+.card-wrapper .icn-wishlist svg,
+.card-wrapper [data-wishlist] svg,
+.card-wrapper .dt-sc-btn-wishlist svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #1a1a1a !important;
+  fill: none !important;
+  stroke-width: 1.5 !important;
+}
+
+/* --- LIMITED EDITION badge --- */
+.card__badge .badge, .card__badge span {
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #1a1a1a !important;
+  border-radius: 0 !important;
+  font-size: 8px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  padding: 3px 8px !important;
+  font-weight: 500 !important;
+}
+
+/* --- Hide big ADD TO CART overlay on hover --- */
+.card--product .card__inner .quick-add .button--full-width {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Hide quick-view eye button (keep cart icon) */
+.product-icons modal-opener,
+.product-icons modal-opener + quick-add-modal,
+.product-icons modal-opener + quick-add-modal + tooltip {
+  display: none !important;
+}
+
+/* --- Wishlist + Cart icons: always visible (not just on hover) --- */
+.product-icons {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+.product-icons li {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* --- Quick-view modal: visible close button + smaller modal --- */
+.quick-add-modal__content {
+  max-width: 420px !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  border-radius: 4px !important;
+  padding: 20px !important;
+  position: relative !important;
+}
+.quick-add-modal__toggle {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 999 !important;
+  width: 32px !important;
+  height: 32px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #fff !important;
+  border: 1px solid #ccc !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+}
+.quick-add-modal__toggle svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* --- Quick-view modal: ensure add-to-cart button shows inside --- */
+.quick-add-modal__content-info .product-form__submit,
+.quick-add-modal__content-info .shopify-product-form .button {
+  display: flex !important;
+  visibility: visible !important;
+  width: 100% !important;
+  margin-top: 12px !important;
+}
+
+/* --- Cart icon on card: remove square border, make plain black icon like wishlist --- */
+.product-icons product-form .quick-add__submit,
+.product-icons .quick-add__submit,
+.product-icons li product-form button {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.product-icons product-form .quick-add__submit::after {
+  content: none !important;
+}
+.product-icons product-form .quick-add__submit svg,
+.product-icons li product-form button svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #1a1a1a !important;
+  fill: none !important;
+  stroke-width: 1.5 !important;
+  display: block !important;
+}
+
+/* --- Both cart + wishlist icons: always visible on card (not hover only) --- */
+.card-wrapper .product-icons,
+.card-wrapper ul.product-icons {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: all !important;
+  transform: none !important;
+  transition: none !important;
+}
+.card-wrapper .product-icons li {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.card-wrapper:not(:hover) .product-icons {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Pause marquee on hover */
+.athoor-product-marquee:hover {
+  animation-play-state: paused !important;
+}
+/* Hide slider arrows/pagination for marquee section */
+.slider-component-full-width .slider-buttons {
+  display: none !important;
+}
+
+/* --- TRENDING title: smaller --- */
+.collection__title .title.h2,
+.collection__title h2 {
+  font-size: 20px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.04em !important;
+}
+.collection__title .subtitle,
+.collection-list-title__text {
+  font-size: 11px !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* --- CART BUTTON: remove ALL square/border (force plain icon) --- */
+.product-icons li product-form button,
+.product-icons li product-form .quick-add__submit,
+.product-icons product-form button,
+ul.product-icons button,
+.product-icons button.quick-add__submit {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.product-icons button.quick-add__submit::after {
+  content: none !important;
+  display: none !important;
+}
+.product-icons button.quick-add__submit svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #1a1a1a !important;
+  fill: none !important;
+  stroke-width: 1.5 !important;
+}
+
+/* ============================================
+   MOBILE — Force show account/login icon
+   ============================================ */
+@media screen and (max-width: 749px) {
+  .header__icons .header__icon--account,
+  a.header__icon--account.small-hide,
+  .header__icon--account.small-hide {
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+  /* Slightly smaller icons on mobile to avoid crowding */
+  .header__icons .header__icon svg,
+  .header__icons .header__icon--account svg {
+    width: 1.7rem !important;
+    height: 1.7rem !important;
+  }
+  .header__icons a.header__icon:not(:last-child) {
+    margin-left: 1.4rem !important;
+  }
+
+  /* Remove wishlist/love icon on mobile */
+  .header__icons .header__icon--wishlist,
+  .header__icons .header__icon--compare {
+    display: none !important;
+  }
+
+  /* Reorder icons: Cart, Profile, Search */
+  .header__icons {
+    display: flex !important;
+    align-items: center !important;
+  }
+  .header__icons .header__icon--cart { order: 1 !important; }
+  .header__icons .header__icon--account { order: 2 !important; }
+  .header__icons .header__search,
+  .header__icons .header__icon--search { order: 3 !important; }
+}
+
+/* ============================================
+   IDENTITY PRODUCT PAGE — Atkinsons style (mobile)
+   White bg, large centered image, clean layout
+   ============================================ */
+@media screen and (max-width: 749px) {
+  /* Hide breadcrumb banner on product pages */
+  .product-template .breadcrumb,
+  body[class*="product"] .breadcrumb,
+  .breadcrumb {
+    display: none !important;
+  }
+
+  /* Homepage featured-product image — compact on mobile */
+  .featured-product .product__media-list,
+  .featured-product .product__media-item,
+  .featured-product .product__media.media {
+    padding-top: 0 !important;
+    height: 320px !important;
+    max-height: 320px !important;
+    min-height: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    background: #f0ebe4 !important;
+    border-radius: 3px !important;
+  }
+  .featured-product .product__media.media img,
+  .featured-product .product__media-item img {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: 80% !important;
+    max-height: 88% !important;
+    object-fit: contain !important;
+    mix-blend-mode: multiply !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    background: transparent !important;
+  }
+
+  /* Clean product info section */
+  .product .product__info-wrapper {
+    padding: 20px 20px 0 !important;
+    text-align: center !important;
+  }
+
+  /* Product type badge (like "PARFUM INTENSE") — filled grey pill */
+  .product .product__text.subtitle,
+  .product .product__type {
+    display: inline-block !important;
+    font-size: 11px !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    border: none !important;
+    background: #efece7 !important;
+    padding: 6px 16px !important;
+    border-radius: 4px !important;
+    color: #6b6258 !important;
+    margin: 0 auto 16px !important;
+    font-weight: 500 !important;
+  }
+
+  /* Product title — large, bold, uppercase (like PLATINUM BLEND) */
+  .product__title h1,
+  .product__title.h1,
+  .product .product__title {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+    font-size: 30px !important;
+    letter-spacing: 0.01em !important;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    margin: 0 0 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Subtitle/tagline */
+  .product .product__text.body,
+  .product .product__description-short {
+    text-align: center !important;
+    font-size: 15px !important;
+    color: #5a5450 !important;
+    font-weight: 300 !important;
+    margin-bottom: 22px !important;
+  }
+
+  /* Size + Price row */
+  .product .price {
+    text-align: center !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    justify-content: center !important;
+  }
+  .product .product-weight {
+    text-align: center !important;
+    font-size: 17px !important;
+    color: #5a5450 !important;
+    font-weight: 300 !important;
+    margin-bottom: 6px !important;
+  }
+
+  /* Wishlist heart top-right of image */
+  .product .product__media-wrapper .dt-sc-btn-wishlist,
+  .product .product__media-wrapper [data-wishlist] {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    z-index: 5 !important;
+  }
+}
+
+/* ============================================
+   DESKTOP — Featured product image smaller
+   ============================================ */
+/* Homepage featured product: show ONLY the featured image (hide extra stacked media that render as blank boxes) */
+.featured-product .product__media-list > .product__media-item:not(:first-child) {
+  display: none !important;
+}
+@media screen and (min-width: 750px) {
+  .featured-product .product__media-wrapper,
+  .featured-product .product__media-list,
+  .featured-product .product__media-item,
+  .featured-product .product__media .media {
+    max-height: 560px !important;
+  }
+  .featured-product .product__media img,
+  .featured-product .product__media .media img {
+    max-height: 540px !important;
+    object-fit: contain !important;
+    width: auto !important;
+    margin: 0 auto !important;
+  }
+  /* Keep image column from dominating the row */
+  .featured-product .product__media-wrapper {
+    max-width: 50% !important;
+  }
+  /* Light side padding so content doesn't touch screen edges */
+  .featured-product .page-width,
+  .featured-product > .page-width,
+  .featured-product .product {
+    padding-left: 90px !important;
+    padding-right: 90px !important;
+  }
+
+  /* Show wishlist button on desktop in a maintained size */
+  .featured-product .dT_VProdWishList,
+  .featured-product .add-wishlist {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .featured-product .add-wishlist {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    border: 1px solid #1a1a1a !important;
+    border-radius: 4px !important;
+    background: #fff !important;
+    margin-top: 10px !important;
+  }
+  .featured-product .add-wishlist:before,
+  .featured-product .add-wishlist svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* IDENTITY heading — large, letter-spaced like reference */
+  .featured-product .product__title,
+  .featured-product .product__title h1,
+  .featured-product .product__title h2,
+  .featured-product .product__title .h0,
+  .featured-product .product__title .h1 {
+    font-family: Georgia, 'Times New Roman', serif !important;
+    font-size: 30px !important;
+    letter-spacing: 0.14em !important;
+    font-weight: 400 !important;
+    text-transform: uppercase !important;
+    margin: 0 0 18px !important;
+    color: #1a1a1a !important;
+  }
+
+  /* ADD TO CART — prominent black full-width button (like Sunnamusk) */
+  .featured-product .product-form__submit,
+  .featured-product button.product-form__submit,
+  .featured-product .product-form__submit.button--secondary {
+    background: #1a1a1a !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 4px !important;
+    width: 100% !important;
+    height: 54px !important;
+    font-size: 13px !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    font-weight: 600 !important;
+    opacity: 1 !important;
+    order: -1 !important;
+    margin-bottom: 10px !important;
+  }
+  .featured-product .product-form__submit span {
+    color: #fff !important;
+  }
+  /* Stack ADD TO CART above Buy with Shop */
+  .featured-product .product-form__buttons {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+}
+
+/* ============================================
+   DESKTOP — Main product page (NOT featured)
+   Atkinsons style: white bg, square, moveUp anim
+   ============================================ */
+@media screen and (min-width: 750px) {
+  .product:not(.featured-product) .product__media-wrapper,
+  .product:not(.featured-product) .product__media-list,
+  .product:not(.featured-product) .product__media-item,
+  .product:not(.featured-product) .product__media .media {
+    max-height: 560px !important;
+    background: #ffffff !important;
+    border-radius: 3px !important;
+  }
+  .product:not(.featured-product) .product__media img,
+  .product:not(.featured-product) .product__media .media img {
+    max-height: 540px !important;
+    object-fit: contain !important;
+    mix-blend-mode: normal !important;
+    padding-right: 20px !important;
+    width: auto !important;
+    margin: 0 auto !important;
+    background: transparent !important;
+    animation: athoorMoveUp 2s ease-in-out !important;
+  }
+  /* Image column not too wide */
+  .product:not(.featured-product) .product__media-wrapper {
+    max-width: 48% !important;
+  }
+}
+
+/* Atkinsons-style product image entrance animation */
+@keyframes athoorMoveUp {
+  0% { transform: translateY(40px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+
+
+/* ============================================
+   Review stars (social proof on product cards)
+   ============================================ */
+.athoor-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 8px;
+  line-height: 1;
+}
+.athoor-stars__star {
+  font-size: 13px;
+  color: #d8d2c8;
+}
+.athoor-stars__star.is-on {
+  color: #B8960C;
+}
+.athoor-stars__count {
+  font-size: 11px;
+  color: #8a8079;
+  margin-left: 5px;
+  letter-spacing: 0.02em;
+}
+
+
+/* ============================================
+   PDP assurance block (luxury reassurance)
+   ============================================ */
+.athoor-assurance { margin: 16px 0 4px; }
+.athoor-assurance__stock {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #b54b2e;
+  margin: 0 0 14px;
+  font-weight: 500;
+}
+.athoor-assurance__list {
+  list-style: none;
+  margin: 0;
+  padding: 16px 0 0;
+  border-top: 1px solid #ece6dd;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.athoor-assurance__list li {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: #4a443d;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 300;
+}
+.athoor-assurance__list li::before {
+  content: "\2713";
+  color: #B8960C;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+
+/* Lift the Shopify Inbox chat button on mobile so it clears the cart bar / footer */
+@media screen and (max-width: 749px) {
+  #shopify-chat,
+  #shopify-chat iframe,
+  iframe[title*="chat" i],
+  iframe[id*="chat" i] {
+    bottom: 84px !important;
+  }
+}
+
+
+/* Remove the product image zoom icon + disable click-to-zoom everywhere */
+.product__media-icon,
+.product__modal-opener .product__media-icon { display: none !important; }
+.product__media-toggle { pointer-events: none !important; cursor: default !important; }
+
+
+/* Mobile: product image background -> clean white with a soft white shade */
+@media screen and (max-width: 749px) {
+  .product__media-item,
+  .product__media-item .media,
+  .product__media-list .product__media-item .media {
+    background: linear-gradient(160deg, #ffffff 0%, #f6f3ef 100%) !important;
+  }
+}

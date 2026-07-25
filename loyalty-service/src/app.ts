@@ -1,0 +1,241 @@
+import Fastify, { type FastifyInstance } from "fastify";
+import type { AppConfig } from "./config.js";
+import { registerVersioning } from "./plugins/versioning.js";
+import { webhookRoutes } from "./plugins/webhooks.js";
+import type { WebhookEventStore } from "./webhooks/eventStore.js";
+import type { WebhookEnqueuer } from "./webhooks/enqueue.js";
+import { v1Routes } from "./routes/v1.js";
+import { adminRoutes } from "./admin/routes.js";
+import type { AdminAuthenticator } from "./admin/adminAuth.js";
+import type { AdminAdjustmentService } from "./admin/adjustmentService.js";
+import type { AdminCustomerLedgerSource } from "./admin/customerView.js";
+import type { FraudReviewSource } from "./admin/fraudReview.js";
+import type { AdminOperationsService } from "./admin/operations.js";
+import type { AnalyticsService } from "./admin/analyticsService.js";
+import type { FragranceProfileDataSource } from "./profile/fragranceProfile.js";
+import type { PortalVisitRecorder } from "./routes/profile.js";
+import type { CustomerBalanceSource } from "./routes/balance.js";
+import type { LedgerHistorySource } from "./routes/history.js";
+import type { DeviceTokenStore } from "./devices/deviceTokens.js";
+import type { MembershipCredentialService } from "./membership/credential.js";
+import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
+import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
+import type { RedeemDeps } from "./redemption/redeem.js";
+import { API_VERSION } from "./version.js";
+
+/**
+ * Optional runtime dependencies injected into the app. In production these are
+ * backed by Postgres / pg-boss (wired in index.ts); tests and local runs omit
+ * them and the webhook plugin falls back to in-memory implementations so no
+ * live infrastructure is required.
+ */
+export interface AppDependencies {
+  webhookEventStore?: WebhookEventStore;
+  webhookEnqueuer?: WebhookEnqueuer;
+  /**
+   * Backs idempotent replay for state-changing `/v1` requests (Req 9.6/9.7).
+   * Production wires a Pg-backed store; tests and local runs omit it and an
+   * in-memory store is used so no live Postgres is required.
+   */
+  idempotencyStore?: IdempotencyStore;
+  /**
+   * Resolves a Shopify customer id → local `customers.id` for `/v1` auth
+   * (Req 9.2). Production wires a Pg-backed resolver; tests and local runs omit
+   * it and an empty in-memory resolver is used, so customer endpoints fail
+   * closed until wired.
+   */
+  customerResolver?: CustomerResolver;
+  /**
+   * Validates Customer Account API bearer tokens (Req 9.2, 11.5). Kept behind
+   * this interface so tests inject a fake and the service never calls live
+   * Shopify from a test or local run.
+   */
+  tokenVerifier?: CustomerAccountTokenVerifier;
+  /**
+   * Loads a customer's tier row + derived spendable balance for `GET /v1/balance`
+   * (task 6.3). Production wires a {@link PgCustomerBalanceSource}; tests and
+   * local runs omit it and an empty in-memory source is used, so the balance
+   * endpoint returns a not-found response until wired. Forwarded into the `/v1`
+   * router (which already accepts `balanceSource`).
+   */
+  balanceSource?: CustomerBalanceSource;
+  /**
+   * Loads a page of a customer's ledger history + total count for
+   * `GET /v1/history` (task 6.4). Production wires a {@link PgLedgerHistorySource};
+   * tests and local runs omit it and an empty in-memory source is used, so the
+   * history endpoint returns an empty page until wired. Forwarded into the `/v1`
+   * router (which already accepts `historySource`).
+   */
+  historySource?: LedgerHistorySource;
+  /**
+   * Dependencies for the spec-defined `POST /v1/redeem` handler (Req 3.2–3.11):
+   * the append-only ledger repository, the atomic transactor, and the
+   * discount-code job enqueuer. Production wires `{ repo, transactor,
+   * enqueuer: PgBossDiscountCodeEnqueuer }` (index.ts); tests and local runs omit
+   * it and the `/v1/redeem` route retains its 501 fallback so existing behaviour
+   * is unchanged. Forwarded into the `/v1` router.
+   */
+  redeemDeps?: RedeemDeps;
+  /**
+   * Supplies the Fragrance_Profile data for `GET /v1/profile` and
+   * `GET /v1/profile/journey` (task 14.5): purchased fragrances from paid
+   * Shopify orders + Loyalty_Service preference data. Production wires a
+   * Pg/Shopify-backed source; tests and local runs omit it and an empty
+   * in-memory source is used, so profile endpoints return empty profiles
+   * (Req 17.9) until wired.
+   */
+  fragranceProfileDataSource?: FragranceProfileDataSource;
+  /**
+   * Records portal visits for `POST /v1/profile/visit` (task 14.6), driving the
+   * private-client first-visit vs returning-member experience (task 16.1,
+   * Req 16.1/16.2). Production wires a Pg-backed recorder
+   * ({@link PortalVisitRecorder}); tests and local runs omit it and an in-memory
+   * recorder is used, so no live Postgres is required.
+   */
+  portalVisitRecorder?: PortalVisitRecorder;
+  /**
+   * Registers/de-registers a customer's push Device_Tokens for the additive
+   * `POST /v1/devices` and `DELETE /v1/devices/:token` mobile-readiness surface
+   * (task 19.1, Req 19.1/19.7). Production wires a {@link PgDeviceTokenStore};
+   * tests and local runs omit it and an in-memory store is used, so no live
+   * Postgres is required.
+   */
+  deviceTokenStore?: DeviceTokenStore;
+  /**
+   * Backs the additive Digital Membership Card surface `GET /v1/membership-card`
+   * and `GET /v1/membership-card/verify` (task 19.2, Req 19.5/19.6). Production
+   * wires a {@link DefaultMembershipCredentialService} over a Pg-backed tier
+   * source (built in index.ts from the dedicated signing key); tests and local
+   * runs omit it and the router builds a default service from the configured
+   * signing key + an empty in-memory tier source. When the dedicated key is
+   * absent the surface fails closed.
+   */
+  membershipCredentialService?: MembershipCredentialService;
+  /**
+   * Verifies admin bearer tokens for the `/v1/admin/*` management surface
+   * (task 17.1, Req 10.1). Production wires an SSO/JWT- or shared-secret-backed
+   * {@link AdminAuthenticator}; tests and local runs omit it and a fail-closed
+   * verifier is used, so the admin surface denies all access until wired.
+   */
+  adminAuthenticator?: AdminAuthenticator;
+  /**
+   * Performs admin manual adjustments / manual credits (task 17.1,
+   * Req 10.2–10.4). Production wires a ledger + audit backed service; tests and
+   * local runs omit it and a functional in-memory service is used so the admin
+   * endpoints work without live Postgres.
+   */
+  adminAdjustmentService?: AdminAdjustmentService;
+  /**
+   * Loads a selected customer's complete ledger for the admin customer view
+   * (task 17.2, Req 10.5). Production wires a Pg-backed source; tests and local
+   * runs omit it and an empty in-memory source is used.
+   */
+  adminCustomerLedgerSource?: AdminCustomerLedgerSource;
+  /**
+   * Loads referrals + redemptions for the admin fraud-review view (task 17.2,
+   * Req 10.6). Production wires a Pg-backed source; tests and local runs omit
+   * it and an empty in-memory source is used.
+   */
+  fraudReviewSource?: FraudReviewSource;
+  /**
+   * Runs admin-initiated migration/reconciliation operations and records the
+   * audit trail (task 17.2, Req 10.7/10.9). Production wires a service around
+   * the real jobs; tests and local runs omit it and a functional in-memory
+   * service returning zero counts is used.
+   */
+  adminOperationsService?: AdminOperationsService;
+  /**
+   * Computes Admin_Analytics from the hourly-refreshed cached aggregates
+   * (task 17.3, Req 20). Production wires a materialized-view-backed data
+   * source; tests and local runs omit it and a functional in-memory service is
+   * used, returning empty-safe metrics until the data source is wired.
+   */
+  analyticsService?: AnalyticsService;
+}
+
+/**
+ * Builds the Fastify application: stateless request handling, a versioned
+ * `/v1` router, a version identifier on every JSON response (Req 9.8), and a
+ * health endpoint. The app is created without binding a port so it can be
+ * exercised directly by tests via `app.inject(...)`.
+ */
+export function buildApp(config: AppConfig, deps: AppDependencies = {}): FastifyInstance {
+  const app = Fastify({
+    // Quiet logs during tests; configured level otherwise.
+    logger: config.env === "test" ? false : { level: config.logLevel },
+    // Trust the HTTPS-terminating proxy/edge in front of the service so
+    // request protocol/ip are read from forwarded headers (Requirement 11.11).
+    trustProxy: true,
+  });
+
+  // Version identifier on every response + statelessness guarantees.
+  registerVersioning(app);
+
+  // Liveness/readiness probe (not under /v1 — infra concern, not a loyalty op).
+  app.get("/health", async () => {
+    return { status: "ok", version: API_VERSION };
+  });
+
+  // Mount all loyalty operations under /v1 (Requirement 9.1). The router also
+  // enforces the idempotency contract for state-changing requests (Req 9.6/9.7)
+  // using the injected store, defaulting to in-memory when absent.
+  // Every request is resolved to a local customer identity before any handler
+  // runs (Req 9.2/9.3); web via App Proxy signature (Req 11.3/11.4) and mobile
+  // via a Customer Account API bearer token converge on one AuthCtx. The App
+  // Proxy shared secret comes from config; the resolver/verifier are injected
+  // (defaulting to fail-closed in-memory implementations).
+  const idempotencyStore = deps.idempotencyStore ?? new InMemoryIdempotencyStore();
+  app.register(v1Routes, {
+    prefix: "/v1",
+    idempotencyStore,
+    customerResolver: deps.customerResolver,
+    tokenVerifier: deps.tokenVerifier,
+    appProxySecret: config.shopify.appProxySecret,
+    balanceSource: deps.balanceSource,
+    historySource: deps.historySource,
+    redeemDeps: deps.redeemDeps,
+    fragranceProfileDataSource: deps.fragranceProfileDataSource,
+    portalVisitRecorder: deps.portalVisitRecorder,
+    deviceTokenStore: deps.deviceTokenStore,
+    membershipCredentialService: deps.membershipCredentialService,
+    // Dedicated membership signing key (Req 19.5). When no explicit service is
+    // injected, the router builds the default service from this key; when the
+    // key is absent the membership-card surface fails closed.
+    membershipSigningKey: config.membership.signingKey,
+  });
+
+  // Inbound Shopify webhooks. Registered as an encapsulated plugin so its
+  // raw-body content-type parser and HMAC gate (Requirements 11.1, 11.2) apply
+  // only under /webhooks and never alter JSON parsing for /v1 or /health.
+  // Dedupe/persist/enqueue (Req 12.1–12.5, 13.8) use the injected store and
+  // enqueuer, defaulting to in-memory implementations when absent.
+  app.register(webhookRoutes, {
+    config,
+    eventStore: deps.webhookEventStore,
+    enqueuer: deps.webhookEnqueuer,
+    prefix: "/webhooks",
+  });
+
+  // Admin management surface (task 17.1, Requirement 10). Registered as its OWN
+  // encapsulated plugin under /v1/admin so the consumer-identity preHandler in
+  // v1Routes does not apply; instead an ADMIN-auth preHandler gates every admin
+  // route, denying access without an authenticated admin role and performing no
+  // data change (Req 10.1). Manual adjustments/credits create one `adjust`
+  // ledger entry plus one immutable audit record (Req 10.2–10.4, 10.9). The
+  // authenticator defaults to fail-closed and the adjustment service to a
+  // functional in-memory implementation, so the surface boots without live infra.
+  // The customer-view (Req 10.5), fraud-review (Req 10.6), and
+  // migration/reconciliation operation (Req 10.7) surfaces are added by
+  // task 17.2, all behind injectable sources/services defaulting to in-memory.
+  app.register(adminRoutes, {
+    prefix: "/v1/admin",
+    adminAuthenticator: deps.adminAuthenticator,
+    adjustmentService: deps.adminAdjustmentService,
+    customerLedgerSource: deps.adminCustomerLedgerSource,
+    fraudReviewSource: deps.fraudReviewSource,
+    operationsService: deps.adminOperationsService,
+    analyticsService: deps.analyticsService,
+  });
+
+  return app;
+}
