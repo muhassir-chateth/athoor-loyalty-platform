@@ -20,7 +20,7 @@ export function createPool(config: AppConfig): Pool {
       };
 
   if (database.ssl) {
-    poolConfig.ssl = { rejectUnauthorized: true };
+    poolConfig.ssl = { rejectUnauthorized: false };
   }
 
   return new Pool(poolConfig);
