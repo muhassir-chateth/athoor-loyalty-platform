@@ -7,16 +7,14 @@
  * refreshed AT LEAST HOURLY (A12) so the reported figures track the immutable
  * ledger + redemption/enrolment data. This module provides:
  *
- *   - {@link refreshAnalyticsAggregates}  the callable job: it runs
+ *   - {@link refreshAnalyticsAggregates}  the single refresh routine: it runs
  *       `REFRESH MATERIALIZED VIEW CONCURRENTLY` for each analytics matview (so
  *       readers are never blocked) and then stamps
  *       `analytics_aggregate_refresh.refreshed_at = now()` — the instant the
  *       data source surfaces as the response `computedAt` (Req 20.6).
- *   - {@link registerAnalyticsRefresh}    wires that job onto the SAME
- *       {@link RecurringScheduler} abstraction the reconciliation and expiry jobs
- *       use (`schedule(name, cron, handler)`), under
- *       {@link ANALYTICS_REFRESH_JOB} on the hourly {@link ANALYTICS_REFRESH_CRON}
- *       cadence (via {@link ANALYTICS_REFRESH_SCHEDULE}).
+ * There is deliberately NO scheduler registration here any more (task 24): the
+ * refresh is triggered by an admin read when the aggregates are stale, via
+ * `admin/lazyAnalyticsRefresh.ts`. See the note at the foot of this file.
  *
  * CONCURRENT REFRESH: `REFRESH MATERIALIZED VIEW CONCURRENTLY` requires each
  * matview to carry a UNIQUE index (the migration adds one per view) and must NOT
@@ -33,10 +31,6 @@ import {
   ANALYTICS_MATVIEWS,
   ANALYTICS_REFRESH_STATE_TABLE,
 } from "./pgAnalyticsDataSource.js";
-import {
-  ANALYTICS_REFRESH_SCHEDULE,
-  type AnalyticsRefreshSchedule,
-} from "./analyticsService.js";
 
 /* -------------------------------------------------------------------------- */
 /* Refresh SQL.                                                                */
@@ -125,40 +119,20 @@ export async function refreshAnalyticsAggregates(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Scheduler registration.                                                     */
+/* NO SCHEDULER REGISTRATION (task 24).                                        */
+/*                                                                             */
+/* This module used to export `registerAnalyticsRefresh`, which put the refresh */
+/* on an hourly cron. That has been REMOVED, not merely unwired, so the         */
+/* orphaned path cannot be reintroduced by accident:                            */
+/*                                                                              */
+/*   - a cron window elapsing while the host sleeps is skipped silently and     */
+/*     never replayed (verified in pg-boss@10.4.2), so the hourly refresh was   */
+/*     unreliable on zero-cost hosting; and                                     */
+/*   - it was unnecessary. The aggregates have a single consumer — an admin      */
+/*     opening the analytics view — so the refresh is now triggered by the read  */
+/*     itself when the views are stale (`admin/lazyAnalyticsRefresh.ts`),        */
+/*     which also makes the figures fresher than the hourly job managed.        */
+/*                                                                              */
+/* `refreshAnalyticsAggregates` above remains the single refresh routine and is  */
+/* called by that read-triggered path (A12, Req 20.3/20.6).                      */
 /* -------------------------------------------------------------------------- */
-
-/**
- * A minimal structural view of a recurring scheduler (satisfied by the boot
- * {@link import("../scheduler.js").PgBossRecurringScheduler} and by e.g. pg-boss
- * `schedule(name, cron, ...)`), declared locally so registering the job does not
- * hard-couple it to any concrete scheduler. Mirrors the reconciliation (task
- * 12.1) and expiry (task 10.2) jobs' abstraction exactly.
- */
-export interface RecurringScheduler {
-  schedule(jobName: string, cron: string, handler: () => Promise<void>): Promise<void> | void;
-}
-
-/**
- * Registers the analytics-aggregate refresh on a recurring scheduler so it runs
- * at least hourly (A12). The registered handler invokes
- * {@link refreshAnalyticsAggregates}. This wires a callable job onto the
- * scheduler abstraction; production supplies a real recurring scheduler at deploy
- * time — calling this in a test/registration context engages no live scheduler.
- *
- * @param scheduler the recurring scheduler to register on.
- * @param deps      the refresh job's DB dependency.
- * @param schedule  the schedule to register under (defaults to the hourly
- *                  {@link ANALYTICS_REFRESH_SCHEDULE}).
- * @returns the {@link AnalyticsRefreshSchedule} that was registered.
- */
-export async function registerAnalyticsRefresh(
-  scheduler: RecurringScheduler,
-  deps: AnalyticsRefreshDeps,
-  schedule: AnalyticsRefreshSchedule = ANALYTICS_REFRESH_SCHEDULE,
-): Promise<AnalyticsRefreshSchedule> {
-  await scheduler.schedule(schedule.jobName, schedule.cron, async () => {
-    await refreshAnalyticsAggregates(deps);
-  });
-  return schedule;
-}

@@ -19,22 +19,13 @@
 import { describe, expect, it } from "vitest";
 import type { QueryResult, QueryResultRow } from "pg";
 import type { Queryable } from "../ledger/repository.js";
-import {
-  ANALYTICS_REFRESH_CRON,
-  ANALYTICS_REFRESH_JOB,
-  ANALYTICS_REFRESH_MAX_INTERVAL_MS,
-  ANALYTICS_REFRESH_SCHEDULE,
-} from "./analyticsService.js";
+
 import {
   ANALYTICS_CUSTOMERS_MATVIEW,
   ANALYTICS_LEDGER_MATVIEW,
   ANALYTICS_REDEMPTIONS_MATVIEW,
 } from "./pgAnalyticsDataSource.js";
-import {
-  refreshAnalyticsAggregates,
-  registerAnalyticsRefresh,
-  type RecurringScheduler,
-} from "./analyticsRefresh.js";
+import { refreshAnalyticsAggregates } from "./analyticsRefresh.js";
 
 /* --------------------------------- fakes ---------------------------------- */
 
@@ -110,52 +101,22 @@ describe("refreshAnalyticsAggregates", () => {
   });
 });
 
-/* --------------------------- scheduler registration ----------------------- */
+/* ------------------- no scheduler registration (task 24) ------------------- */
 
-describe("registerAnalyticsRefresh", () => {
-  it("registers under the analytics job name with the hourly cron (A12)", async () => {
-    const { db } = makeDb();
+describe("analytics refresh has no scheduler registration (task 24, A12)", () => {
+  it("exports no cron-registration surface, so the orphaned hourly path cannot return", async () => {
+    // The module used to export `registerAnalyticsRefresh`, which put the
+    // refresh on an hourly cron. A cron window elapsing while a zero-cost host
+    // sleeps is skipped silently and never replayed, and the refresh is
+    // unnecessary anyway: analytics has a single consumer, so it is triggered by
+    // the admin read when stale (see `lazyAnalyticsRefresh.ts`). The scheduling
+    // half was REMOVED rather than merely unwired; this asserts it stays gone.
+    const mod: Record<string, unknown> = await import("./analyticsRefresh.js");
 
-    let registeredName = "";
-    let registeredCron = "";
-    let handler: (() => Promise<void>) | undefined;
-    const scheduler: RecurringScheduler = {
-      schedule(name, cron, h) {
-        registeredName = name;
-        registeredCron = cron;
-        handler = h;
-      },
-    };
+    expect(mod.registerAnalyticsRefresh).toBeUndefined();
+    expect(Object.keys(mod)).not.toContain("registerAnalyticsRefresh");
 
-    const schedule = await registerAnalyticsRefresh(scheduler, { db });
-
-    expect(registeredName).toBe(ANALYTICS_REFRESH_JOB);
-    expect(registeredName).toBe("refreshAnalyticsAggregates");
-    expect(registeredCron).toBe(ANALYTICS_REFRESH_CRON);
-    expect(registeredCron).toBe("0 * * * *");
-    expect(schedule).toBe(ANALYTICS_REFRESH_SCHEDULE);
-    expect(schedule.maxIntervalMs).toBeLessThanOrEqual(ANALYTICS_REFRESH_MAX_INTERVAL_MS);
-    expect(typeof handler).toBe("function");
-  });
-
-  it("registered handler triggers a refresh when invoked", async () => {
-    const { db, statements } = makeDb();
-
-    let handler: (() => Promise<void>) | undefined;
-    const scheduler: RecurringScheduler = {
-      schedule(_name, _cron, h) {
-        handler = h;
-      },
-    };
-
-    await registerAnalyticsRefresh(scheduler, { db });
-    // Nothing runs until the scheduler fires the handler.
-    expect(statements.length).toBe(0);
-
-    await handler?.();
-
-    // The handler ran a full refresh.
-    expect(statements.some((s) => /REFRESH MATERIALIZED VIEW CONCURRENTLY/i.test(s))).toBe(true);
-    expect(statements.some((s) => /UPDATE analytics_aggregate_refresh/i.test(s))).toBe(true);
+    // The pure refresh routine remains, and is what the read-triggered path calls.
+    expect(typeof mod.refreshAnalyticsAggregates).toBe("function");
   });
 });

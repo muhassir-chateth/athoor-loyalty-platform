@@ -339,11 +339,14 @@ async function main(): Promise<void> {
     preExpiry: { transactor, notifier: new PgBossPreExpiryNotifier(boss) },
   });
 
-  // Retire the analytics cron entry left in `pgboss.schedule` by earlier deploys.
-  // Nothing consumes that queue any more (the refresh is read-triggered), so an
-  // orphaned cron publisher would accumulate jobs no worker would ever run.
-  // Idempotent: a no-op once removed.
+  // Retire the analytics cron entry AND its now-consumerless queue, both left
+  // behind in the database by earlier deploys. The refresh is read-triggered, so
+  // nothing works that queue any more: a surviving cron publisher would keep
+  // enqueueing jobs that no worker would ever run (the staging audit found one
+  // such job stuck in `created`). Deleting the queue also purges those orphans.
+  // Both calls are idempotent — a no-op once the state is gone.
   await boss.unschedule(ANALYTICS_REFRESH_JOB);
+  await boss.deleteQueue(ANALYTICS_REFRESH_JOB);
 
   // (F) Analytics aggregates are NO LONGER refreshed on a schedule (task 24).
   // They have a single consumer — an admin opening the view — so the refresh is

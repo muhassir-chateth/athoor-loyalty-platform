@@ -1,7 +1,8 @@
 /**
  * Due-work {@link RecurringScheduler} adapter + ticker (task 24, boot wiring).
  *
- * Drop-in replacement for {@link PgBossRecurringScheduler}. It satisfies the
+ * The ONLY implementation of {@link RecurringScheduler}; it replaced a pg-boss
+ * cron adapter, which has since been removed outright. It satisfies the
  * SAME `schedule(jobName, cron, handler)` contract the domain schedulers already
  * depend on, so `registerExpiryScan` and `registerReconciliationJob` are used
  * completely unchanged — only the adapter injected at boot differs.
