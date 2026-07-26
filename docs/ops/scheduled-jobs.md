@@ -3,8 +3,13 @@
 Task 24 of Phase 5. Decides how `runExpiryScan`, `reconcileCaches` and
 `refreshAnalyticsAggregates` fire dependably once the platform is live.
 
-Status: **analysis complete, awaiting the hosting decision.** No infrastructure
-has been changed.
+> **SUPERSEDED.** This document recommended an always-on paid instance. A
+> subsequent decision made zero-cost operation a hard requirement, so the
+> recommendation no longer applies — see
+> [`zero-cost-architecture.md`](./zero-cost-architecture.md).
+>
+> The pg-boss verification below is still authoritative and is the foundation of
+> that redesign; the option comparison is retained for the record.
 
 ## The three jobs
 
