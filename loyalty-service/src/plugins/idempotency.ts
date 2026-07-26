@@ -27,7 +27,40 @@ import {
  *
  * Handling is stateless (Requirement 9.8): the middleware sets no session
  * cookie and keeps no per-connection state; all dedupe state lives in the
- * injected {@link IdempotencyStore}, keyed by method + route + key.
+ * injected {@link IdempotencyStore}, keyed by **customer + method + route +
+ * key** (see {@link storageKeyFor}).
+ *
+ * ---------------------------------------------------------------------------
+ * SECURITY: the key is scoped PER CUSTOMER (task 38)
+ * ---------------------------------------------------------------------------
+ * The stored key used to be `METHOD route:clientKey`, with no customer in it.
+ * The client controls that header value completely, so two customers using the
+ * same key on the same route within the 24-hour window collided: the second
+ * received the FIRST customer's stored response verbatim and their own operation
+ * never ran. That needed no unlucky collision — a guessable value like `1` or
+ * `test` was enough. On `POST /v1/redeem` it meant one member could be served
+ * another member's redemption response while their own spend silently did not
+ * happen.
+ *
+ * The resolved `customers.id` is therefore part of the key, mirroring how the
+ * redemption engine already scopes its `(customer_id, idempotency_key)` UNIQUE
+ * constraint. Identity is taken from `req.authCtx`, which the `/v1` auth
+ * preHandler — registered BEFORE this one, so it has already run — derives from
+ * the App Proxy signature or the Customer Account token. It is never read from
+ * anything the client can set directly.
+ *
+ * FAIL CLOSED: if a state-changing request somehow reaches this gate with no
+ * resolved identity, it is REFUSED rather than falling back to an unscoped
+ * (shared) key. Auth rejects such a request first, so this is unreachable in the
+ * wired app; it exists so that a future route mounted without auth cannot
+ * silently reintroduce cross-customer sharing.
+ *
+ * DEPLOY NOTE: the key format changed, so entries written by the previous format
+ * are unreachable and any replay window open across the deploy is dropped — a
+ * client retry spanning it re-executes rather than replaying. That is the safe
+ * direction, and for the money path the engine's own
+ * `(customer_id, idempotency_key)` UNIQUE constraint still prevents a double
+ * spend regardless.
  */
 
 /** The header carrying the client's idempotency key (Fastify lower-cases header names). */
@@ -58,18 +91,29 @@ function readHeader(req: FastifyRequest, name: string): string | undefined {
 }
 
 /**
- * Namespaces the client key by method + route pattern so the same key used on
- * two different operations never collides. Uses the matched route template
- * (e.g. `/v1/redeem`) rather than the raw URL so query strings don't fragment
- * the key.
+ * Namespaces the client key by **customer + method + route pattern**, so:
  *
- * NOTE: once identity resolution lands (task 6.2), the resolved `customers.id`
- * should be folded into this namespace so a key is scoped per customer, exactly
- * as the redemption engine scopes `(customer_id, idempotency_key)`.
+ *   - the same key used on two different operations never collides (method +
+ *     route), using the matched route template (e.g. `/v1/redeem`) rather than
+ *     the raw URL so query strings do not fragment the key; and
+ *   - the same key used by two different customers never collides (customer id)
+ *     — the security property this function exists to guarantee (task 38).
+ *
+ * Returns `null` when there is no resolved identity, which the caller treats as
+ * a refusal. Returning an unscoped key in that case is exactly the bug being
+ * fixed, so it is not an option.
+ *
+ * The customer id is a server-derived UUID and the separators (`|` and a space)
+ * cannot appear in it, so no client-supplied key can forge a different
+ * customer's namespace by embedding a separator.
  */
-function storageKeyFor(req: FastifyRequest, key: string): string {
+export function storageKeyFor(req: FastifyRequest, key: string): string | null {
+  const customerId = req.authCtx?.customerId;
+  if (typeof customerId !== "string" || customerId.trim() === "") {
+    return null;
+  }
   const routeId = req.routeOptions?.url ?? req.url;
-  return `${req.method} ${routeId}:${key}`;
+  return `${customerId}|${req.method} ${routeId}:${key}`;
 }
 
 /**
@@ -101,6 +145,20 @@ export function registerIdempotency(
     }
 
     const storageKey = storageKeyFor(req, key);
+    if (storageKey === null) {
+      // No resolved identity on a state-changing request. Auth rejects this
+      // before we get here, so reaching it means a route was mounted without
+      // identity resolution. REFUSE rather than fall back to an unscoped key,
+      // which is precisely the cross-customer sharing this scoping prevents
+      // (task 38). A 5xx is deliberately not cached, so a retry reprocesses.
+      reply.code(500).send({
+        error: "idempotency_scope_unavailable",
+        message:
+          "This request could not be scoped to a customer identity, so it was refused rather " +
+          "than sharing a deduplication key across customers.",
+      });
+      return reply;
+    }
     req.idempotencyStorageKey = storageKey;
 
     const stored = await store.get(storageKey);

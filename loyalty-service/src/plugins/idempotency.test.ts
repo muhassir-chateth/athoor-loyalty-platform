@@ -21,6 +21,21 @@ function buildTestApp(store: InMemoryIdempotencyStore): { app: FastifyInstance; 
   // Encapsulated scope so the idempotency hooks are confined here, exactly as
   // they are confined to /v1 in production.
   app.register(async (scope) => {
+    // Resolved identity, set by a preHandler registered BEFORE the idempotency
+    // hooks — mirroring `v1.ts`, where auth always runs first. Required since
+    // task 38: the storage key is scoped per customer, and a state-changing
+    // request with no identity is refused rather than sharing an unscoped key.
+    // These tests exercise ONE customer, so the scoping is invisible to them and
+    // every Req 9.6/9.7/9.8 assertion below is unchanged. Cross-customer
+    // behaviour is covered in `idempotencyScoping.test.ts`.
+    scope.addHook("preHandler", async (req) => {
+      (req as { authCtx?: unknown }).authCtx = {
+        customerId: "00000000-0000-4000-8000-000000000001",
+        source: "app_proxy",
+        channel: "web",
+      };
+    });
+
     registerIdempotency(scope, store);
 
     scope.post("/things", async () => {
