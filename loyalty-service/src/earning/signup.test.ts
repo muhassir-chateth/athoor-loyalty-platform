@@ -44,6 +44,14 @@ interface LedgerRowStore {
 class FakeDb implements Queryable, Transactor {
   readonly customersByShopifyId = new Map<number, string>();
   readonly ledger: LedgerRowStore[] = [];
+  /** Point_Lots backing each credit (Property 17). */
+  readonly lots: Array<{
+    customer_id: string;
+    ledger_entry_id: string;
+    points: number;
+    earned_at: Date;
+    expires_at: Date | null;
+  }> = [];
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -58,6 +66,17 @@ class FakeDb implements Queryable, Transactor {
     }
     if (queryText.includes("INSERT INTO ledger_entries")) {
       return this.appendLedger<R>(values);
+    }
+    if (queryText.includes("INSERT INTO point_lots")) {
+      const [customer_id, ledger_entry_id, points, earned_at, expires_at] = values as [
+        string,
+        string,
+        number,
+        Date,
+        Date | null,
+      ];
+      this.lots.push({ customer_id, ledger_entry_id, points, earned_at, expires_at });
+      return { rows: [], rowCount: 0, command: "INSERT", oid: 0, fields: [] } as QueryResult<R>;
     }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }

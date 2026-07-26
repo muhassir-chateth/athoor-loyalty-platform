@@ -52,6 +52,7 @@
  */
 import { randomInt } from "node:crypto";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
+import { createExpiringPointLot } from "../ledger/pointLots.js";
 
 /** The exact referral signup reward for the referrer (Requirement 2.9). */
 export const REFERRAL_SIGNUP_POINTS = 150 as const;
@@ -341,6 +342,10 @@ export async function recordReferralOnSignup(
     executor,
   );
 
+  // (7) Back the credit with a matching 12-month Point_Lot so the referrer can
+  // actually redeem it (Req 2.9, Req 1.3a, Property 17).
+  await createExpiringPointLot(executor, referrerId, entry);
+
   return { status: "rewarded", referrerId, referredCustomerId, referralId: insertedRow.id, entry };
 }
 
@@ -462,6 +467,10 @@ export async function awardReferralFirstPurchase(
     },
     executor,
   );
+
+  // (6) Back the credit with a matching 12-month Point_Lot (Req 2.10,
+  // Req 1.3a, Property 17).
+  await createExpiringPointLot(executor, referral.referrer_id, entry);
 
   return {
     status: "rewarded",

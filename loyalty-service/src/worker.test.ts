@@ -46,6 +46,8 @@ class RecordingEnqueuer implements MetafieldCacheEnqueuer {
 class FakeDb implements Queryable, Transactor {
   readonly customersByShopifyId = new Map<number, string>();
   readonly ledger: Array<{ customer_id: string; entry_type: string; points: number }> = [];
+  /** Point_Lots backing each credit (Property 17). */
+  readonly lots: Array<{ customer_id: string; ledger_entry_id: string; points: number }> = [];
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -88,6 +90,11 @@ class FakeDb implements Queryable, Transactor {
         created_at: new Date("2025-01-01T00:00:00.000Z"),
       };
       return this.result<R>([returned as unknown as R]);
+    }
+    if (queryText.includes("INSERT INTO point_lots")) {
+      const [customer_id, ledger_entry_id, points] = values as [string, string, number];
+      this.lots.push({ customer_id, ledger_entry_id, points });
+      return this.result<R>([]);
     }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }

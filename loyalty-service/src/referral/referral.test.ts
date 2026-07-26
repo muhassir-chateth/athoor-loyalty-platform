@@ -62,6 +62,13 @@ class FakeDb implements Queryable {
   readonly customers = new Map<string, CustomerStore>();
   readonly referrals: ReferralStore[] = [];
   readonly ledger: LedgerStore[] = [];
+  /** Point_Lots backing each referral credit (Property 17). */
+  readonly lots: Array<{
+    customer_id: string;
+    ledger_entry_id: string;
+    points: number;
+    expires_at: Date | null;
+  }> = [];
   private seq = 0;
 
   seedCustomer(id: string, opts: Partial<CustomerStore> = {}): void {
@@ -112,6 +119,17 @@ class FakeDb implements Queryable {
     }
     if (q.startsWith("INSERT INTO ledger_entries")) {
       return this.appendLedger<R>(values);
+    }
+    if (q.startsWith("INSERT INTO point_lots")) {
+      const [customer_id, ledger_entry_id, points, , expires_at] = values as [
+        string,
+        string,
+        number,
+        Date,
+        Date | null,
+      ];
+      this.lots.push({ customer_id, ledger_entry_id, points, expires_at });
+      return this.result<R>([]);
     }
     throw new Error(`Unexpected query in FakeDb: ${q}`);
   }

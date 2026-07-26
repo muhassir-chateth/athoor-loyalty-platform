@@ -62,6 +62,7 @@
  */
 import { z } from "zod";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
+import { addMonths, createExpiringPointLot, LOT_EXPIRY_MONTHS } from "../ledger/pointLots.js";
 import { advanceTier, tierMultiplier, type Tier } from "../tier/tier.js";
 import type { WebhookJob } from "../webhooks/enqueue.js";
 
@@ -77,8 +78,12 @@ export const FIRST_PURCHASE_REASON = "first_purchase_bonus" as const;
 /** The webhook topic this earning responds to. */
 export const ORDERS_PAID_TOPIC = "orders/paid" as const;
 
-/** Point-lot expiry window in months, measured from the earning timestamp (A1, Req 2.6). */
-export const LOT_EXPIRY_MONTHS = 12 as const;
+/**
+ * Point-lot expiry window in months, measured from the earning timestamp
+ * (A1, Req 2.6). Re-exported from the shared lot helper so existing importers
+ * are unaffected by the move.
+ */
+export { LOT_EXPIRY_MONTHS };
 
 /**
  * Runs a unit of work inside a single database transaction. The order-earning
@@ -203,19 +208,6 @@ const ANY_ORDER_EARNING_SQL = `
 `;
 
 /**
- * Inserts a matching Point_Lot for an earning (Req 2.6): `original_points` and
- * `remaining_points` both equal the earning's points, `earned_at` equals the
- * earning timestamp, and `expires_at` is exactly {@link LOT_EXPIRY_MONTHS}
- * months after that timestamp.
- */
-const INSERT_POINT_LOT_SQL = `
-  INSERT INTO point_lots
-    (customer_id, ledger_entry_id, original_points, remaining_points, earned_at, expires_at)
-  VALUES ($1, $2, $3, $3, $4, $5)
-  RETURNING id
-`;
-
-/**
  * Persists the updated lifetime spend and advanced tier. Spend is incremented
  * RELATIVELY (`+ $2`) so concurrent orders sum correctly; the tier is the
  * monotonic {@link advanceTier} result (never lowered, Property 11).
@@ -235,33 +227,10 @@ interface CustomerTotalsRow {
 }
 
 /**
- * Adds a whole number of calendar months to a date, clamping the day of month
- * to the target month's last day (so e.g. 29 Feb + 12 months → 28 Feb).
- * Computed in UTC for determinism. Used to set a lot's `expires_at` to exactly
- * {@link LOT_EXPIRY_MONTHS} months after the earning timestamp (Req 2.6).
+ * Re-exported from {@link ../ledger/pointLots.js} so existing importers keep
+ * working now that lot creation is shared across every credit path.
  */
-export function addMonths(date: Date, months: number): Date {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const targetMonthFirst = new Date(
-    Date.UTC(
-      year,
-      month + months,
-      1,
-      date.getUTCHours(),
-      date.getUTCMinutes(),
-      date.getUTCSeconds(),
-      date.getUTCMilliseconds(),
-    ),
-  );
-  // Last day of the target month = day 0 of the following month.
-  const lastDayOfTargetMonth = new Date(
-    Date.UTC(targetMonthFirst.getUTCFullYear(), targetMonthFirst.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  targetMonthFirst.setUTCDate(Math.min(day, lastDayOfTargetMonth));
-  return targetMonthFirst;
-}
+export { addMonths };
 
 /**
  * Computes the `earn_order` point amount `floor(eligibleTotal × multiplier)`
@@ -289,23 +258,16 @@ function parseMoneyColumn(value: string | number | null | undefined): number {
 }
 
 /**
- * Creates a Point_Lot matching an earning entry (Req 2.6). `earned_at` is the
- * earning's own timestamp and `expires_at` is exactly 12 months later.
+ * Creates a Point_Lot matching an earning entry (Req 2.6). Delegates to the
+ * shared {@link createExpiringPointLot} so every credit path — signup, order,
+ * referral, admin credit — produces an identically shaped lot (Property 17).
  */
 async function createPointLot(
   executor: Queryable,
   customerId: string,
   entry: LedgerEntry,
 ): Promise<void> {
-  const earnedAt = entry.createdAt;
-  const expiresAt = addMonths(earnedAt, LOT_EXPIRY_MONTHS);
-  await executor.query(INSERT_POINT_LOT_SQL, [
-    customerId,
-    entry.id,
-    entry.points,
-    earnedAt,
-    expiresAt,
-  ]);
+  await createExpiringPointLot(executor, customerId, entry);
 }
 
 /**

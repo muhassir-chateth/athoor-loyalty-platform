@@ -39,6 +39,7 @@
  */
 import { z } from "zod";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
+import { createExpiringPointLot } from "../ledger/pointLots.js";
 import type { WebhookJob } from "../webhooks/enqueue.js";
 
 /** The exact signup earning amount (Requirement 2.1). */
@@ -187,6 +188,11 @@ export async function earnSignup(
     },
     executor,
   );
+
+  // (4) Back the credit with a matching 12-month Point_Lot (Req 2.6, Req 1.3a,
+  // Property 17). Spendable_Balance is derived solely from lots, so without
+  // this the signup bonus would show in history yet never be redeemable.
+  await createExpiringPointLot(executor, customerId, entry);
 
   return { status: "earned", customerId, entry };
 }

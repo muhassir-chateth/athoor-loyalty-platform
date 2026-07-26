@@ -31,6 +31,7 @@
  * passed at runtime; the logic is unit-tested against fakes.
  */
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
+import { createExpiringPointLot } from "../ledger/pointLots.js";
 import type { AuditRecord, AuditTrailRecorder } from "./auditTrail.js";
 import type { AdminCtx } from "./adminAuth.js";
 
@@ -251,6 +252,11 @@ export async function applyAdjustment(
       tx,
     );
 
+    // A positive adjustment credits the customer, so back it with a matching
+    // 12-month Point_Lot to keep the credited points spendable (Req 10.2a,
+    // Req 1.3a, Property 17). A negative adjustment creates no lot.
+    await createExpiringPointLot(tx, input.customerId, entry);
+
     const audit = await deps.audit.record(
       {
         adminUserId: admin.adminUserId,
@@ -309,6 +315,10 @@ export async function grantManualCredit(
       },
       tx,
     );
+
+    // Manual credits are always positive, so every one gets a matching
+    // 12-month Point_Lot (Req 10.4, Req 1.3a, Property 17).
+    await createExpiringPointLot(tx, input.customerId, entry);
 
     const audit = await deps.audit.record(
       {
