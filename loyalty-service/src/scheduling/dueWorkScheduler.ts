@@ -54,6 +54,12 @@ export class DueWorkScheduler implements RecurringScheduler {
   ) {}
 
   async schedule(jobName: string, _cron: string, handler: () => Promise<void>): Promise<void> {
+    // (0) Remove any legacy pg-boss cron entry for this job. `pgboss.schedule`
+    // rows persist in the database across deploys, so a job that was previously
+    // registered with `boss.schedule(name, cron)` would keep publishing
+    // occurrences alongside due work — double-triggering while the process
+    // happens to be awake. Idempotent: unscheduling an absent job is a no-op.
+    await this.boss.unschedule(jobName);
     // (1) The queue must exist before we consume from or publish to it (v10).
     await this.boss.createQueue(jobName);
     // (2) Consume: run the handler once per delivered job. A recurring job

@@ -51,6 +51,7 @@ import { PgPortalVisitRecorder } from "./routes/profile.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
+import { ANALYTICS_REFRESH_JOB } from "./admin/analyticsService.js";
 import { PgAnalyticsDataSource } from "./admin/pgAnalyticsDataSource.js";
 import { CachedAggregateAnalyticsService } from "./admin/analyticsService.js";
 
@@ -337,6 +338,12 @@ async function main(): Promise<void> {
     expiry: { repo: ledgerRepo, transactor },
     preExpiry: { transactor, notifier: new PgBossPreExpiryNotifier(boss) },
   });
+
+  // Retire the analytics cron entry left in `pgboss.schedule` by earlier deploys.
+  // Nothing consumes that queue any more (the refresh is read-triggered), so an
+  // orphaned cron publisher would accumulate jobs no worker would ever run.
+  // Idempotent: a no-op once removed.
+  await boss.unschedule(ANALYTICS_REFRESH_JOB);
 
   // (F) Analytics aggregates are NO LONGER refreshed on a schedule (task 24).
   // They have a single consumer — an admin opening the view — so the refresh is
