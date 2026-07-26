@@ -174,6 +174,19 @@ const FIND_CODE_FOR_REDEMPTION_SQL = `
 
 const CODE_EXISTS_SQL = `SELECT 1 FROM discount_codes WHERE code = $1 LIMIT 1`;
 
+/**
+ * Guard for the compensating reversal (Req 3.9): has a reversal adjustment
+ * already been recorded for this redemption? Read inside the reversal
+ * transaction so the check and the append are atomic, keeping the invariant
+ * "exactly one compensating adjustment per failed redemption" true even under a
+ * queue-level retry or a concurrent worker.
+ */
+const EXISTING_REVERSAL_SQL = `
+  SELECT 1 FROM ledger_entries
+  WHERE redemption_id = $1 AND entry_type = 'adjust' AND reason = $2
+  LIMIT 1
+`;
+
 const INSERT_DISCOUNT_CODE_SQL = `
   INSERT INTO discount_codes
     (redemption_id, code, shopify_price_rule_id, shopify_discount_id, amount_off_gbp, status)
@@ -266,6 +279,16 @@ export async function processDiscountCodeJob(
       };
     }
   }
+  // (Req 3.9) TERMINAL FAILURE is final. The attempt that failed already marked
+  // the redemption `failed` and recorded the single compensating reversal, then
+  // threw — which hands the job back to the queue for retry. A retry must NOT
+  // mint a code and must NOT reverse the spend a second time (that would credit
+  // the customer once per attempt). Re-throw before any Admin call so the job
+  // stays visibly failed and the ledger is left untouched.
+  if (redemption.status === REDEMPTION_STATUS_FAILED) {
+    throw new RedemptionFailedError(redemptionId);
+  }
+
   // A pre-existing discount_codes row even without the issued flag => reuse it.
   {
     const existing = await db.query<DiscountCodeRow>(FIND_CODE_FOR_REDEMPTION_SQL, [redemptionId]);
@@ -354,6 +377,16 @@ async function reverseSpend(
   const { repo, transactor } = deps;
   await transactor.transaction(async (tx) => {
     await tx.query(UPDATE_REDEMPTION_FAILED_SQL, [redemption.id, REDEMPTION_STATUS_FAILED]);
+    // Exactly ONE compensating adjustment per redemption (Req 3.9). Defence in
+    // depth alongside the caller's terminal-status guard: if a reversal already
+    // exists, the failure state is recorded and there is nothing left to undo.
+    const alreadyReversed = await tx.query(EXISTING_REVERSAL_SQL, [
+      redemption.id,
+      REVERSAL_REASON,
+    ]);
+    if ((alreadyReversed.rowCount ?? alreadyReversed.rows.length) > 0) {
+      return;
+    }
     // Compensating credit reversing the spend by the exact reward cost (Req 3.9).
     const reversal = await repo.append(
       {

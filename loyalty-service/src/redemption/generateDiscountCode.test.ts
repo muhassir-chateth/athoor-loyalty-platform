@@ -213,6 +213,17 @@ function makeDb(options: FakeDbOptions = {}): FakeDb {
         return ok([], "UPDATE") as unknown as QueryResult<R>;
       }
 
+      // Existing-reversal guard (exactly one compensating adjustment, Req 3.9).
+      if (/SELECT 1\s+FROM ledger_entries/i.test(text)) {
+        const hit = ledger.some(
+          (e) =>
+            e.redemption_id === (values[0] as string) &&
+            e.entry_type === "adjust" &&
+            e.reason === (values[1] as string),
+        );
+        return ok((hit ? [{ one: 1 }] : []) as unknown as R[], "SELECT");
+      }
+
       // Append-only ledger insert (from LedgerRepository.append).
       if (/INSERT INTO ledger_entries/i.test(text)) {
         const [customer_id, entry_type, points, reason, , , redemption_id] = values as [
@@ -461,5 +472,46 @@ describe("processDiscountCodeJob: terminal hard failure reverses the spend (Req 
     // A restoring point-lot makes the reversed points spendable again.
     expect(fake.lots).toHaveLength(1);
     expect(fake.lots[0]!.remaining_points).toBe(100);
+  });
+
+  it("reverses the spend only ONCE when the queue retries the failed job (Req 3.9)", async () => {
+    // Regression: a terminal failure marks the redemption `failed` and throws,
+    // which hands the job back to pg-boss. Every retry used to re-run the mint
+    // path and reverse the spend again, crediting the customer once per attempt
+    // (observed on staging: three +cost adjustments and three lots for a single
+    // 250-point spend). A retry must be a no-op against the ledger.
+    const fake = makeDb();
+    const { client, inputs } = scriptedClient(["fail", "fail", "fail"]);
+    let t = 0;
+    const now = (): number => {
+      const v = t;
+      t += 1000;
+      return v;
+    };
+    const gateway = new ShopifyAdminGateway(client, { sleep: noSleep, now });
+    const deps = makeDeps(fake, gateway);
+
+    // First attempt: terminal failure → failed + exactly one reversal.
+    await expect(processDiscountCodeJob(REDEMPTION_ID, deps)).rejects.toBeInstanceOf(
+      RedemptionFailedError,
+    );
+    const adminCallsAfterFirst = inputs.length;
+
+    // Two queue-level retries of the same job.
+    await expect(processDiscountCodeJob(REDEMPTION_ID, deps)).rejects.toBeInstanceOf(
+      RedemptionFailedError,
+    );
+    await expect(processDiscountCodeJob(REDEMPTION_ID, deps)).rejects.toBeInstanceOf(
+      RedemptionFailedError,
+    );
+
+    // Still exactly one compensating adjustment and one restoring lot.
+    expect(fake.ledger.filter((e) => e.reason === REVERSAL_REASON)).toHaveLength(1);
+    expect(fake.lots).toHaveLength(1);
+
+    // And the retries short-circuit before touching the Admin API.
+    expect(inputs).toHaveLength(adminCallsAfterFirst);
+    expect(fake.discountCodes).toHaveLength(0);
+    expect(fake.redemptions.get(REDEMPTION_ID)!.status).toBe(REDEMPTION_STATUS_FAILED);
   });
 });
