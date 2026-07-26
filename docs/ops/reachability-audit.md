@@ -136,6 +136,37 @@ Four occurrences of the same failure mode, counting the ones already fixed:
 | 2 | Analytics refresh registered but orphaned after redesign | Task 24 audit |
 | 3 | Referral engine, no production call site | Task 25 |
 | 4 | Idempotency store, benefits, profile writes, market config | This audit |
+| 5 | M0–M2 migration has no production adapters and no operator entrypoint | Task 26 rehearsal |
+
+### Occurrence 5 — the migration cutover cannot actually be run (task 26)
+
+The task 26 rehearsal drove the real `runM0Export`, `runM1Backfill` and
+`runMetafieldRollback` successfully, but it had to supply every boundary itself.
+Verified absent from the repository:
+
+- No class implements `MigrationShopifyClient` — the Admin adapter that lists
+  customers with their `loyalty.*` metafields and derives lifetime spend from paid
+  orders. Only the interface and test fakes exist.
+- No class implements `MetafieldRestoreClient` (rollback upsert + read-back).
+- No class implements `ServiceController`; stopping the service before a rollback
+  is a manual Render action.
+- `loyalty-service/scripts/` contains only `backfill-missing-point-lots.mjs`.
+  There is no M0/M1/rollback entrypoint and no npm script for one.
+
+Tasks 7.1, 7.2 and 7.3 are all marked complete. They were marked complete on the
+strength of the pure logic plus its unit tests — which pass identically whether or
+not any adapter exists, because the tests inject their own. Exactly the pattern
+this document was written about.
+
+The distinction that matters: the migration LOGIC is genuinely proven, including
+every abort and halt path. What is missing is the layer that connects it to a real
+store and a real operator. Tracked as task 33; task 26 cannot be signed off until
+it lands, because "confirm the operator-script path works" is not satisfiable
+today.
+
+Note that this one is less severe than findings 1–4: nothing is silently degraded
+in the running service, because the cutover has not been attempted. It is a
+"cannot proceed" gap rather than a "quietly broken" one.
 
 The common cause is that a task was marked complete once its module existed with
 passing unit tests, with no check that anything reached it at runtime. Unit tests
