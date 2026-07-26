@@ -280,11 +280,11 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
 >
 > Tasks 24–27 are validation/operational rather than feature work: they exercise existing behaviour and produce evidence, and 24 and 27 need infrastructure or a browser session that the free-tier staging environment cannot provide.
 
-- [ ] 23. Advance webhook_events processing state for traceability
+- [x] 23. Advance webhook_events processing state for traceability
   - Set `webhook_events.status` to `processed` and stamp `processed_at` when the worker finishes dispatching an event, and to `failed` when dispatch raises, so the dedupe table records outcome as well as receipt. Staging observed 8 of 8 rows stuck at `received` with `processed_at` null even after successful processing. Keep the transition idempotent (a replayed event must not overwrite a recorded terminal state) and non-fatal (a status write failure must not fail an already-committed ledger append, mirroring the metafield-cache writer's contract).
   - _Requirements: 12.1, 12.3, 13.8_
 
-- [ ] 24. Make scheduled jobs run reliably in production
+- [x] 24. Make scheduled jobs run reliably in production
   - Decide and document how `runExpiryScan`, `reconcileCaches` and `refreshAnalyticsAggregates` fire dependably. All three are registered in `pgboss.schedule`, but the free-tier host spins down on inactivity so they only run while the instance is awake — staging saw a stale pre-fix analytics failure for this reason. Compare an always-on paid instance against an external scheduler pinging a trigger endpoint, cover what happens to a missed window (pg-boss cron semantics on wake), and record the operational decision with its cost and monitoring implications. No behaviour change to the jobs themselves.
   - _Requirements: 5.2, 5.4, 13.6, 13.7, 20.3_
 
@@ -301,7 +301,8 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
   - Load the live luxury dashboard through App Proxy on staging and verify the sections render from `/apps/loyalty/v1/*` with no visual regression, that the Metafield_Cache fallback renders when the API is forced to error and the temporarily-unavailable state shows when both are down, and that a minted single-use code applies once at checkout and is blocked on reuse. Measure Core Web Vitals against LCP < 2.5s, CLS < 0.1, FID < 100ms via Lighthouse, check 320px–1920px for overflow/overlap, confirm `prefers-reduced-motion` disables non-essential animation, and spot-check WCAG 2.1 AA (keyboard navigation, ARIA labels, ≥4.5:1 contrast). Needs a browser session; note that full accessibility conformance also requires manual assistive-technology testing and expert review.
   - _Requirements: 8.1, 8.3, 8.4, 8.6, 8.7, 8.8, 16.6, 16.7, 16.8, 16.10, 16.11_
 
-- [ ] 28. Exercise FIFO expiry and pre-expiry notifications on staging
+- [x] 28. Exercise FIFO expiry and pre-expiry notifications on staging
+  - **Validated on staging (2026-07-26).** Seeded 5 test lots for customer `9037455327431` covering matured, pre-expiry window (15d), boundary (NOW-1min), edge-of-window (30d), and outside-window (31d). Aged `scheduled_runs.last_run_at` for `runExpiryScan` to trigger due-work catch-up on wake. Results: (1) both matured lots expired correctly (remaining_points → 0, exactly one negative `expire` ledger entry each at -75 and -50), (2) pre-expiry lots inside the 30-day window (15d, 30d edge) each received exactly one `pre_expiry_notifications` row with correct amount/expiry/window_days, (3) day-31 lot received NO notification (outside window), (4) expired lots received NO notification, (5) re-running after fresh `last_run_at` produced zero new expiry entries or notifications (Property 9, Req 5.3/5.5 idempotency confirmed), (6) ledger integrity preserved for all affected customers, (7) `/health` reported no overdue jobs after the run. All test data cleaned up.
   - Seed a matured lot and a lot inside the pre-expiry window, then verify the scan creates exactly one negative expiry entry per matured lot equal to its remainder and zeroes it, that a repeat run is a no-op (Property 9), and that the sweep enqueues exactly one notification per qualifying lot carrying the expiring amount and expiry date with no duplicate for an already-notified lot. The ESP is logging-only, so assert on the queued jobs and provider log rather than a delivered email. Task 24 replaced cron with due-work catch-up, so the scan can now be driven deterministically by ageing `scheduled_runs.last_run_at` instead of waiting for a schedule.
   - _Requirements: 5.2, 5.2a, 5.3, 5.4, 5.5_
 
