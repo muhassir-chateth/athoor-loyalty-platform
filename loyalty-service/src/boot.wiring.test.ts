@@ -116,6 +116,20 @@ describe("boot wiring regression — index.ts must wire Pg-backed implementation
     expect(indexSource).toMatch(/referralDeps\s*:/);
   });
 
+  // The referral claim credits the REFERRER, so the referral routes need the same
+  // Admin-gated lazy metafield enqueuer as the other balance-changing consumers
+  // (task 35, Req 13.5a). Without it the referrer's display cache stays stale.
+  it("threads the lazy metafieldEnqueuer getter into referralDeps", () => {
+    const referralDepsBlock = /referralDeps\s*:\s*\{[\s\S]*?get\s+metafieldEnqueuer\s*\(\s*\)/;
+    expect(indexSource).toMatch(referralDepsBlock);
+  });
+
+  // The `orders/paid` referral advance must REPORT the credited referrer so the
+  // worker can refresh that customer's cache after the transaction commits.
+  it("returns the credited referrerId from advanceReferralStage", () => {
+    expect(indexSource).toMatch(/advanceReferralStage[\s\S]*?referrerId\s*:\s*outcome\.referrerId/);
+  });
+
   // -------------------------------------------------------------------------
   // 6. Due-work status source (task 24, Req 20.6a)
   // -------------------------------------------------------------------------

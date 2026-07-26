@@ -159,6 +159,14 @@ export interface RedeemDeps {
    * committed and a queue failure never fails the redemption.
    */
   metafieldEnqueuer?: MetafieldCacheEnqueuer;
+  /**
+   * OPTIONAL observability hook for a FAILED display-cache enqueue (task 35).
+   * The enqueue is best-effort — the spend is already committed — so its failure
+   * is swallowed rather than thrown. Reporting it here keeps that non-fatality
+   * from being silent; without a hook, reconciliation is the only repair path
+   * (Req 13.7).
+   */
+  onCacheEnqueueError?: (err: unknown, customerId: string) => void;
 }
 
 /**
@@ -496,11 +504,27 @@ export async function redeem(
 
     // (7) The spend changed the Balance, so refresh the display cache off the
     // request path (Req 13.1/13.5a). Only on a fresh spend — a replay changed
-    // nothing. Best-effort: the ledger is already committed and authoritative,
-    // so a queue failure must not fail the redemption; reconciliation is the
-    // safety net (Req 13.7).
+    // nothing.
+    //
+    // GUARDED (task 35). This is best-effort and now actually behaves that way:
+    // the spend, its lot consumption and the discount-code job are all durable
+    // by this point, so a pg-boss failure while scheduling a NON-AUTHORITATIVE
+    // display-cache write must not turn a successful redemption into an error
+    // response. Previously this call was unguarded despite the comment claiming
+    // otherwise, so a queue blip would have surfaced as a failed redemption to a
+    // member whose points had already been spent — the worst possible outcome.
+    // Reconciliation is the safety net (Req 13.7).
+    //
+    // NOTE the deliberate asymmetry with the discount-code enqueue above: that
+    // one is NOT guarded, because without it no code is ever minted for a
+    // committed spend. Its failure must propagate so the caller can apply the
+    // compensating-reversal path (Req 3.9).
     if (deps.metafieldEnqueuer) {
-      await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId });
+      try {
+        await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId });
+      } catch (err) {
+        deps.onCacheEnqueueError?.(err, customerId);
+      }
     }
   }
 

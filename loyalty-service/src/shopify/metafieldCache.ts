@@ -5,7 +5,8 @@
  * the `writeMetafieldCache(customerId, snapshot)` method of "Component 3:
  * Shopify Admin Gateway". After ANY balance change the service enqueues a job
  * that writes a customer's `loyalty.*` display metafields — `points_balance`,
- * `tier`, `lifetime_points`, `lifetime_spend_gbp`, tier progress — back to
+ * `tier`, `lifetime_points`, `lifetime_spend_gbp`, tier progress, and the
+ * member's real `referral_code` (task 34) — back to
  * Shopify via the Admin API, so the existing LV-inspired Liquid dashboard keeps
  * rendering even when the live `/v1` API is briefly unavailable.
  *
@@ -90,6 +91,19 @@ export interface CacheSnapshot {
   lifetimeSpendGBP: number;
   /** Remaining GBP to the next tier, or null at the top tier → `loyalty.tier_progress_gbp`. */
   progressToNextTierGBP: number | null;
+  /**
+   * The member's own shareable referral code → `loyalty.referral_code`, or null
+   * when the customer has not been assigned one yet (task 34).
+   *
+   * WHY IT IS HERE: the storefront dashboard's server-rendered fallback read this
+   * metafield, found it absent on every customer, and FABRICATED a code
+   * (`ATHOOR-…`) — so members were shown a code the service does not recognise
+   * (audit F3). Mirroring the real code from `customers.referral_code` gives that
+   * fallback a genuine value to render. Like the tier-progress field it is
+   * OMITTED from the write when null, so a customer with no code yet keeps an
+   * absent metafield rather than gaining an empty-string one.
+   */
+  referralCode: string | null;
   /** When the snapshot was computed (ISO 8601) → `loyalty.updated_at`. */
   computedAt: string;
 }
@@ -221,6 +235,20 @@ export function snapshotToMetafields(snapshot: CacheSnapshot): MetafieldValue[] 
       value: snapshot.progressToNextTierGBP.toFixed(2),
     });
   }
+  // The member's real referral code (task 34, audit F3). OMITTED — never written
+  // as an empty string — when the customer has no code yet, so the storefront can
+  // tell "no code yet" from "code available" and show a neutral placeholder
+  // instead of inventing one. `referral_code` is already in
+  // LOYALTY_METAFIELD_KEYS, so the M0 export/rollback treatment is unchanged.
+  const referralCode = snapshot.referralCode?.trim();
+  if (referralCode) {
+    fields.push({
+      namespace: ns,
+      key: "referral_code",
+      type: "single_line_text_field",
+      value: referralCode,
+    });
+  }
   return fields;
 }
 
@@ -329,10 +357,11 @@ interface CustomerCacheRow {
   shopify_customer_id: string | number;
   tier: string | null;
   lifetime_spend_gbp: string | number | null;
+  referral_code: string | null;
 }
 
 const LOAD_CUSTOMER_SQL = `
-  SELECT shopify_customer_id, tier, lifetime_spend_gbp
+  SELECT shopify_customer_id, tier, lifetime_spend_gbp, referral_code
   FROM customers
   WHERE id = $1
   LIMIT 1
@@ -375,6 +404,9 @@ export async function deriveCacheSnapshot(
     tier: summary.tier,
     lifetimeSpendGBP: summary.lifetimeSpendGBP,
     progressToNextTierGBP: summary.progressToNextTierGBP,
+    // The authoritative code from `customers.referral_code` (task 34). Null when
+    // unassigned, so nothing is written rather than an empty code.
+    referralCode: row.referral_code?.trim() ? row.referral_code.trim() : null,
     computedAt: asOf.toISOString(),
   };
 

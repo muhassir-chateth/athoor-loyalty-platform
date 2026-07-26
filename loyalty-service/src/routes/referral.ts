@@ -40,6 +40,7 @@ import {
   resolveReferrerByCode,
   type ReferralSignupOutcome,
 } from "../referral/referral.js";
+import type { MetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 
 /** Runs a unit of work inside one transaction (mirrors the earning modules). */
 export interface Transactor {
@@ -83,6 +84,18 @@ export interface ReferralRoutesOptions {
   repo: LedgerRepository;
   transactor: Transactor;
   db: Queryable;
+  /**
+   * OPTIONAL metafield-cache enqueuer (task 35, Req 13.5a): every committed
+   * balance change refreshes the customer's `loyalty.*` display cache off the
+   * request path. A rewarded claim credits the REFERRER +150 — a different
+   * customer from the claimant — so no other path's refresh covers them, and the
+   * referrer's cached balance previously stayed stale (audit F4).
+   *
+   * Left undefined on a non-Shopify boot (no Admin token → no metafield-cache
+   * worker to consume the job); the claim then behaves exactly as before and the
+   * periodic reconciliation job is the cache safety net (Req 13.7).
+   */
+  metafieldEnqueuer?: MetafieldCacheEnqueuer;
 }
 
 /**
@@ -90,6 +103,32 @@ export interface ReferralRoutesOptions {
  * dependencies; when they are absent the caller simply does not register the
  * routes, so tests and local runs are unaffected.
  */
+/**
+ * Post-commit, best-effort Metafield_Cache refresh for the credited REFERRER
+ * (task 35, Req 13.5a). Deliberately OUTSIDE the transaction and outside
+ * `referral.ts`: enqueuing from inside the transaction could schedule a refresh
+ * for an award that then rolled back. A queue failure is logged and swallowed —
+ * the ledger is authoritative and already committed.
+ */
+async function enqueueReferrerCacheRefresh(
+  req: FastifyRequest,
+  opts: ReferralRoutesOptions,
+  referrerId: string,
+): Promise<void> {
+  if (!opts.metafieldEnqueuer) {
+    return;
+  }
+  try {
+    await opts.metafieldEnqueuer.enqueueMetafieldCache({ customerId: referrerId });
+  } catch (err) {
+    req.log?.warn(
+      { err, referrerId },
+      "referral reward committed but the metafield-cache refresh could not be enqueued; " +
+        "reconciliation will repair the display cache",
+    );
+  }
+}
+
 export function registerReferralRoutes(
   app: FastifyInstance,
   opts: ReferralRoutesOptions,
@@ -164,6 +203,13 @@ export function registerReferralRoutes(
 
     switch (outcome.status) {
       case "rewarded":
+        // The transaction has COMMITTED, so refresh the display cache for the
+        // customer whose balance actually moved: the REFERRER (task 35,
+        // Req 13.5a). The claiming friend earned nothing here, so nothing is
+        // enqueued for them. Best-effort — the +150 and its lot are already
+        // durable, so a queue failure must never turn a successful credit into a
+        // failed response; reconciliation repairs the cache later (Req 13.7).
+        await enqueueReferrerCacheRefresh(req, opts, outcome.referrerId);
         return reply.code(200).send({ status: "rewarded", referralCode });
       case "already_rewarded":
         // Idempotent at the data layer: the claim was already recorded.

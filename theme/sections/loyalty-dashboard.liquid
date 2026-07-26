@@ -311,12 +311,37 @@
       <div class="earn-item"><span class="earn-action">{{ 'loyalty.earn.instagram' | t }}</span><span class="earn-points">{{ 'loyalty.earn.points_instagram' | t }}</span></div>
     </div>
 
+    {%- comment -%}
+      Referral code (task 34, audit finding F3).
+
+      `GET /apps/loyalty/v1/referral` is the SINGLE SOURCE OF TRUTH for the code.
+      This block previously rendered `loyalty.referral_code` and, when that
+      metafield was absent, FABRICATED one from the customer's first name and
+      Shopify id. That metafield existed on no customer, so every member was
+      shown an invented code the loyalty service does not recognise — referrals
+      claimed with it credit nobody. The fabrication is deleted.
+
+      What renders now:
+        1. the real `loyalty.referral_code` from the Metafield_Cache when the
+           backend cache writer has published it (see
+           src/shopify/metafieldCache.ts — it writes the key only when the
+           customer actually HAS a code, never an empty string);
+        2. otherwise a neutral "generating" placeholder — never a code-shaped
+           value — marked with data-loyalty-code-pending;
+        3. athoor-loyalty.js then overwrites it with the live `referralCode` from
+           /v1/referral, clears the pending flag, and enables the copy control.
+
+      The copy control cannot copy a placeholder: it is rendered `disabled` while
+      no real code exists, and the handler additionally refuses to copy while the
+      pending flag is set. So a member can only ever copy a genuine code.
+    {%- endcomment -%}
+    {%- assign referral_code = customer.metafields.loyalty.referral_code.value | default: '' | strip -%}
     <div class="referral-section">
       <h2>{{ 'loyalty.referral.heading' | t }}</h2>
       <p>{{ 'loyalty.referral.description' | t }}</p>
       <div class="referral-code">
-        <span id="ref-code">{% if customer.metafields.loyalty.referral_code.value != blank %}{{ customer.metafields.loyalty.referral_code.value }}{% else %}ATHOOR-{{ customer.first_name | upcase | truncate: 4, '' }}{{ customer.id | modulo: 9999 }}{% endif %}</span>
-        <button type="button" aria-label="{{ 'loyalty.referral.copy_aria' | t }}" data-copy-label="{{ 'loyalty.referral.copy' | t }}" data-copied-label="{{ 'loyalty.referral.copied' | t }}" onclick="navigator.clipboard.writeText(document.getElementById('ref-code').innerText); this.innerText=this.dataset.copiedLabel; setTimeout(()=>this.innerText=this.dataset.copyLabel, 2000)">{{ 'loyalty.referral.copy' | t }}</button>
+        <span id="ref-code" data-loyalty="referral-code"{% if referral_code == blank %} data-loyalty-code-pending="true"{% endif %}>{% if referral_code != blank %}{{ referral_code }}{% else %}{{ 'loyalty.referral.code_pending' | t }}{% endif %}</span>
+        <button type="button" data-loyalty="referral-copy" aria-label="{{ 'loyalty.referral.copy_aria' | t }}" data-copy-label="{{ 'loyalty.referral.copy' | t }}" data-copied-label="{{ 'loyalty.referral.copied' | t }}"{% if referral_code == blank %} disabled{% endif %} onclick="var c=document.getElementById('ref-code'); if(!c||c.hasAttribute('data-loyalty-code-pending')){return;} navigator.clipboard.writeText(c.innerText); this.innerText=this.dataset.copiedLabel; setTimeout(()=>this.innerText=this.dataset.copyLabel, 2000)">{{ 'loyalty.referral.copy' | t }}</button>
       </div>
     </div>
 

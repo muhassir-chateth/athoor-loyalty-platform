@@ -378,6 +378,7 @@ describe("orders/paid advances the referral stage atomically (Req 2.10/11.9)", (
       advanceReferralStage: async (args, tx) => {
         db.advanceCalls.push({ isFirstPaidPurchase: args.isFirstPaidPurchase });
         seenTx.push(tx);
+        return null; // No award in this fixture — nothing to report (task 35).
       },
     });
 

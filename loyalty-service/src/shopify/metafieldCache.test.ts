@@ -81,7 +81,13 @@ function recordingSleeper(): { sleep: Sleeper; delays: number[] } {
  * the customer row, the ledger balance sum, and the spendable-lots sum.
  */
 function fakeDb(opts: {
-  customer?: { shopify_customer_id: number; tier: string; lifetime_spend_gbp: string };
+  customer?: {
+    shopify_customer_id: number;
+    tier: string;
+    lifetime_spend_gbp: string;
+    /** The member's real code; absent/blank models a customer with none yet. */
+    referral_code?: string | null;
+  };
   balance: number;
   spendable: number;
 }): Queryable {
@@ -106,6 +112,7 @@ const SNAPSHOT: CacheSnapshot = {
   tier: "silver",
   lifetimeSpendGBP: 350,
   progressToNextTierGBP: 400,
+  referralCode: "ATH-6JX5-CJQJ",
   computedAt: "2025-01-01T00:00:00.000Z",
 };
 
@@ -129,6 +136,27 @@ describe("snapshotToMetafields (Req 15.5)", () => {
     const top: CacheSnapshot = { ...SNAPSHOT, tier: "royal_vip", progressToNextTierGBP: null };
     const keys = snapshotToMetafields(top).map((f) => f.key);
     expect(keys).not.toContain("tier_progress_gbp");
+  });
+
+  // Task 34 / audit F3: the storefront fallback read `loyalty.referral_code`,
+  // found it absent on every customer, and fabricated a code. Mirroring the REAL
+  // code is what gives that fallback something true to render.
+  it("writes the member's real referral_code as single_line_text_field", () => {
+    const byKey = Object.fromEntries(snapshotToMetafields(SNAPSHOT).map((f) => [f.key, f]));
+    expect(byKey.referral_code).toMatchObject({
+      namespace: LOYALTY_METAFIELD_NAMESPACE,
+      type: "single_line_text_field",
+      value: "ATH-6JX5-CJQJ",
+    });
+  });
+
+  it("OMITS referral_code entirely when the customer has no code yet (never an empty code)", () => {
+    for (const code of [null, "", "   "]) {
+      const noCode: CacheSnapshot = { ...SNAPSHOT, referralCode: code };
+      const fields = snapshotToMetafields(noCode);
+      expect(fields.map((f) => f.key)).not.toContain("referral_code");
+      expect(fields.some((f) => f.value === "")).toBe(false);
+    }
   });
 });
 
@@ -158,6 +186,45 @@ describe("deriveCacheSnapshot (Req 13.1 — ledger is source of truth)", () => {
   it("returns null for an unknown customer", async () => {
     const db = fakeDb({ balance: 0, spendable: 0 });
     expect(await deriveCacheSnapshot("nope", db)).toBeNull();
+  });
+
+  it("carries the customer's real referral_code into the snapshot (task 34)", async () => {
+    const db = fakeDb({
+      customer: {
+        shopify_customer_id: 9_037_455_327_431,
+        tier: "bronze",
+        lifetime_spend_gbp: "0.00",
+        referral_code: "ATH-6JX5-CJQJ",
+      },
+      balance: 450,
+      spendable: 250,
+    });
+
+    const derived = await deriveCacheSnapshot("cust-1", db);
+
+    expect(derived?.snapshot.referralCode).toBe("ATH-6JX5-CJQJ");
+  });
+
+  it("normalises a missing or blank referral_code to null, so nothing is written", async () => {
+    for (const referral_code of [null, "   "]) {
+      const db = fakeDb({
+        customer: {
+          shopify_customer_id: 777,
+          tier: "bronze",
+          lifetime_spend_gbp: "0.00",
+          referral_code,
+        },
+        balance: 50,
+        spendable: 50,
+      });
+
+      const derived = await deriveCacheSnapshot("cust-2", db);
+
+      expect(derived?.snapshot.referralCode).toBeNull();
+      expect(snapshotToMetafields(derived!.snapshot).map((f) => f.key)).not.toContain(
+        "referral_code",
+      );
+    }
   });
 });
 

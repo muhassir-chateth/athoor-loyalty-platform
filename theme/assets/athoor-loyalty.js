@@ -9,15 +9,16 @@
  * DESIGN CONTRACT (Requirements 8.2, 8.4, 8.5; Migration M3 dashboard reads):
  *   - The section is fully rendered server-side from the Metafield_Cache before
  *     this script runs. That server render is the DEFAULT and the FALLBACK.
- *   - This script fetches /v1/balance and /v1/history and writes the live values
- *     into the SAME markup (matched via data-loyalty-* hooks), reusing the
- *     existing CSS classes — so there is no visual regression (Req 8.2).
+ *   - This script fetches /v1/balance, /v1/history and /v1/referral and writes the
+ *     live values into the SAME markup (matched via data-loyalty-* hooks),
+ *     reusing the existing CSS classes — so there is no visual regression
+ *     (Req 8.2).
  *   - Every request has a hard timeout (default 3s). On timeout, network error,
  *     or a non-OK response, the fetch is abandoned and the already-rendered
  *     metafield values are kept untouched (Req 8.4).
  *   - It surfaces the live Spendable_Balance, available rewards (as enabled/
- *     disabled reward cards), and any issued discount codes / redemption
- *     activity from history (Req 8.5).
+ *     disabled reward cards), any issued discount codes / redemption activity
+ *     from history (Req 8.5), and the member's real referral code.
  *
  * It never mutates loyalty state: only GET requests are issued here. Redemption
  * remains the retained mailto: CTA until automated /v1/redeem code issuance is
@@ -78,6 +79,7 @@
   // any failure just leaves that section's server-rendered values in place.
   loadBalance();
   loadHistory();
+  loadReferral();
   markVisit();
 
   /* --------------------------------------------------------------------- */
@@ -123,6 +125,44 @@
         }
       })
       .catch(noop); // Fallback: activity/codes stay hidden (no regression).
+  }
+
+  // Referral code (task 34, audit finding F3). /v1/referral is the SINGLE SOURCE
+  // OF TRUTH for a member's code: the section previously rendered a metafield
+  // that existed on no customer and, failing that, FABRICATED a code — so
+  // members shared codes the service does not recognise. This fetch replaces the
+  // server-rendered value (a real cached code, or a neutral placeholder) with the
+  // live one, using the same AbortController timeout and the same silent-fallback
+  // philosophy as the other reads: on timeout/error the server-rendered state is
+  // left exactly as it is, and no invented value is ever written.
+  //
+  // The response also carries `referredSignups` / `referredFirstPurchases`. They
+  // are deliberately NOT rendered: the referral section has no element for them,
+  // and inventing UI here is out of scope (see docs/ops/referral-claim-proposal.md).
+  function loadReferral() {
+    fetchJson(proxyBase + '/v1/referral')
+      .then(function (data) {
+        if (!data || typeof data.referralCode !== 'string') return;
+        var code = data.referralCode.trim();
+        if (code) applyReferralCode(code);
+      })
+      .catch(noop); // Fallback: the server-rendered code/placeholder stays put.
+  }
+
+  // Writes a REAL code into the referral element and unlocks the copy control.
+  // Only ever called with a non-empty code from the API, so the copy button can
+  // never be enabled over a placeholder.
+  function applyReferralCode(code) {
+    var el = root.querySelector('[data-loyalty="referral-code"]');
+    if (el) {
+      el.textContent = code;
+      el.removeAttribute('data-loyalty-code-pending');
+    }
+    var btn = root.querySelector('[data-loyalty="referral-copy"]');
+    if (btn) {
+      btn.removeAttribute('disabled');
+      btn.removeAttribute('aria-disabled');
+    }
   }
 
   // First-visit vs returning-member (Req 16.1/16.2). POST /v1/profile/visit

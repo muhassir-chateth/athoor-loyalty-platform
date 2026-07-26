@@ -173,6 +173,14 @@ async function main(): Promise<void> {
       repo: ledgerRepo,
       transactor,
       enqueuer: new PgBossDiscountCodeEnqueuer(boss),
+      // A failed display-cache enqueue is swallowed (the spend is committed), so
+      // report it rather than letting it vanish (task 35).
+      onCacheEnqueueError: (err, customerId) =>
+        app.log.warn(
+          { err, customerId },
+          "redemption committed but the metafield-cache refresh could not be enqueued; " +
+            "reconciliation will repair the display cache",
+        ),
       // A committed spend changes the Balance → refresh the display cache
       // (Req 13.5a). Assigned below once the Admin token gate has run, so it is
       // undefined on a non-Shopify boot.
@@ -251,7 +259,17 @@ async function main(): Promise<void> {
     // payload carries no referral field, so the friend submits their code
     // through the signed App Proxy surface; this is what finally gives the
     // referral engine a production call site.
-    referralDeps: { repo: ledgerRepo, transactor, db: pool },
+    referralDeps: {
+      repo: ledgerRepo,
+      transactor,
+      db: pool,
+      // A rewarded claim credits the REFERRER +150, so their display cache must
+      // be refreshed after the commit (task 35, Req 13.5a). Same Admin-gated
+      // lazy getter as the other consumers, so a non-Shopify boot still works.
+      get metafieldEnqueuer() {
+        return metafieldEnqueuer;
+      },
+    },
   });
 
   // Recurring jobs are driven by DUE WORK derived from `scheduled_runs`, not by
@@ -388,7 +406,7 @@ async function main(): Promise<void> {
       await assignReferralCode(tx, customerId);
     },
     advanceReferralStage: async (args, tx) => {
-      await awardReferralFirstPurchase(
+      const outcome = await awardReferralFirstPurchase(
         ledgerRepo,
         {
           referredCustomerId: args.referredCustomerId,
@@ -397,8 +415,19 @@ async function main(): Promise<void> {
         },
         tx,
       );
+      // Report the credited REFERRER so the worker can refresh THEIR display
+      // cache after the order transaction commits (task 35, Req 13.5a). The
+      // referrer is not the buyer, so the buyer's refresh never covered them.
+      // Every non-awarding outcome reports null and enqueues nothing.
+      return outcome.status === "rewarded" ? { referrerId: outcome.referrerId } : null;
     },
     metafieldEnqueuer,
+    onCacheEnqueueError: (err, customerId) =>
+      app.log.warn(
+        { err, customerId },
+        "balance change committed but the metafield-cache refresh could not be enqueued; " +
+          "reconciliation will repair the display cache",
+      ),
   });
 
   // (B) Daily expiry: FULL scan + pre-expiry notification sweep (Req 5.2–5.5).

@@ -118,19 +118,38 @@ export interface WebhookProcessingDeps {
    * inside the same transaction as the order earning.
    */
   advanceReferralStage?: OrderJobDeps["advanceReferralStage"];
+  /**
+   * OPTIONAL observability hook for a FAILED cache-refresh enqueue (task 35).
+   * The enqueue is best-effort: the ledger append has already committed, so a
+   * queue failure must never fail — or re-run — the earning. Reporting it here
+   * keeps that non-fatality from being silent; without a hook the failure is
+   * swallowed and the periodic reconciliation job is the safety net (Req 13.7).
+   */
+  onCacheEnqueueError?: (err: unknown, customerId: string) => void;
 }
 
 /**
  * Enqueues a metafield-cache refresh for `customerId` when an enqueuer is wired.
  * A no-op when no enqueuer is configured (Admin token absent) — the periodic
  * reconciliation job then keeps the cache converged (Req 13.7).
+ *
+ * BEST-EFFORT (task 35): the balance change has already committed by the time
+ * this runs, so a queue failure is reported and swallowed rather than thrown. If
+ * it propagated, pg-boss would retry an already-applied earning and the webhook
+ * would be recorded `failed` because a NON-AUTHORITATIVE cache write could not
+ * be scheduled (Req 13.1/13.5).
  */
 async function enqueueCacheRefresh(
   deps: WebhookProcessingDeps,
   customerId: string,
 ): Promise<void> {
-  if (deps.metafieldEnqueuer) {
+  if (!deps.metafieldEnqueuer) {
+    return;
+  }
+  try {
     await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId });
+  } catch (err) {
+    deps.onCacheEnqueueError?.(err, customerId);
   }
 }
 
@@ -145,6 +164,10 @@ async function enqueueCacheRefresh(
  * refresh via {@link WebhookProcessingDeps.metafieldEnqueuer} (Req 13.1) — a
  * no-op replay (`already_earned`), a `no_earning` order, or a clawback `no_op`
  * changes no balance, so nothing is enqueued for those.
+ *
+ * `orders/paid` can move TWO balances: the buyer's earning and, on the buyer's
+ * first paid purchase as a referred friend, the REFERRER's +250. Both are
+ * enqueued (task 35).
  */
 export async function dispatchWebhookJob(
   job: WebhookJob,
@@ -161,7 +184,17 @@ export async function dispatchWebhookJob(
     case ORDERS_PAID_TOPIC: {
       const outcome = await handleOrdersPaidJob(job, deps);
       if (outcome && outcome.status === "earned") {
+        // The BUYER earned points on this order.
         await enqueueCacheRefresh(deps, outcome.customerId);
+        // …and if this was the buyer's first paid purchase as a referred friend,
+        // their REFERRER was credited +250 in the same transaction. That is a
+        // DIFFERENT customer, so the buyer's refresh above does nothing for them
+        // — without this the referrer's cached `loyalty.points_balance` stayed
+        // stale after the award (task 35, audit F4). Enqueued here, after the
+        // order transaction has committed, never from inside it.
+        if (outcome.referralAward) {
+          await enqueueCacheRefresh(deps, outcome.referralAward.referrerId);
+        }
       }
       return;
     }

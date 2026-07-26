@@ -488,6 +488,32 @@ function extractOrderInput(payload: unknown): {
   };
 }
 
+/**
+ * What the referral stage advance reports back when it ACTUALLY awarded the
+ * first-purchase reward (task 35, Req 13.5a).
+ *
+ * The referrer is a DIFFERENT customer from the buyer whose order triggered the
+ * advance, so the caller cannot infer whose balance changed from the order
+ * outcome alone. Reporting the referrer here is what lets the worker refresh
+ * *their* display cache after the order transaction commits; without it the
+ * referrer's `loyalty.*` metafields stayed stale after a +250 award (audit F4).
+ */
+export interface ReferralStageAward {
+  /** The local `customers.id` of the REFERRER who was credited. */
+  referrerId: string;
+}
+
+/**
+ * The `orders/paid` job outcome: the order-earning outcome, plus — when the
+ * referral advance awarded a referrer — who that referrer was. The referral
+ * field is absent/null for every non-awarding outcome (no referral, not the
+ * friend's first purchase, already rewarded), because none of those changed a
+ * balance.
+ */
+export type OrdersPaidJobOutcome = OrderEarnOutcome & {
+  referralAward?: ReferralStageAward | null;
+};
+
 /** Dependencies for the `orders/paid` job handler. */
 export interface OrderJobDeps {
   repo: LedgerRepository;
@@ -508,11 +534,17 @@ export interface OrderJobDeps {
    * and failed, the pg-boss retry would see `already_earned`, lose the flag, and
    * never award — the reward would be silently skipped. Sharing the transaction
    * makes earning and referral advance succeed or fail together.
+   *
+   * It REPORTS the referrer it credited (or `null` when nothing was awarded), so
+   * the caller can refresh that referrer's display cache after the transaction
+   * commits (task 35, Req 13.5a). The callback must not enqueue anything itself:
+   * an enqueue from inside the transaction could schedule a refresh for work that
+   * then rolled back.
    */
   advanceReferralStage?: (
     args: { referredCustomerId: string; isFirstPaidPurchase: boolean; sourceEventId: string | null },
     tx: Queryable,
-  ) => Promise<void>;
+  ) => Promise<ReferralStageAward | null>;
 }
 
 /**
@@ -532,7 +564,7 @@ export interface OrderJobDeps {
 export async function handleOrdersPaidJob(
   job: WebhookJob,
   deps: OrderJobDeps,
-): Promise<OrderEarnOutcome | null> {
+): Promise<OrdersPaidJobOutcome | null> {
   if (job.topic !== ORDERS_PAID_TOPIC) {
     return null;
   }
@@ -552,7 +584,7 @@ export async function handleOrdersPaidJob(
     // itself enforces "exactly once" via `referrals.purchase_rewarded` and
     // declines when `isFirstPaidPurchase` is false.
     if (deps.advanceReferralStage && outcome.status === "earned") {
-      await deps.advanceReferralStage(
+      const referralAward = await deps.advanceReferralStage(
         {
           referredCustomerId: outcome.customerId,
           isFirstPaidPurchase: outcome.firstPurchase,
@@ -560,6 +592,13 @@ export async function handleOrdersPaidJob(
         },
         tx,
       );
+      // Surface the credited REFERRER so the caller can refresh their display
+      // cache once this transaction commits (task 35, Req 13.5a). Nothing is
+      // reported when no award happened, so no cache write is scheduled for a
+      // balance that did not move.
+      if (referralAward) {
+        return { ...outcome, referralAward };
+      }
     }
 
     return outcome;

@@ -74,7 +74,8 @@
       "description": "Share your unique code. They get 15% off their first order. You earn 250 points when they purchase.",
       "copy": "Copy",
       "copied": "Copied!",
-      "copy_aria": "Copy your referral code"
+      "copy_aria": "Copy your referral code",
+      "code_pending": "Preparing your code…"
     },
     "circles": {
       "heading": "The Membership Circles",
