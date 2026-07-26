@@ -90,10 +90,24 @@ jobs:
           backups="$(echo "$response" | jq -c '.backups // empty')"
           if [ -z "$backups" ]; then
             echo "::notice::No backups block reported; the service could not read backup state."
-          elif [ "$(echo "$backups" | jq -r '.stale')" = "true" ]; then
-            last="$(echo "$backups" | jq -r '.lastSuccessAt // "never"')"
-            echo "::error::Database backups are stale (last successful: $last). Check the 'Daily encrypted database backup' workflow; see docs/ops/backup-and-recovery.md."
-            exit 1
           else
-            echo "Backups fresh (last successful: $(echo "$backups" | jq -r '.lastSuccessAt'))."
+            stale="$(echo "$backups" | jq -r '.stale')"
+            last="$(echo "$backups" | jq -r '.lastSuccessAt // ""')"
+
+            if [ "$stale" != "true" ]; then
+              echo "Backups fresh (last successful: $last)."
+            elif [ -z "$last" ]; then
+              # Never recorded. Almost always "the operator has not added
+              # BACKUP_AGE_PUBLIC_KEY and BACKUP_DATABASE_URL yet", which is a
+              # setup step rather than a regression. Warn loudly but do NOT fail:
+              # this check runs every 10 minutes, so failing here would paint the
+              # watchdog red from the moment it shipped and train everyone to
+              # ignore it — destroying the value of the stale check below.
+              echo "::warning::No database backup has ever been recorded, so there is NO recovery point. Complete the setup in docs/ops/backup-and-recovery.md (age keypair, BACKUP_AGE_PUBLIC_KEY variable, BACKUP_DATABASE_URL secret)."
+            else
+              # Backups worked and then stopped. That is a genuine regression
+              # against a previously working mechanism, so it fails the run.
+              echo "::error::Database backups are STALE (last successful: $last). Check the 'Daily encrypted database backup' workflow; see docs/ops/backup-and-recovery.md."
+              exit 1
+            fi
           fi

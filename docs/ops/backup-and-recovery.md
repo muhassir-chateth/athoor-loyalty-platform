@@ -249,8 +249,8 @@ How to read it:
 | Observation | Meaning | Action |
 |---|---|---|
 | `stale: false` | A dump completed within the last 26 hours | Nothing |
-| `stale: true`, `lastSuccessAt` set | Backups worked and then stopped. A recovery point exists but is ageing | Check the workflow's recent runs; a failed run posts an `::error::`. Fix and run it manually |
-| `stale: true`, `lastSuccessAt: null` | **No backup has ever been recorded.** There is no recovery point at all | Almost always missing configuration — check `BACKUP_DATABASE_URL` and `BACKUP_AGE_PUBLIC_KEY` |
+| `stale: true`, `lastSuccessAt` set | Backups worked and then stopped. A recovery point exists but is ageing | **Fails the keep-alive run.** Check the workflow's recent runs; a failed run posts an `::error::`. Fix and run it manually |
+| `stale: true`, `lastSuccessAt: null` | **No backup has ever been recorded.** There is no recovery point at all | Almost always missing configuration — check `BACKUP_DATABASE_URL` and `BACKUP_AGE_PUBLIC_KEY`. Emits a **warning** rather than failing the keep-alive run, because that check runs every 10 minutes and a permanently-red watchdog would be ignored; the setup is not optional, it is just not a regression |
 | No `backups` key at all | The service could not read `backup_runs` (or the dependency is not wired). Reporting is best-effort and never fails the probe | Check the migration has been applied and the database is reachable |
 
 The threshold is 26 hours: the 24-hour cadence plus a 2-hour grace, because
