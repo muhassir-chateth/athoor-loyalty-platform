@@ -138,7 +138,23 @@ Four occurrences of the same failure mode, counting the ones already fixed:
 | 4 | Idempotency store, benefits, profile writes, market config | This audit |
 | 5 | M0–M2 migration has no production adapters and no operator entrypoint | Task 26 rehearsal |
 
-### Occurrence 5 — the migration cutover cannot actually be run (task 26)
+### Occurrence 5 — ~~the migration cutover cannot actually be run~~ RESOLVED (task 33)
+
+**Fixed.** `ShopifyGraphqlMigrationClient`, `ShopifyGraphqlMetafieldRestoreClient`
+and `OperatorSuspendedServiceController` are committed, along with operator scripts
+under `scripts/migration/` and `cutover:*` npm aliases. The whole M0 → M1 →
+rollback sequence was rerun against staging through those scripts and real Admin
+clients — no harness. The production-store guard, the secrets-from-environment
+rule and the halt-exits-non-zero contract were each verified to refuse before any
+network call. A test now asserts that neither `index.ts` nor `app.ts` imports
+anything under `src/migration/`, so the cutover cannot drift into boot wiring and
+Req 10.7a stays structurally true. Evidence: runbook §3.5 and §4.
+
+The residual risk is no longer reachability but *coverage*: lifetime spend has
+still never been derived from a real order, because staging has none. That is
+tracked in runbook §8 and as the first pre-flight item of the cutover.
+
+Original finding, for the record:
 
 The task 26 rehearsal drove the real `runM0Export`, `runM1Backfill` and
 `runMetafieldRollback` successfully, but it had to supply every boundary itself.
