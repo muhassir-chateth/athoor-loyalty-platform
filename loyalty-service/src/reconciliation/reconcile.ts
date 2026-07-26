@@ -123,6 +123,45 @@ export interface ReconcileDeps {
   rules?: TierRuleSet;
   /** Clock injection for the reconciliation instant (defaults to `new Date()`). */
   now?: () => Date;
+  /**
+   * Called when the pass finds positive ledger entries with no backing lot
+   * (Property 17 / Req 1.3a), so the violation is ESCALATED rather than merely
+   * returned. Production wires this to the service logger at error level; the
+   * result field alone would be silent, because the scheduled job discards its
+   * return value. Never called with an empty list.
+   */
+  onUnbackedCredits?: (unbacked: readonly UnbackedCredit[]) => void;
+}
+
+/**
+ * A positive ledger entry with NO backing `point_lots` row — a Property 17
+ * violation (Req 1.3a).
+ *
+ * WHY THIS EXISTS: `Spendable_Balance` derives solely from non-expired lot
+ * remainders (Req 1.3), so a credit with no lot shows in the member's history and
+ * can never be redeemed. `reconstructLotRemainders` recomputes the remainders of
+ * lots that EXIST; it cannot notice one that is absent. That left this class of
+ * damage completely undetectable at runtime — and it did in fact happen: two real
+ * lots were destroyed on staging by a rehearsal cleanup that matched lots by
+ * value instead of by id, and the 200 unredeemable points went unnoticed across
+ * two subsequent tasks until a dashboard audit happened to compare Balance with
+ * Spendable_Balance by hand. See `docs/ops/dashboard-audit.md` §3.1.
+ */
+export interface UnbackedCredit {
+  /** The offending `ledger_entries.id`. */
+  ledgerEntryId: string;
+  /** The owning `customers.id`. */
+  customerId: string;
+  /** The Shopify customer id, so an operator can identify the member. */
+  shopifyCustomerId: string;
+  /** The entry type, e.g. `earn_signup`, `earn_referral`. */
+  entryType: string;
+  /** The credited points that are currently unspendable (> 0). */
+  points: number;
+  /** The entry's reason, for triage. */
+  reason: string;
+  /** When the credit was appended. */
+  createdAt: Date;
 }
 
 /** The result of a full reconciliation run. */
@@ -135,6 +174,14 @@ export interface ReconciliationResult {
   repaired: number;
   /** Per-customer reconciliation records. */
   customers: CustomerReconciliation[];
+  /**
+   * Positive ledger entries with no backing lot (Property 17 / Req 1.3a).
+   * DETECTED, never repaired: creating a lot increases a member's spendable
+   * balance, which must be a reviewed operator action
+   * (`scripts/backfill-missing-point-lots.mjs`), not a silent side effect of a
+   * nightly cache sweep. Empty on a healthy ledger.
+   */
+  unbackedCredits: UnbackedCredit[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -451,6 +498,65 @@ export async function reconcileCustomer(
  * @param deps    DB, transactor, metafield writer, and optional rules/clock.
  * @param options optionally restrict to specific `customerIds` (defaults to all).
  */
+const UNBACKED_CREDITS_SQL = `
+  SELECT l.id,
+         l.customer_id,
+         c.shopify_customer_id,
+         l.entry_type,
+         l.points,
+         l.reason,
+         l.created_at
+    FROM ledger_entries l
+    JOIN customers c ON c.id = l.customer_id
+   WHERE l.points > 0
+     AND NOT EXISTS (SELECT 1 FROM point_lots p WHERE p.ledger_entry_id = l.id)
+   ORDER BY l.created_at
+`;
+
+interface UnbackedCreditRow {
+  id: string;
+  customer_id: string;
+  shopify_customer_id: string | number;
+  entry_type: string;
+  points: string | number;
+  reason: string;
+  created_at: Date;
+}
+
+/**
+ * Detects positive ledger entries with no backing Point_Lot — Property 17 /
+ * Req 1.3a violations that make credited points permanently unredeemable.
+ *
+ * READ-ONLY and repair-free by design. It answers "is every credit spendable?",
+ * which nothing else asked at runtime: the per-customer pass repairs cached
+ * totals and lot REMAINDERS, so a missing lot reconciles as clean and the gap
+ * between Balance and Spendable_Balance stays invisible. Remediation is the
+ * separate, idempotent, dry-run-by-default operator script, because inserting a
+ * lot hands a member spendable points and should never happen unreviewed.
+ *
+ * Scoped to `customerIds` when supplied, so an admin-triggered reconciliation for
+ * one customer reports only that customer's violations.
+ */
+export async function detectUnbackedCredits(
+  db: Queryable,
+  customerIds?: readonly string[],
+): Promise<UnbackedCredit[]> {
+  const result = await db.query<UnbackedCreditRow>(UNBACKED_CREDITS_SQL);
+  const scope = customerIds ? new Set(customerIds) : null;
+
+  return result.rows
+    .filter((row) => scope === null || scope.has(row.customer_id))
+    .map((row) => ({
+      ledgerEntryId: row.id,
+      customerId: row.customer_id,
+      shopifyCustomerId: String(row.shopify_customer_id),
+      entryType: row.entry_type,
+      points: parseIntegerColumn(row.points, "ledger_entries.points"),
+      reason: row.reason,
+      createdAt: row.created_at,
+    }));
+}
+
 export async function runReconciliation(
   deps: ReconcileDeps,
   options: { customerIds?: readonly string[] } = {},
@@ -475,7 +581,28 @@ export async function runReconciliation(
     }
   }
 
-  return { asOf, processed: customers.length, repaired, customers };
+  // Property 17 watchdog (Req 1.3a). Detection only — see detectUnbackedCredits.
+  // Deliberately non-fatal: a failure here must not fail a reconciliation pass
+  // that has already repaired real cache drift, so an empty list is reported and
+  // the next run tries again. The gap it closes was invisible for two tasks.
+  let unbackedCredits: UnbackedCredit[] = [];
+  try {
+    unbackedCredits = await detectUnbackedCredits(deps.db, options.customerIds);
+    if (unbackedCredits.length > 0) {
+      // Escalate. The scheduled job throws its return value away, so without
+      // this the detection would be as silent as the bug it exists to catch.
+      // Best-effort: a throwing callback must not fail the reconciliation.
+      try {
+        deps.onUnbackedCredits?.(unbackedCredits);
+      } catch {
+        // Reporting must never break repair.
+      }
+    }
+  } catch {
+    unbackedCredits = [];
+  }
+
+  return { asOf, processed: customers.length, repaired, customers, unbackedCredits };
 }
 
 /* -------------------------------------------------------------------------- */

@@ -329,6 +329,28 @@ async function main(): Promise<void> {
       db: pool,
       transactor,
       metafieldWriter,
+      // Property 17 watchdog (Req 1.3a). A positive ledger entry with no backing
+      // lot means the member can never redeem those points, and reconciliation
+      // cannot repair it (it recomputes remainders of lots that exist). Log at
+      // ERROR with the affected ids so it is actionable: the remedy is the
+      // reviewed operator script `scripts/backfill-missing-point-lots.mjs`.
+      // This exists because exactly that damage went unnoticed for two tasks —
+      // see docs/ops/dashboard-audit.md §3.1.
+      onUnbackedCredits: (unbacked) =>
+        app.log.error(
+          {
+            count: unbacked.length,
+            pointsAffected: unbacked.reduce((sum, u) => sum + u.points, 0),
+            entries: unbacked.map((u) => ({
+              ledgerEntryId: u.ledgerEntryId,
+              shopifyCustomerId: u.shopifyCustomerId,
+              entryType: u.entryType,
+              points: u.points,
+            })),
+          },
+          "Property 17 violation: positive ledger entries have no backing point_lot, so those " +
+            "points are unspendable. Run scripts/backfill-missing-point-lots.mjs (dry run first).",
+        ),
     });
   } else {
     app.log.warn(
