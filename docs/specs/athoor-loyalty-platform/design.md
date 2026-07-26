@@ -321,6 +321,12 @@ interface LoyaltyAPI {
   "GET  /v1/rewards":  (ctx: AuthCtx) => Promise<Reward[]>
   "POST /v1/redeem":   (ctx: AuthCtx, body: RedeemBody) => Promise<RedemptionResult>
   "GET  /v1/referral": (ctx: AuthCtx) => Promise<ReferralInfo>
+  // Referral attribution is CLAIMED by the friend over the signed App Proxy
+  // surface (A16): Shopify's customers/create payload carries no referral field,
+  // so the code cannot arrive with the webhook. The customer id comes from the
+  // verified logged_in_customer_id, never the body; state-changing, so the
+  // scope's Idempotency-Key contract applies.
+  "POST /v1/referral": (ctx: AuthCtx, body: { referralCode: string }) => Promise<ReferralClaimResult>
 
   // --- Additive-only groups (Requirements 16–21). All under /v1; breaking changes would be /v2 (Req 9.4/9.5). ---
 
@@ -690,8 +696,8 @@ All webhooks are registered via the Admin API at deploy time and verified on eve
 
 | Topic | Trigger | Engine action |
 |---|---|---|
-| `customers/create` | New customer registers | `earnSignup` (+50); create `referral_code`; if `referred_by` present, create `referrals` row |
-| `orders/paid` | Order marked paid | `earnOrder` (£1=1pt × tier multiplier); `earnFirstPurchase` (+100) if first; advance referral stage |
+| `customers/create` | New customer registers | `earnSignup` (+50) + backing lot; assign `referral_code`. **Attribution is NOT read from this payload** — Shopify does not carry a referral field, so the `referrals` row and the referrer's +150 are created when the friend claims their code at `POST /v1/referral` (A16) |
+| `orders/paid` | Order marked paid | `earnOrder` (£1=1pt × tier multiplier); `earnFirstPurchase` (+100) if first; advance referral stage (+250 to the referrer on the friend's first paid purchase) **inside the same transaction as the earning**, so a queue retry cannot lose the first-purchase flag |
 | `refunds/create` | Partial/full refund | `clawback` proportional to refunded eligible amount |
 | `orders/cancelled` | Order cancelled | `clawback` of full order's earned points |
 

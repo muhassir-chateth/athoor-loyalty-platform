@@ -36,8 +36,16 @@
  */
 import type { LedgerRepository, Queryable } from "./ledger/repository.js";
 import { WEBHOOK_PROCESS_QUEUE, type WebhookJob } from "./webhooks/enqueue.js";
-import { handleCustomersCreateJob, CUSTOMERS_CREATE_TOPIC } from "./earning/signup.js";
-import { handleOrdersPaidJob, ORDERS_PAID_TOPIC } from "./earning/order.js";
+import {
+  handleCustomersCreateJob,
+  CUSTOMERS_CREATE_TOPIC,
+  type SignupJobDeps,
+} from "./earning/signup.js";
+import {
+  handleOrdersPaidJob,
+  ORDERS_PAID_TOPIC,
+  type OrderJobDeps,
+} from "./earning/order.js";
 import {
   handleRefundJob,
   handleOrderCancelledJob,
@@ -99,6 +107,17 @@ export interface WebhookProcessingDeps {
    * failure must never fail — or re-run — the work itself.
    */
   outcomeRecorder?: WebhookEventOutcomeRecorder;
+  /**
+   * OPTIONAL referral-code assigner (task 25), forwarded to the signup handler
+   * so a new member leaves `customers/create` with their own shareable code.
+   */
+  ensureReferralCode?: SignupJobDeps["ensureReferralCode"];
+  /**
+   * OPTIONAL referral stage advance (task 25), forwarded to the order handler so
+   * a friend's FIRST paid purchase credits their referrer +250 (Req 2.10/11.9)
+   * inside the same transaction as the order earning.
+   */
+  advanceReferralStage?: OrderJobDeps["advanceReferralStage"];
 }
 
 /**

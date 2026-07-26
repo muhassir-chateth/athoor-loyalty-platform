@@ -152,6 +152,13 @@ export async function earnSignup(
   repo: LedgerRepository,
   input: SignupEarnInput,
   executor: Queryable,
+  /**
+   * OPTIONAL referral-code assigner (task 25). Gives the new member their own
+   * shareable code, per the design's `customers/create` → "create
+   * `referral_code`". Injected so this module keeps no dependency on the
+   * referral module; idempotent, so a replay assigns nothing new.
+   */
+  ensureReferralCode?: (customerId: string, tx: Queryable) => Promise<void>,
 ): Promise<SignupEarnOutcome> {
   // (1) Resolve + enrol the customer (idempotent at the row level).
   const upserted = await executor.query<CustomerIdRow>(UPSERT_CUSTOMER_SQL, [
@@ -194,6 +201,15 @@ export async function earnSignup(
   // this the signup bonus would show in history yet never be redeemable.
   await createExpiringPointLot(executor, customerId, entry);
 
+  // (5) Give the new member their own referral code (task 25). The design's
+  // webhook table specifies `customers/create` → "create `referral_code`", and
+  // a member cannot share a referral until they have one. Idempotent: an
+  // existing code is kept, so a replay assigns nothing new. Injected so this
+  // module keeps no dependency on the referral module.
+  if (ensureReferralCode) {
+    await ensureReferralCode(customerId, executor);
+  }
+
   return { status: "earned", customerId, entry };
 }
 
@@ -229,6 +245,12 @@ function extractShopifyCustomerId(payload: unknown): { id: number; email: string
 export interface SignupJobDeps {
   repo: LedgerRepository;
   transactor: Transactor;
+  /**
+   * OPTIONAL referral-code assigner (task 25), forwarded to {@link earnSignup}
+   * so a new member leaves signup with a shareable code. Omitted in tests and
+   * local runs, where signup behaves exactly as before.
+   */
+  ensureReferralCode?: (customerId: string, tx: Queryable) => Promise<void>;
 }
 
 /**
@@ -263,6 +285,7 @@ export async function handleCustomersCreateJob(
       deps.repo,
       { shopifyCustomerId: id, email, sourceEventId: job.webhookId },
       tx,
+      deps.ensureReferralCode,
     ),
   );
 }

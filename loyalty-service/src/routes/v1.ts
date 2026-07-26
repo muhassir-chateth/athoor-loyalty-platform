@@ -18,6 +18,7 @@ import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
+import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
 import {
   registerMembershipCardRoutes,
   type MembershipCardRouteOptions,
@@ -88,6 +89,13 @@ export interface V1RouterOptions {
    * existing behaviour/tests are unchanged.
    */
   redeemDeps?: RedeemDeps;
+  /**
+   * Dependencies for the referral attribution endpoints (task 25, Req 2.9).
+   * Production wires the ledger repo, transactor and pool; when ABSENT the
+   * referral routes are not registered at all, so tests and local runs keep
+   * their existing route surface.
+   */
+  referralDeps?: ReferralRoutesOptions;
   /**
    * Supplies the Fragrance_Profile data for `GET /v1/profile` and
    * `GET /v1/profile/journey` (task 14.5): purchased fragrances from paid
@@ -209,6 +217,16 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // customer's Balance. Notification events targeting these tokens (Req 19.2)
   // are modelled in devices/deviceTokens.ts and the task 19.1 migration.
   registerDeviceRoutes(app, { deviceTokenStore: opts.deviceTokenStore });
+
+  // Referral attribution (task 25, Req 2.9/11.8): `GET /v1/referral` returns the
+  // member's own code, `POST /v1/referral` applies a code they were given and
+  // credits the referrer +150 through the existing engine. Registered only when
+  // the Pg-backed dependencies are wired, so tests and local runs are unchanged.
+  // Both inherit this scope's App Proxy auth and, for the POST, the idempotency
+  // contract — no new security surface.
+  if (opts.referralDeps) {
+    registerReferralRoutes(app, opts.referralDeps);
+  }
 
   // Mobile readiness (task 19.2, Req 19.5/19.6): additive Digital Membership
   // Card credential surface under /v1. `GET /v1/membership-card` (authenticated)

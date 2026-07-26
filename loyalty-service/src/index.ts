@@ -44,6 +44,7 @@ import {
   DISCOUNT_CODE_JOB,
 } from "./redemption/generateDiscountCode.js";
 import { PgCustomerResolver } from "./auth/identity.js";
+import { assignReferralCode, awardReferralFirstPurchase } from "./referral/referral.js";
 import { PgCustomerBalanceSource } from "./routes/balance.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
@@ -228,6 +229,11 @@ async function main(): Promise<void> {
     // Read-only scheduling health on /health so a monitor can spot a schedule
     // that has stopped firing (previously a silent failure).
     dueWorkStatus: new PgDueWorkStatusSource(pool),
+    // Referral attribution (task 25, Req 2.9/11.8). Shopify's customers/create
+    // payload carries no referral field, so the friend submits their code
+    // through the signed App Proxy surface; this is what finally gives the
+    // referral engine a production call site.
+    referralDeps: { repo: ledgerRepo, transactor, db: pool },
   });
 
   // Recurring jobs are driven by DUE WORK derived from `scheduled_runs`, not by
@@ -331,6 +337,27 @@ async function main(): Promise<void> {
     // Pg store that recorded receipt records the outcome; writes are best-effort
     // and never fail the already-committed ledger work.
     outcomeRecorder: webhookEventStore,
+    // Referral wiring for the webhook path (task 25). Both run inside the
+    // handler's own transaction, so a referral effect is atomic with the earning
+    // that triggered it.
+    //   - signup: give the new member their own shareable code (design's
+    //     `customers/create` → "create `referral_code`"). Idempotent.
+    //   - orders/paid: advance the referral stage, crediting the referrer +250
+    //     on the friend's FIRST paid purchase (Req 2.10/11.9).
+    ensureReferralCode: async (customerId, tx) => {
+      await assignReferralCode(tx, customerId);
+    },
+    advanceReferralStage: async (args, tx) => {
+      await awardReferralFirstPurchase(
+        ledgerRepo,
+        {
+          referredCustomerId: args.referredCustomerId,
+          isFirstPaidPurchase: args.isFirstPaidPurchase,
+          sourceEventId: args.sourceEventId,
+        },
+        tx,
+      );
+    },
     metafieldEnqueuer,
   });
 

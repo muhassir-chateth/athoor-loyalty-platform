@@ -5,6 +5,7 @@ import { webhookRoutes } from "./plugins/webhooks.js";
 import type { WebhookEventStore } from "./webhooks/eventStore.js";
 import type { WebhookEnqueuer } from "./webhooks/enqueue.js";
 import type { DueWorkStatusSource } from "./scheduling/dueWork.js";
+import type { ReferralRoutesOptions } from "./routes/referral.js";
 import { v1Routes } from "./routes/v1.js";
 import { adminRoutes } from "./admin/routes.js";
 import type { AdminAuthenticator } from "./admin/adminAuth.js";
@@ -42,6 +43,14 @@ export interface AppDependencies {
    * keeps its original shape.
    */
   dueWorkStatus?: DueWorkStatusSource;
+  /**
+   * Pg-backed dependencies for the referral attribution endpoints (task 25,
+   * Req 2.9/11.8). When omitted the routes are not registered at all, so tests
+   * and local runs keep the previous `/v1` surface. Production wires the ledger
+   * repository, a transactor and the pool, which is what makes referral rewards
+   * reachable — the engine previously had no production call site.
+   */
+  referralDeps?: ReferralRoutesOptions;
   /**
    * Backs idempotent replay for state-changing `/v1` requests (Req 9.6/9.7).
    * Production wires a Pg-backed store; tests and local runs omit it and an
@@ -234,6 +243,8 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     // injected, the router builds the default service from this key; when the
     // key is absent the membership-card surface fails closed.
     membershipSigningKey: config.membership.signingKey,
+    // Referral attribution endpoints (task 25). Registered only when wired.
+    referralDeps: deps.referralDeps,
   });
 
   // Inbound Shopify webhooks. Registered as an encapsulated plugin so its

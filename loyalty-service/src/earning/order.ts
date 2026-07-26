@@ -492,6 +492,27 @@ function extractOrderInput(payload: unknown): {
 export interface OrderJobDeps {
   repo: LedgerRepository;
   transactor: Transactor;
+  /**
+   * OPTIONAL referral stage advance (task 25, Req 2.10/11.9). The design's
+   * webhook table specifies that `orders/paid` "advance[s] referral stage": if
+   * this order is the buyer's FIRST paid purchase and they were referred, the
+   * referrer is credited +250.
+   *
+   * Injected as a callback rather than imported directly so this module keeps no
+   * dependency on the referral module, mirroring how the metafield enqueuer is
+   * threaded through the worker.
+   *
+   * WHY IT RUNS INSIDE THE ORDER TRANSACTION: the award is derived from
+   * `firstPurchase`, which is only true on the transaction that creates the
+   * first-purchase earning. If the award ran afterwards in its own transaction
+   * and failed, the pg-boss retry would see `already_earned`, lose the flag, and
+   * never award — the reward would be silently skipped. Sharing the transaction
+   * makes earning and referral advance succeed or fail together.
+   */
+  advanceReferralStage?: (
+    args: { referredCustomerId: string; isFirstPaidPurchase: boolean; sourceEventId: string | null },
+    tx: Queryable,
+  ) => Promise<void>;
 }
 
 /**
@@ -518,11 +539,29 @@ export async function handleOrdersPaidJob(
 
   const { shopifyOrderId, shopifyCustomerId, eligibleTotal, email } = extractOrderInput(job.payload);
 
-  return deps.transactor.transaction((tx) =>
-    earnOrder(
+  return deps.transactor.transaction(async (tx) => {
+    const outcome = await earnOrder(
       deps.repo,
       { shopifyCustomerId, shopifyOrderId, eligibleTotal, email, sourceEventId: job.webhookId },
       tx,
-    ),
-  );
+    );
+
+    // Advance the referral stage in the SAME transaction (Req 2.10/11.9). Only
+    // on a fresh earning: a replay (`already_earned`) or a zero-value order
+    // (`no_earning`) is not a qualifying purchase event. The referral module
+    // itself enforces "exactly once" via `referrals.purchase_rewarded` and
+    // declines when `isFirstPaidPurchase` is false.
+    if (deps.advanceReferralStage && outcome.status === "earned") {
+      await deps.advanceReferralStage(
+        {
+          referredCustomerId: outcome.customerId,
+          isFirstPaidPurchase: outcome.firstPurchase,
+          sourceEventId: job.webhookId ?? null,
+        },
+        tx,
+      );
+    }
+
+    return outcome;
+  });
 }
