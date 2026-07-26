@@ -123,6 +123,10 @@ async function main(): Promise<void> {
   // admin surface. No new domain logic is introduced here.
   const transactor: Transactor = { transaction: adminTransactor };
 
+  // One store instance serves both lifecycle points: the receiver records
+  // RECEIPT (the dedupe gate) and the worker records the OUTCOME (task 23).
+  const webhookEventStore = new PgWebhookEventStore(pool);
+
   // Admin-gated collaborators, assigned by the token gate further down. They are
   // read LAZILY (via getters) by the app dependencies below, so the wiring order
   // stays: build app → gate on the Admin token → assign. On a non-Shopify boot
@@ -135,7 +139,7 @@ async function main(): Promise<void> {
   // warnings. Analytics is served from the hourly-refreshed materialized views
   // via the Pg-backed data source (Req 20; the refresh job is registered below).
   const app = buildApp(config, {
-    webhookEventStore: new PgWebhookEventStore(pool),
+    webhookEventStore,
     webhookEnqueuer: new PgBossWebhookEnqueuer(boss),
     // Pg-backed customer sources for the authenticated `/v1` consumer surface
     // (Req 9.2, 6.x, 17.x, 19.x). Without these the endpoints fail closed
@@ -322,6 +326,11 @@ async function main(): Promise<void> {
   await registerWebhookProcessingWorker(boss, {
     repo: ledgerRepo,
     transactor,
+    // Advance `webhook_events.status`/`processed_at` once dispatch completes so
+    // the dedupe table records outcome as well as receipt (task 23). The same
+    // Pg store that recorded receipt records the outcome; writes are best-effort
+    // and never fail the already-committed ledger work.
+    outcomeRecorder: webhookEventStore,
     metafieldEnqueuer,
   });
 

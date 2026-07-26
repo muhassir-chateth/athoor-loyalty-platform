@@ -45,6 +45,7 @@ import {
   ORDERS_CANCELLED_TOPIC,
 } from "./earning/clawback.js";
 import type { MetafieldCacheEnqueuer } from "./shopify/metafieldCache.js";
+import type { WebhookEventOutcomeRecorder } from "./webhooks/eventStore.js";
 
 /**
  * Runs a unit of work inside a single database transaction. Structurally
@@ -85,6 +86,19 @@ export interface WebhookProcessingDeps {
    * for a change that actually happened.
    */
   metafieldEnqueuer?: MetafieldCacheEnqueuer;
+  /**
+   * OPTIONAL outcome recorder (task 23, Req 12.1/12.3/13.8). Advances
+   * `webhook_events.status` to `processed` (stamping `processed_at`) after a
+   * successful dispatch, or to `failed` when dispatch throws, so the dedupe
+   * table records OUTCOME as well as receipt. Without it every row stayed at
+   * `received` with a NULL `processed_at`, leaving no way to distinguish
+   * "handled", "failed" and "still queued" during an investigation.
+   *
+   * Best-effort and NON-FATAL: the ledger append has already committed inside
+   * the handler's transaction before the outcome is recorded, so a status-write
+   * failure must never fail — or re-run — the work itself.
+   */
+  outcomeRecorder?: WebhookEventOutcomeRecorder;
 }
 
 /**
@@ -178,7 +192,50 @@ export async function registerWebhookProcessingWorker(
 ): Promise<string> {
   return consumer.work<WebhookJob>(queueName, async (jobs) => {
     for (const job of jobs) {
-      await dispatchWebhookJob(job.data, deps);
+      await dispatchWithOutcome(job.data, deps);
     }
   });
+}
+
+/**
+ * Dispatches one job and records its outcome on `webhook_events` (task 23).
+ *
+ * The error is always re-thrown after being recorded, so pg-boss's retry policy
+ * is unchanged: recording the outcome is observability, never flow control. The
+ * recorder itself is guarded, because a failure to WRITE A STATUS must not
+ * convert a successful ledger append into a retried one.
+ */
+export async function dispatchWithOutcome(
+  job: WebhookJob,
+  deps: WebhookProcessingDeps,
+): Promise<void> {
+  try {
+    await dispatchWebhookJob(job, deps);
+  } catch (err) {
+    await recordOutcome(deps, job.webhookId, "failed");
+    throw err;
+  }
+  await recordOutcome(deps, job.webhookId, "processed");
+}
+
+/** Best-effort status write; swallows its own failure by design (task 23). */
+async function recordOutcome(
+  deps: WebhookProcessingDeps,
+  webhookId: string | undefined,
+  outcome: "processed" | "failed",
+): Promise<void> {
+  // A job always carries the id the receiver deduped on; guard defensively so a
+  // malformed job can never throw from the observability path.
+  if (!deps.outcomeRecorder || !webhookId) {
+    return;
+  }
+  try {
+    if (outcome === "processed") {
+      await deps.outcomeRecorder.markProcessed(webhookId);
+    } else {
+      await deps.outcomeRecorder.markFailed(webhookId);
+    }
+  } catch {
+    // Non-fatal: the ledger is authoritative and already committed.
+  }
 }
