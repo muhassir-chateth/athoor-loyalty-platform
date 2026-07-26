@@ -44,6 +44,7 @@ import type { LedgerRepository, Queryable } from "../ledger/repository.js";
 import { getRewardOrThrow } from "../rewards/catalog.js";
 import { generateCandidateCode, type RandomInt } from "./discountCodeFormat.js";
 import { DISCOUNT_CODE_JOB, type DiscountCodeEnqueuer, type Transactor } from "./redeem.js";
+import type { MetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 import {
   AdminApiFailureError,
   AdminThrottleExhaustedError,
@@ -85,6 +86,15 @@ export interface DiscountCodeDeps {
   db: Queryable;
   /** Random source for code generation; defaults to the CSPRNG (overridden in tests). */
   randomInt?: RandomInt;
+  /**
+   * OPTIONAL Metafield_Cache refresh enqueuer (Req 13.5a). A compensating
+   * reversal credits the customer back, changing their Balance, so the display
+   * cache must be refreshed. Threaded in ONLY when the Shopify Admin token is
+   * configured; otherwise omitted and reconciliation converges the cache
+   * (Req 13.7). Minting a code changes no balance, so only the reversal path
+   * enqueues.
+   */
+  metafieldEnqueuer?: MetafieldCacheEnqueuer;
 }
 
 /** The outcome of processing a `generateDiscountCode` job. */
@@ -402,6 +412,13 @@ async function reverseSpend(
     // Restore spendable balance so the refunded points are re-usable.
     await tx.query(INSERT_REVERSAL_LOT_SQL, [redemption.customer_id, reversal.id, cost]);
   });
+
+  // The reversal changed the Balance, so refresh the display cache off the
+  // request path (Req 13.1/13.5a). Best-effort and post-commit: the ledger is
+  // authoritative, and reconciliation is the safety net (Req 13.7).
+  if (deps.metafieldEnqueuer) {
+    await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId: redemption.customer_id });
+  }
 }
 
 /**

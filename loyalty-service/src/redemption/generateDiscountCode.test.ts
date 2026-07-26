@@ -26,6 +26,7 @@
 import { describe, expect, it } from "vitest";
 import type { QueryResult, QueryResultRow } from "pg";
 import { LedgerRepository, type Queryable } from "../ledger/repository.js";
+import { RecordingMetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 import {
   ShopifyAdminGateway,
   ShopifyThrottleError,
@@ -472,6 +473,26 @@ describe("processDiscountCodeJob: terminal hard failure reverses the spend (Req 
     // A restoring point-lot makes the reversed points spendable again.
     expect(fake.lots).toHaveLength(1);
     expect(fake.lots[0]!.remaining_points).toBe(100);
+  });
+
+  it("enqueues a display-cache refresh for the credited customer (Req 13.1/13.5a)", async () => {
+    const fake = makeDb();
+    const { client } = scriptedClient(["fail", "fail", "fail"]);
+    let t = 0;
+    const now = (): number => {
+      const v = t;
+      t += 1000;
+      return v;
+    };
+    const gateway = new ShopifyAdminGateway(client, { sleep: noSleep, now });
+    const metafieldEnqueuer = new RecordingMetafieldCacheEnqueuer();
+
+    await expect(
+      processDiscountCodeJob(REDEMPTION_ID, { ...makeDeps(fake, gateway), metafieldEnqueuer }),
+    ).rejects.toBeInstanceOf(RedemptionFailedError);
+
+    // The reversal credited the customer back, so the cache must be refreshed.
+    expect(metafieldEnqueuer.jobs).toEqual([{ customerId: CUSTOMER_ID }]);
   });
 
   it("reverses the spend only ONCE when the queue retries the failed job (Req 3.9)", async () => {

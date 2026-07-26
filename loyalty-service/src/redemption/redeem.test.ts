@@ -22,6 +22,7 @@
 import { describe, expect, it } from "vitest";
 import type { QueryResult, QueryResultRow } from "pg";
 import { LedgerRepository, type Queryable } from "../ledger/repository.js";
+import { RecordingMetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 import { UnknownRewardError } from "../rewards/catalog.js";
 import {
   CustomerNotFoundError,
@@ -265,7 +266,10 @@ function makeDeps(fake: FakeDb) {
   const repo = new LedgerRepository(fake.db);
   const transactor = makeTransactor(fake.db);
   const enqueuer = new RecordingEnqueuer();
-  return { repo, transactor, enqueuer };
+  // A committed spend changes the Balance, so the display cache is refreshed
+  // off the request path (Req 13.1/13.5a).
+  const metafieldEnqueuer = new RecordingMetafieldCacheEnqueuer();
+  return { repo, transactor, enqueuer, metafieldEnqueuer };
 }
 
 function lot(over: Partial<FakeLot> & Pick<FakeLot, "id" | "remaining_points">): FakeLot {
@@ -318,6 +322,10 @@ describe("redeem: successful spend + FIFO consume + pending redemption (Req 3.2,
 
     // Exactly one discount-code job enqueued (after commit).
     expect(deps.enqueuer.jobs).toEqual([{ redemptionId: outcome.redemption.id }]);
+
+    // The spend changed the Balance, so exactly one cache refresh was enqueued
+    // for the spending customer (Req 13.1/13.5a).
+    expect(deps.metafieldEnqueuer.jobs).toEqual([{ customerId: CUSTOMER }]);
   });
 
   it("locks the customer row before checking balance or spending", async () => {
@@ -404,6 +412,9 @@ describe("redeem: idempotent replay (Req 3.7, Property 5)", () => {
     expect(fake.ledger.filter((e) => e.entry_type === "spend")).toHaveLength(1);
     expect(fake.redemptions).toHaveLength(1);
     expect(deps.enqueuer.jobs).toHaveLength(1);
+    // A replay changed no balance, so no second cache refresh either
+    // (Req 13.5a mirrors the discount-code job's at-most-once contract).
+    expect(deps.metafieldEnqueuer.jobs).toHaveLength(1);
     // Only 100 consumed in total across both calls.
     expect(fake.lots[0]!.remaining_points).toBe(400);
   });

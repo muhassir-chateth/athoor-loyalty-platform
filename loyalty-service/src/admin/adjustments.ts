@@ -32,6 +32,7 @@
  */
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
 import { createExpiringPointLot } from "../ledger/pointLots.js";
+import type { MetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 import type { AuditRecord, AuditTrailRecorder } from "./auditTrail.js";
 import type { AdminCtx } from "./adminAuth.js";
 
@@ -209,6 +210,26 @@ export interface AdjustmentDeps {
   audit: AuditTrailRecorder;
   /** Runs the ledger append + audit append inside one transaction. */
   transactor: Transactor;
+  /**
+   * OPTIONAL Metafield_Cache refresh enqueuer (Req 13.5a). An adjustment or
+   * manual credit changes the customer's Balance, so the display cache is
+   * refreshed off the request path. Threaded in ONLY when the Shopify Admin
+   * token is configured; otherwise omitted and reconciliation converges the
+   * cache (Req 13.7). Best-effort: enqueued AFTER the transaction commits, and
+   * a queue failure never fails the adjustment.
+   */
+  metafieldEnqueuer?: MetafieldCacheEnqueuer;
+}
+
+/**
+ * Enqueues a Metafield_Cache refresh for `customerId` when an enqueuer is wired
+ * (Req 13.5a). A no-op when none is configured (Admin token absent), in which
+ * case the periodic reconciliation job converges the cache (Req 13.7).
+ */
+async function enqueueCacheRefresh(deps: AdjustmentDeps, customerId: string): Promise<void> {
+  if (deps.metafieldEnqueuer) {
+    await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId });
+  }
 }
 
 function assertNonZeroInteger(points: unknown): number {
@@ -240,7 +261,7 @@ export async function applyAdjustment(
   const reason = validateReason(input.reason);
   const points = assertNonZeroInteger(input.points);
 
-  return deps.transactor(async (tx) => {
+  const result = await deps.transactor(async (tx) => {
     const entry = await deps.repo.append(
       {
         customerId: input.customerId,
@@ -274,6 +295,13 @@ export async function applyAdjustment(
 
     return { entry, audit };
   });
+
+  // The adjustment changed the Balance, so refresh the display cache off the
+  // request path (Req 13.1/13.5a). Enqueued after the commit and best-effort:
+  // the ledger is authoritative, so a queue failure must not fail the operation.
+  await enqueueCacheRefresh(deps, input.customerId);
+
+  return result;
 }
 
 /**
@@ -302,7 +330,7 @@ export async function grantManualCredit(
     throw new InvalidAmountError("A manual credit must be a positive point amount.");
   }
 
-  return deps.transactor(async (tx) => {
+  const result = await deps.transactor(async (tx) => {
     const entry = await deps.repo.append(
       {
         customerId: input.customerId,
@@ -338,4 +366,9 @@ export async function grantManualCredit(
 
     return { entry, audit };
   });
+
+  // The credit changed the Balance → refresh the display cache (Req 13.1/13.5a).
+  await enqueueCacheRefresh(deps, input.customerId);
+
+  return result;
 }

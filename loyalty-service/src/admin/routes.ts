@@ -64,6 +64,8 @@ import {
 } from "./fraudReview.js";
 import {
   InMemoryAdminOperationsService,
+  MigrationNotEnabledError,
+  ReconciliationUnavailableError,
   toAdminOperationResponse,
   type AdminOperationsService,
 } from "./operations.js";
@@ -265,13 +267,24 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRouterOptions
     return buildFraudReviewView(referrals, redemptions);
   });
 
-  // POST /v1/admin/operations/migration — run the migration and return the
-  // {processed, failed} completion result, recording the audit trail
-  // (task 17.2, Req 10.7/10.9).
+  // POST /v1/admin/operations/migration — the M0–M2 data cutover is NOT
+  // exposed over HTTP (Req 10.7a): it depends on the M0 metafield export as its
+  // rollback anchor and is run deliberately by an operator. A wired production
+  // service refuses with {@link MigrationNotEnabledError} → 501, which is safer
+  // and clearer than reporting a misleading `processed: 0`. Local/in-memory
+  // services still return their configured counts, so existing behaviour and
+  // tests are unchanged.
   app.post("/operations/migration", async (req: FastifyRequest, reply: FastifyReply) => {
     const admin = req.adminCtx as AdminCtx;
-    const result = await operationsService.runMigration(admin);
-    return reply.code(200).send(toAdminOperationResponse(result));
+    try {
+      const result = await operationsService.runMigration(admin);
+      return reply.code(200).send(toAdminOperationResponse(result));
+    } catch (err) {
+      if (err instanceof MigrationNotEnabledError) {
+        return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+      }
+      throw err;
+    }
   });
 
   // POST /v1/admin/operations/reconciliation — run reconciliation and return
@@ -279,8 +292,15 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRouterOptions
   // (task 17.2, Req 10.7/10.9).
   app.post("/operations/reconciliation", async (req: FastifyRequest, reply: FastifyReply) => {
     const admin = req.adminCtx as AdminCtx;
-    const result = await operationsService.runReconciliation(admin);
-    return reply.code(200).send(toAdminOperationResponse(result));
+    try {
+      const result = await operationsService.runReconciliation(admin);
+      return reply.code(200).send(toAdminOperationResponse(result));
+    } catch (err) {
+      if (err instanceof ReconciliationUnavailableError) {
+        return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+      }
+      throw err;
+    }
   });
 
   // GET /v1/admin/analytics — loyalty-program analytics for a selectable date

@@ -7,7 +7,15 @@ import { PgBossWebhookEnqueuer, WEBHOOK_PROCESS_QUEUE } from "./webhooks/enqueue
 import { LedgerRepository } from "./ledger/repository.js";
 import { PgAuditTrailRecorder } from "./admin/auditTrail.js";
 import { SharedSecretAdminAuthenticator } from "./admin/adminAuth.js";
-import { createLedgerAdminAdjustmentService } from "./admin/adjustmentService.js";
+import { LedgerAdminAdjustmentService } from "./admin/adjustmentService.js";
+import { PgAdminCustomerLedgerSource } from "./admin/customerView.js";
+import { PgFraudReviewSource } from "./admin/fraudReview.js";
+import {
+  CallbackAdminOperationsService,
+  MigrationNotEnabledError,
+  ReconciliationUnavailableError,
+  summarizeReconciliation,
+} from "./admin/operations.js";
 import {
   DefaultMembershipCredentialService,
   PgMembershipTierSource,
@@ -40,7 +48,7 @@ import { PgLedgerHistorySource } from "./routes/history.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder } from "./routes/profile.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
-import { registerReconciliationJob } from "./reconciliation/reconcile.js";
+import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { registerAnalyticsRefresh } from "./admin/analyticsRefresh.js";
 import { PgAnalyticsDataSource } from "./admin/pgAnalyticsDataSource.js";
 import { CachedAggregateAnalyticsService } from "./admin/analyticsService.js";
@@ -113,6 +121,14 @@ async function main(): Promise<void> {
   // admin surface. No new domain logic is introduced here.
   const transactor: Transactor = { transaction: adminTransactor };
 
+  // Admin-gated collaborators, assigned by the token gate further down. They are
+  // read LAZILY (via getters) by the app dependencies below, so the wiring order
+  // stays: build app → gate on the Admin token → assign. On a non-Shopify boot
+  // they stay undefined and every consumer degrades to the documented fail-safe
+  // behaviour (no cache refresh; reconciliation without the metafield writer).
+  let metafieldEnqueuer: PgBossMetafieldCacheEnqueuer | undefined;
+  let reconciliationMetafieldWriter: MetafieldCacheWriter | undefined;
+
   // Build the app up-front so its logger is available for boot-time wiring
   // warnings. Analytics is served from the hourly-refreshed materialized views
   // via the Pg-backed data source (Req 20; the refresh job is registered below).
@@ -140,13 +156,48 @@ async function main(): Promise<void> {
       repo: ledgerRepo,
       transactor,
       enqueuer: new PgBossDiscountCodeEnqueuer(boss),
+      // A committed spend changes the Balance → refresh the display cache
+      // (Req 13.5a). Assigned below once the Admin token gate has run, so it is
+      // undefined on a non-Shopify boot.
+      get metafieldEnqueuer() {
+        return metafieldEnqueuer;
+      },
     },
     adminAuthenticator: new SharedSecretAdminAuthenticator(config.admin.authSecret),
-    adminAdjustmentService: createLedgerAdminAdjustmentService(
-      ledgerRepo,
-      auditRecorder,
-      adminTransactor,
-    ),
+    // Adjustments/credits change the Balance → refresh the display cache
+    // (Req 13.5a), using the same Admin-gated enqueuer.
+    adminAdjustmentService: new LedgerAdminAdjustmentService({
+      repo: ledgerRepo,
+      audit: auditRecorder,
+      transactor: adminTransactor,
+      get metafieldEnqueuer() {
+        return metafieldEnqueuer;
+      },
+    }),
+    // Pg-backed admin read surfaces (Req 10.5/10.6). Without these the views
+    // return empty results, which reads as "no data" rather than "not wired".
+    adminCustomerLedgerSource: new PgAdminCustomerLedgerSource(pool),
+    fraudReviewSource: new PgFraudReviewSource(pool),
+    // Admin operations (Req 10.7/10.7a): reconciliation runs the real job;
+    // migration is refused (the M0–M2 cutover is an operator script, since it
+    // depends on the M0 export as its rollback anchor).
+    adminOperationsService: new CallbackAdminOperationsService({
+      audit: auditRecorder,
+      runMigration: () => {
+        throw new MigrationNotEnabledError();
+      },
+      runReconciliation: async () => {
+        const metafieldWriter = reconciliationMetafieldWriter;
+        if (!metafieldWriter) {
+          // Same fail-safe gate as the scheduled job: without the Admin token
+          // there is no writer to repair cache drift, so refuse rather than
+          // report a run that could not do its job.
+          throw new ReconciliationUnavailableError();
+        }
+        const result = await runReconciliation({ db: pool, transactor, metafieldWriter });
+        return summarizeReconciliation(result);
+      },
+    }),
     // Digital Membership Card (task 19.2, Req 19.5/19.6). Signs/verifies with
     // the DEDICATED membership signing key from secrets/env (never another
     // secret); reads the customer's tier read-only from the `customers` row.
@@ -175,12 +226,12 @@ async function main(): Promise<void> {
   const shopDomain = config.shopify.shopDomain;
   const adminApiToken = config.shopify.adminApiToken;
 
-  // The metafield-cache enqueuer is threaded into the webhook worker so that a
-  // balance-affecting webhook refreshes the customer's cache in near real time
-  // (Req 13.1). It is left undefined when the Admin token is absent (no worker
-  // exists to consume the job); the reconciliation job is then the safety net.
-  let metafieldEnqueuer: PgBossMetafieldCacheEnqueuer | undefined;
-
+  // The metafield-cache enqueuer (declared above) is threaded into the webhook
+  // worker, the redemption spend, the admin adjustment/credit paths and the
+  // failed-redemption reversal so that ANY balance change refreshes the
+  // customer's cache in near real time (Req 13.1/13.5a). It is left undefined
+  // when the Admin token is absent (no worker exists to consume the job); the
+  // reconciliation job is then the safety net.
   if (adminApiToken) {
     // (C) Discount-code generation worker (Req 3.5/3.6, Property 10). Mints the
     // single-use, customer-bound code via the Admin GraphQL API through the
@@ -191,7 +242,17 @@ async function main(): Promise<void> {
     );
     await registerDiscountCodeWorker(
       boss,
-      { gateway: discountGateway, repo: ledgerRepo, transactor, db: pool },
+      {
+        gateway: discountGateway,
+        repo: ledgerRepo,
+        transactor,
+        db: pool,
+        // A compensating reversal credits the customer back, so refresh the
+        // display cache for that change too (Req 13.5a).
+        get metafieldEnqueuer() {
+          return metafieldEnqueuer;
+        },
+      },
       DISCOUNT_CODE_JOB,
     );
 
@@ -202,6 +263,9 @@ async function main(): Promise<void> {
     const metafieldWriter = new MetafieldCacheWriter(
       new ShopifyGraphqlMetafieldClient(shopDomain, adminApiToken),
     );
+    // Shared with the admin-triggered reconciliation operation (Req 10.7) so an
+    // on-demand run repairs metafield drift exactly like the scheduled job.
+    reconciliationMetafieldWriter = metafieldWriter;
     await registerMetafieldCacheWorker(boss, { writer: metafieldWriter, db: pool });
 
     // Real-time cache refresh after any balance-affecting webhook (Req 13.1):

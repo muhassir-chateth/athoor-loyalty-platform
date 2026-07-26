@@ -164,6 +164,43 @@ async function recordOperationAudit(
  * the metafield writer + transactor); the wiring layer composes those and
  * hands over a simple runner.
  */
+/**
+ * Thrown when a data migration is requested through the admin API (Req 10.7a).
+ *
+ * The M0–M2 cutover depends on the M0 metafield export as its rollback anchor
+ * and must be run deliberately by an operator, never triggered by an HTTP call.
+ * Refusing loudly is safer than reporting a misleading `processed: 0`.
+ */
+export class MigrationNotEnabledError extends Error {
+  readonly code = "migration_not_enabled";
+  readonly statusCode = 501;
+  constructor() {
+    super(
+      "Data migration is not enabled via the API — run the M0–M2 cutover as an " +
+        "operator script so the M0 export exists as the rollback anchor.",
+    );
+    this.name = "MigrationNotEnabledError";
+  }
+}
+
+/**
+ * Thrown when an on-demand reconciliation is requested but the Shopify Admin
+ * token is not configured, so no metafield writer exists to repair cache drift
+ * (the same fail-safe boot gate that skips the scheduled reconciliation job).
+ * Refusing is clearer than reporting a run that could not repair the cache.
+ */
+export class ReconciliationUnavailableError extends Error {
+  readonly code = "reconciliation_unavailable";
+  readonly statusCode = 503;
+  constructor() {
+    super(
+      "Reconciliation is unavailable because no Shopify Admin API token is configured, " +
+        "so the Metafield_Cache writer it depends on is not wired.",
+    );
+    this.name = "ReconciliationUnavailableError";
+  }
+}
+
 export class CallbackAdminOperationsService implements AdminOperationsService {
   constructor(
     private readonly deps: {

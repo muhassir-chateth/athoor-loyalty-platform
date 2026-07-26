@@ -55,6 +55,7 @@ import {
   type ConsumptionPlan,
 } from "../ledger/balance.js";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
+import type { MetafieldCacheEnqueuer } from "../shopify/metafieldCache.js";
 import { getRewardOrThrow, type Reward, type RewardId } from "../rewards/catalog.js";
 import {
   DEFAULT_CHANNEL,
@@ -148,6 +149,16 @@ export interface RedeemDeps {
   transactor: Transactor;
   /** Enqueues the placeholder discount-code job after a successful spend. */
   enqueuer: DiscountCodeEnqueuer;
+  /**
+   * OPTIONAL Metafield_Cache refresh enqueuer (Req 13.5a). A committed spend
+   * changes the customer's Balance, so the display cache must be refreshed off
+   * the request path (Req 13.1/13.2). Threaded in ONLY when the Shopify Admin
+   * token is configured (so a worker exists to consume the job); otherwise it is
+   * omitted and the periodic reconciliation job keeps the cache converged
+   * (Req 13.7). Enqueuing is best-effort: it happens AFTER the spend has
+   * committed and a queue failure never fails the redemption.
+   */
+  metafieldEnqueuer?: MetafieldCacheEnqueuer;
 }
 
 /**
@@ -482,6 +493,15 @@ export async function redeem(
   // so at most one code is ever produced per spend (Req 3.5, Property 5).
   if (outcome.status === "redeemed") {
     await deps.enqueuer.enqueueDiscountCode({ redemptionId: outcome.redemption.id });
+
+    // (7) The spend changed the Balance, so refresh the display cache off the
+    // request path (Req 13.1/13.5a). Only on a fresh spend — a replay changed
+    // nothing. Best-effort: the ledger is already committed and authoritative,
+    // so a queue failure must not fail the redemption; reconciliation is the
+    // safety net (Req 13.7).
+    if (deps.metafieldEnqueuer) {
+      await deps.metafieldEnqueuer.enqueueMetafieldCache({ customerId });
+    }
   }
 
   return outcome;
