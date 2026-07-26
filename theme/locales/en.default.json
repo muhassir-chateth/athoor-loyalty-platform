@@ -75,7 +75,16 @@
       "copy": "Copy",
       "copied": "Copied!",
       "copy_aria": "Copy your referral code",
-      "code_pending": "Preparing your code…"
+      "code_pending": "Preparing your code…",
+      "claim_label": "Were you referred? Enter your friend's code",
+      "claim_submit": "Apply",
+      "claim_success": "Referral code applied. Your friend has been credited.",
+      "claim_already": "This referral code is already applied to your account.",
+      "claim_self": "You cannot use your own referral code.",
+      "claim_unknown": "That code was not recognised. Check it and try again.",
+      "claim_ineligible": "A referral code cannot be applied after a purchase has been made.",
+      "claim_invalid": "Enter a referral code of up to 64 characters.",
+      "claim_failed": "We could not submit that just now. Please try again."
     },
     "circles": {
       "heading": "The Membership Circles",

@@ -441,6 +441,17 @@
   word-break: break-word;
 }
 
+/* Referral claim form (docs/ops/referral-claim-proposal.md). Rendered hidden and
+   revealed by athoor-loyalty.js only when GET /v1/referral reports
+   `wasReferred === false`. The explicit [hidden] rule mirrors
+   .loyalty-error-state[hidden] above: it guarantees the hidden attribute wins
+   even if a theme rule sets a display value on the element. No other styling is
+   added — the input/button reuse the existing .referral-code chip and the
+   label/status paragraphs inherit .referral-section p. */
+.referral-claim[hidden] {
+  display: none;
+}
+
 .referral-code button {
   background: #FFD700;
   color: #1a1a1a;

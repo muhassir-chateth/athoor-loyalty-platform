@@ -79,7 +79,14 @@
         "entry_earned": {{ 'loyalty.js.entry_earned' | t | json }},
         "entry_spent": {{ 'loyalty.js.entry_spent' | t | json }},
         "entry_expired": {{ 'loyalty.js.entry_expired' | t | json }},
-        "entry_default": {{ 'loyalty.js.entry_default' | t | json }}
+        "entry_default": {{ 'loyalty.js.entry_default' | t | json }},
+        "claim_success": {{ 'loyalty.referral.claim_success' | t | json }},
+        "claim_already": {{ 'loyalty.referral.claim_already' | t | json }},
+        "claim_self": {{ 'loyalty.referral.claim_self' | t | json }},
+        "claim_unknown": {{ 'loyalty.referral.claim_unknown' | t | json }},
+        "claim_ineligible": {{ 'loyalty.referral.claim_ineligible' | t | json }},
+        "claim_invalid": {{ 'loyalty.referral.claim_invalid' | t | json }},
+        "claim_failed": {{ 'loyalty.referral.claim_failed' | t | json }}
       }
     </script>
 
@@ -343,6 +350,53 @@
         <span id="ref-code" data-loyalty="referral-code"{% if referral_code == blank %} data-loyalty-code-pending="true"{% endif %}>{% if referral_code != blank %}{{ referral_code }}{% else %}{{ 'loyalty.referral.code_pending' | t }}{% endif %}</span>
         <button type="button" data-loyalty="referral-copy" aria-label="{{ 'loyalty.referral.copy_aria' | t }}" data-copy-label="{{ 'loyalty.referral.copy' | t }}" data-copied-label="{{ 'loyalty.referral.copied' | t }}"{% if referral_code == blank %} disabled{% endif %} onclick="var c=document.getElementById('ref-code'); if(!c||c.hasAttribute('data-loyalty-code-pending')){return;} navigator.clipboard.writeText(c.innerText); this.innerText=this.dataset.copiedLabel; setTimeout(()=>this.innerText=this.dataset.copyLabel, 2000)">{{ 'loyalty.referral.copy' | t }}</button>
       </div>
+
+      {%- comment -%}
+        Referral CLAIM — the other half of the programme (see
+        docs/ops/referral-claim-proposal.md). A member can share a code here; this
+        is where a friend submits the one they were given, which is the only way
+        `referrals` rows — and therefore the +150 / +250 awards (Req 2.9/2.10) —
+        can ever originate from the storefront.
+
+        RENDERED HIDDEN ON PURPOSE. The offer is only valid for a member who has
+        no referrer yet, and Liquid cannot know that: `wasReferred` exists only
+        behind GET /v1/referral, not in the Metafield_Cache. athoor-loyalty.js
+        reveals this form ONLY when that endpoint reports
+        `wasReferred === false`; on any error, timeout or `true` it stays hidden.
+        Rendering it visible would mean guessing the member's referred state and
+        inviting an already-referred member to fail.
+
+        So with JS unavailable no claim is possible. That is correct, not a
+        regression: POST /v1/referral is on the state-changing /v1 scope and
+        REQUIRES an `Idempotency-Key` header, which a plain HTML form post cannot
+        send — a visible no-JS form could only ever produce a rejected request.
+
+        No new CSS classes: the input/button reuse the existing `.referral-code`
+        chip, and the label/status paragraphs inherit `.referral-section p`
+        (13px #aaa on #1a1a1a — 7.49:1, comfortably AA). The status paragraph uses
+        the same role="status" aria-live="polite" pattern as the unavailable
+        notice, so every outcome is announced rather than only shown.
+      {%- endcomment -%}
+      <form class="referral-claim" data-loyalty="referral-claim" novalidate hidden>
+        <p><label for="referral-claim-input">{{ 'loyalty.referral.claim_label' | t }}</label></p>
+        <div class="referral-code">
+          <input
+            id="referral-claim-input"
+            name="referralCode"
+            type="text"
+            inputmode="latin"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            maxlength="64"
+            required
+            data-loyalty="referral-claim-input"
+            aria-describedby="referral-claim-status"
+          >
+          <button type="submit" data-loyalty="referral-claim-submit">{{ 'loyalty.referral.claim_submit' | t }}</button>
+        </div>
+        <p id="referral-claim-status" data-loyalty="referral-claim-status" role="status" aria-live="polite"></p>
+      </form>
     </div>
 
     <div class="earn-methods">

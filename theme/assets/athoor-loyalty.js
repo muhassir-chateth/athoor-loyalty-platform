@@ -63,7 +63,16 @@
     entry_earned: 'Points earned',
     entry_spent: 'Points redeemed',
     entry_expired: 'Points expired',
-    entry_default: 'Activity'
+    entry_default: 'Activity',
+    // Referral claim (docs/ops/referral-claim-proposal.md). One key per REAL
+    // response of POST /v1/referral, so the member is never shown a guess.
+    claim_success: 'Referral code applied. Your friend has been credited.',
+    claim_already: 'This referral code is already applied to your account.',
+    claim_self: 'You cannot use your own referral code.',
+    claim_unknown: 'That code was not recognised. Check it and try again.',
+    claim_ineligible: 'A referral code cannot be applied after a purchase has been made.',
+    claim_invalid: 'Enter a referral code of up to 64 characters.',
+    claim_failed: 'We could not submit that just now. Please try again.'
   };
 
   var TIER_LABELS = {
@@ -80,6 +89,7 @@
   loadBalance();
   loadHistory();
   loadReferral();
+  initReferralClaim();
   markVisit();
 
   /* --------------------------------------------------------------------- */
@@ -142,9 +152,18 @@
   function loadReferral() {
     fetchJson(proxyBase + '/v1/referral')
       .then(function (data) {
-        if (!data || typeof data.referralCode !== 'string') return;
-        var code = data.referralCode.trim();
-        if (code) applyReferralCode(code);
+        if (!data || typeof data !== 'object') return;
+        if (typeof data.referralCode === 'string') {
+          var code = data.referralCode.trim();
+          if (code) applyReferralCode(code);
+        }
+        // The claim form is the ONLY place `wasReferred` is used. Liquid cannot
+        // know it (it is not in the Metafield_Cache), so the form is rendered
+        // hidden and revealed here — and ONLY on an explicit `false`. Anything
+        // else (true, missing, non-boolean, error, timeout) leaves it hidden,
+        // so a member who already has a referrer is never invited to fail and
+        // no referred-state is ever guessed.
+        if (data.wasReferred === false) revealClaimForm();
       })
       .catch(noop); // Fallback: the server-rendered code/placeholder stays put.
   }
@@ -162,6 +181,167 @@
     if (btn) {
       btn.removeAttribute('disabled');
       btn.removeAttribute('aria-disabled');
+    }
+  }
+
+  /* -------------------------- referral claim --------------------------- */
+  /*
+   * The missing half of the referral programme (docs/ops/referral-claim-
+   * proposal.md): a friend submits the code they were given, and
+   * POST /v1/referral credits the REFERRER +150 through the existing engine.
+   *
+   * WHY THE FORM IS REVEALED BY JS AND NOT RENDERED VISIBLE BY LIQUID: the
+   * offer only makes sense for a member who has no referrer yet, and Liquid
+   * cannot know that — `wasReferred` lives only behind GET /v1/referral. So the
+   * form is rendered HIDDEN server-side and revealed only on a confirmed
+   * `wasReferred === false`.
+   *
+   * CONSEQUENCE, stated plainly: with JS unavailable the form stays hidden and
+   * no claim is possible. That is the correct outcome rather than a regression —
+   * the /v1 scope REQUIRES an `Idempotency-Key` header on this POST, which a
+   * plain HTML form post cannot send, so a visible no-JS form could only ever
+   * produce a rejected request.
+   *
+   * The SERVER owns every eligibility decision (self-referral, unknown code,
+   * post-purchase ineligibility). Nothing here duplicates those rules; the only
+   * client-side checks are "non-empty" and "≤64 chars", which mirror the
+   * endpoint's own body schema.
+   */
+
+  // True while a submission is in flight, so a double-press cannot produce two
+  // requests with two different Idempotency-Keys. The button is disabled too,
+  // but a `submit` event can still be dispatched at a disabled button, so the
+  // flag — not the disabled attribute — is what guarantees one request.
+  var claimPending = false;
+  // True once the claim can never succeed again (rewarded / already rewarded /
+  // ineligible), so the form is closed permanently.
+  var claimClosed = false;
+
+  function initReferralClaim() {
+    var form = root.querySelector('[data-loyalty="referral-claim"]');
+    if (!form) return; // Older render without the claim markup — nothing to do.
+    form.addEventListener('submit', onClaimSubmit);
+  }
+
+  function revealClaimForm() {
+    var form = root.querySelector('[data-loyalty="referral-claim"]');
+    if (form) form.hidden = false;
+  }
+
+  function onClaimSubmit(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (claimPending || claimClosed) return;
+
+    var input = root.querySelector('[data-loyalty="referral-claim-input"]');
+    if (!input) return;
+    var code = String(input.value == null ? '' : input.value).trim();
+    // Empty / whitespace-only: submit nothing at all. No request, no message —
+    // there is no failure to report yet.
+    if (!code) return;
+    // The endpoint's own limit (1–64 chars). Reported locally instead of
+    // spending a request we know the server will reject.
+    if (code.length > 64) {
+      announceClaim(t('claim_invalid'));
+      return;
+    }
+
+    claimPending = true;
+    setClaimSubmitDisabled(true);
+
+    // A FRESH key per submission attempt: a retry after a genuine failure is a
+    // new operation and must not replay the failed one. Two presses of the SAME
+    // submission are prevented by claimPending above, so they can never send
+    // two differently-keyed requests.
+    postJson(proxyBase + '/v1/referral', { referralCode: code }, 'claim').then(
+      function (data) {
+        claimPending = false;
+        handleClaimResult(data);
+      },
+      function (err) {
+        claimPending = false;
+        handleClaimError(err);
+      }
+    );
+  }
+
+  // 200 responses. `already_rewarded` is a SUCCESS, not an error: the claim is
+  // applied, there is simply nothing further to do.
+  function handleClaimResult(data) {
+    var status = data && typeof data.status === 'string' ? data.status : '';
+    if (status === 'rewarded') {
+      announceClaim(t('claim_success'));
+      closeClaim();
+      return;
+    }
+    if (status === 'already_rewarded') {
+      announceClaim(t('claim_already'));
+      closeClaim();
+      return;
+    }
+    // A 200 whose status we do not recognise: report neutrally and leave the
+    // form usable. We never echo an unknown status back to the member.
+    announceClaim(t('claim_failed'));
+    setClaimSubmitDisabled(false);
+  }
+
+  // Non-OK responses, timeouts and network errors. `err.errorCode` is the
+  // endpoint's own `error` field, attached by postJson.
+  function handleClaimError(err) {
+    var errorCode = err && typeof err.errorCode === 'string' ? err.errorCode : '';
+
+    if (errorCode === 'referral_not_eligible') {
+      // A paid purchase already exists on this account, so no code can ever be
+      // applied. Closing the form is honest; leaving it usable is not.
+      announceClaim(t('claim_ineligible'));
+      closeClaim();
+      return;
+    }
+
+    if (errorCode === 'self_referral_rejected') {
+      announceClaim(t('claim_self'));
+    } else if (errorCode === 'unknown_referral_code') {
+      // The input value is deliberately left intact so a typo can be corrected.
+      announceClaim(t('claim_unknown'));
+    } else if (errorCode === 'invalid_request') {
+      announceClaim(t('claim_invalid'));
+    } else {
+      // Timeout, network failure, or any status/body we cannot interpret.
+      announceClaim(t('claim_failed'));
+    }
+    setClaimSubmitDisabled(false); // Recoverable — let them try again.
+  }
+
+  // Announced through the same role="status" aria-live="polite" pattern the
+  // dashboard already uses, so the result is heard and not only seen.
+  function announceClaim(message) {
+    var el = root.querySelector('[data-loyalty="referral-claim-status"]');
+    if (el) el.textContent = message;
+  }
+
+  function setClaimSubmitDisabled(disabled) {
+    if (claimClosed) return; // A closed form stays closed.
+    var btn = root.querySelector('[data-loyalty="referral-claim-submit"]');
+    if (!btn) return;
+    btn.disabled = !!disabled;
+    if (disabled) {
+      btn.setAttribute('aria-disabled', 'true');
+    } else {
+      btn.removeAttribute('aria-disabled');
+    }
+  }
+
+  // Permanently done: nothing further can change the outcome.
+  function closeClaim() {
+    claimClosed = true;
+    var input = root.querySelector('[data-loyalty="referral-claim-input"]');
+    var btn = root.querySelector('[data-loyalty="referral-claim-submit"]');
+    if (input) {
+      input.disabled = true;
+      input.setAttribute('aria-disabled', 'true');
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
     }
   }
 
@@ -401,11 +581,19 @@
     });
   }
 
-  // POST helper for the visit endpoint. Mirrors fetchJson's hard timeout and
-  // silent-fallback behaviour. Sends a fresh Idempotency-Key per page load
-  // (required by the /v1 state-changing gate); each page load is a distinct
-  // operation, so a per-load key never collapses first-visit into a replay.
-  function postJson(url) {
+  // POST helper for the state-changing /v1 calls. Mirrors fetchJson's hard
+  // timeout and silent-fallback behaviour. Sends a fresh Idempotency-Key
+  // (required by the /v1 state-changing gate) with a caller-supplied prefix.
+  //
+  // `body` is OPTIONAL. Omitted (the /v1/profile/visit call) the request is
+  // byte-for-byte what it always was: no body and no Content-Type. Supplied, it
+  // is JSON-encoded and Content-Type: application/json is set.
+  //
+  // On a non-OK response the rejection carries `status` and, when the body is
+  // readable JSON with an `error` field, `errorCode` — without them a caller
+  // cannot tell 404 unknown_referral_code from 409 self_referral_rejected. The
+  // message stays 'HTTP <status>' so existing callers see no change.
+  function postJson(url, body, keyPrefix) {
     if (typeof window.fetch !== 'function') {
       return Promise.reject(new Error('fetch unavailable'));
     }
@@ -419,14 +607,18 @@
       credentials: 'same-origin',
       headers: {
         Accept: 'application/json',
-        'Idempotency-Key': idempotencyKey()
+        'Idempotency-Key': idempotencyKey(keyPrefix)
       }
     };
+    if (body !== undefined && body !== null) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
     if (controller) opts.signal = controller.signal;
 
     return window.fetch(url, opts).then(function (res) {
       if (timer) clearTimeout(timer);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) return rejectWithHttpError(res);
       return res.json();
     }, function (err) {
       if (timer) clearTimeout(timer);
@@ -434,15 +626,42 @@
     });
   }
 
-  // A 1–128 char idempotency key. Prefers crypto.randomUUID, with a safe
-  // timestamp+random fallback for older browsers.
-  function idempotencyKey() {
+  // Builds the rejection for a non-OK response, attaching the HTTP status and
+  // the endpoint's `error` code when they can be read. Defensive throughout: an
+  // empty, non-JSON or unreadable error body still rejects — with the status
+  // only — so a caller never hangs and never sees a resolved promise.
+  function rejectWithHttpError(res) {
+    var err = new Error('HTTP ' + res.status);
+    err.status = res.status;
+
+    var parsed;
+    try {
+      parsed = typeof res.json === 'function' ? res.json() : null;
+    } catch (e) {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed.then !== 'function') {
+      return Promise.reject(err);
+    }
+    return parsed.then(function (data) {
+      if (data && typeof data.error === 'string') err.errorCode = data.error;
+      throw err;
+    }, function () {
+      throw err; // Body was not JSON — the status alone is what we know.
+    });
+  }
+
+  // A 1–128 char idempotency key, prefixed by the operation so keys from
+  // different operations can never collide. Prefers crypto.randomUUID, with a
+  // safe timestamp+random fallback for older browsers.
+  function idempotencyKey(prefix) {
+    var p = prefix || 'visit';
     try {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return 'visit-' + window.crypto.randomUUID();
+        return p + '-' + window.crypto.randomUUID();
       }
     } catch (e) { /* fall through */ }
-    return 'visit-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    return p + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   }
 
   function readConfig(el) {

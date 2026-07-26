@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "fast-check": "^3.23.2",
+    "jsdom": "26.1.0",
     "node-pg-migrate": "^7.9.0",
     "vitest": "^2.1.8"
   }
