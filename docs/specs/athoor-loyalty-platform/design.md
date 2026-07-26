@@ -992,6 +992,31 @@ Additional: ESP for pre-expiry emails (e.g. transactional email tier often free 
 
 **Recommendation:** Option A (Railway/Render) for MVP — managed Postgres with PITR, integrated cron, and near-zero ops for a store this size. Revisit AWS (Option C) only if the broader Athoor ecosystem consolidates on AWS.
 
+### As-deployed hosting decision (supersedes the recommendation above)
+
+The platform is deployed on **free-tier hosting** (Render Free web service +
+Supabase Postgres) as a deliberate zero-cost decision. Two consequences are
+recorded here so the specification matches reality:
+
+1. **Scheduling is best-effort with catch-up (A15).** The host sleeps when idle,
+   and pg-boss cron fires only when its previous occurrence is under 60 seconds
+   old *and* the process is alive — a window elapsing during sleep is skipped
+   silently and never replayed. Recurring work is therefore driven by **due work
+   derived from a persisted `scheduled_runs.last_run_at`**, claimed atomically
+   whenever the service is running, so missed windows are caught up on the next
+   start. Analytics needs no schedule at all: it refreshes on read when stale.
+   A free external monitor calls the public, side-effect-free `GET /health` to
+   wake the service and to surface any job overdue beyond its grace period.
+
+2. **Requirement 13.6 (automated backups, PITR, WAL ≥ 7 days) is NOT satisfied by
+   the current deployment.** The free database plan provides no backup retention
+   and no point-in-time recovery. Req 13.6 is intentionally **left unchanged** —
+   the deployment does not meet it, and closing that gap is tracked as its own
+   follow-up decision on backup and disaster recovery. Do not read the rest of
+   this document as implying backups exist today.
+
+Full evaluation: `docs/ops/zero-cost-architecture.md` in the repository.
+
 **Estimated complexity:** Medium. The domain logic is well-bounded; the real effort is Shopify plumbing (custom app, webhook registration, App Proxy, Customer Account API) and the data-safe migration. Rough build effort for MVP: on the order of 2–4 focused weeks for one developer; full platform (expiry, referrals, notifications, mobile-ready hardening) a further 2–4 weeks.
 
 ## Migration Plan (data-safe, phased, reversible)

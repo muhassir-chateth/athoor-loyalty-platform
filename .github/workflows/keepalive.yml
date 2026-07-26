@@ -1,0 +1,81 @@
+# Wakes the loyalty service so due work runs, and fails loudly if a schedule has
+# stopped firing (task 24, zero-cost architecture).
+#
+# WHY THIS EXISTS
+#   Recurring jobs are driven by due work derived from `scheduled_runs`, claimed
+#   whenever the service is running. On free hosting the service sleeps after ~15
+#   idle minutes, so without an external nudge it may never wake overnight —
+#   which is when the daily expiry scan and reconciliation become due.
+#
+# SECURITY
+#   This calls ONLY `GET /health`, which is public, read-only and side-effect
+#   free. The service decides what is actually due from its own persisted
+#   timestamps, so no scheduling authority is delegated to this workflow: it
+#   cannot choose what runs. No credential is required and none is stored here,
+#   and no authenticated or mutating endpoint is exposed.
+#
+# FREE-HOURS BUDGET
+#   Render grants 750 free instance-hours per workspace per month and SUSPENDS
+#   free services for the rest of the month once they are exhausted. A month is
+#   ~730 hours, so keeping the service awake around the clock leaves almost no
+#   margin. This schedule therefore warms the service only during trading hours
+#   (07:00–22:59 UTC), which costs roughly 490 hours a month and still lets it
+#   sleep overnight — the sleep that due-work catch-up is designed to absorb.
+#
+# CAVEAT
+#   GitHub's scheduled workflows are best-effort: runs can be delayed under load,
+#   and GitHub disables schedules on repositories with no activity for 60 days.
+#   That is acceptable here because a delayed wake only DELAYS due work, never
+#   loses it — but the overdue check below is what makes a prolonged failure
+#   visible instead of silent.
+name: Keep-alive and schedule watchdog
+
+on:
+  schedule:
+    # Every 10 minutes between 07:00 and 22:59 UTC.
+    - cron: "*/10 7-22 * * *"
+  # Allow a manual run when verifying the setup.
+  workflow_dispatch:
+
+# No repository contents are needed, so grant nothing.
+permissions: {}
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the service and read scheduling health
+        env:
+          # Public health URL. Not a secret; kept as a variable so the workflow
+          # is reusable across environments.
+          HEALTH_URL: https://athoor-loyalty-platform.onrender.com/health
+        run: |
+          set -euo pipefail
+
+          # A cold start takes ~1 minute on free hosting, so allow generous time
+          # and retry rather than failing the run on a slow wake.
+          response="$(curl --silent --show-error --fail \
+            --max-time 180 --retry 3 --retry-delay 20 --retry-all-errors \
+            "$HEALTH_URL")"
+
+          echo "health: $response"
+
+          # `status` must be ok; anything else is a genuine liveness failure.
+          echo "$response" | jq -e '.status == "ok"' > /dev/null
+
+          # `scheduling.overdue` lists jobs overdue beyond their grace period —
+          # i.e. a schedule that has stopped firing rather than one merely
+          # waiting for the next wake. Fail the run so the failure is noticed;
+          # this is the watchdog that makes the previously-silent failure visible.
+          overdue="$(echo "$response" | jq -c '.scheduling.overdue // []')"
+          if [ "$overdue" != "[]" ]; then
+            echo "::error::Scheduled jobs are overdue beyond their grace period: $overdue"
+            exit 1
+          fi
+
+          echo "No overdue scheduled jobs."

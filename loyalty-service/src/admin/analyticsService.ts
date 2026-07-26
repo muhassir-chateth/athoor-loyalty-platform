@@ -81,6 +81,18 @@ export interface AnalyticsServiceOptions {
   now?: () => Date;
   /** How many customers to include in `mostRewardedCustomers` (default 10). */
   mostRewardedLimit?: number;
+  /**
+   * OPTIONAL hook invoked before reading the snapshot, used to refresh the
+   * cached aggregates when they are stale (task 24, Req 20.3).
+   *
+   * Analytics has a single consumer — an admin opening the view — so production
+   * refreshes on demand instead of on an hourly cron schedule, which a sleeping
+   * host cannot fire reliably. The hook is non-fatal by contract: if it cannot
+   * refresh, the read proceeds against the current views and reports their true
+   * (older) `computedAt`. Omitted in tests and local runs, where the in-memory
+   * data source needs no refresh.
+   */
+  refreshIfStale?: () => Promise<void>;
 }
 
 /**
@@ -92,6 +104,7 @@ export interface AnalyticsServiceOptions {
 export class CachedAggregateAnalyticsService implements AnalyticsService {
   private readonly now: () => Date;
   private readonly mostRewardedLimit: number | undefined;
+  private readonly refreshIfStale: (() => Promise<void>) | undefined;
 
   constructor(
     private readonly dataSource: AnalyticsDataSource,
@@ -99,6 +112,7 @@ export class CachedAggregateAnalyticsService implements AnalyticsService {
   ) {
     this.now = options.now ?? (() => new Date());
     this.mostRewardedLimit = options.mostRewardedLimit;
+    this.refreshIfStale = options.refreshIfStale;
   }
 
   async getOverview(range?: DateRange): Promise<AnalyticsResult> {
@@ -106,6 +120,14 @@ export class CachedAggregateAnalyticsService implements AnalyticsService {
     // validate the supplied range, rejecting end-before-start (Req 20.4).
     const applied: DateRange = range ?? defaultDateRange(this.now());
     validateDateRange(applied);
+
+    // Refresh the cached aggregates on demand when stale (task 24, Req 20.3).
+    // Runs AFTER range validation so an invalid request does no work, and is
+    // non-fatal: a failure leaves the older aggregates in place and the response
+    // reports their true `computedAt`.
+    if (this.refreshIfStale) {
+      await this.refreshIfStale();
+    }
 
     const snapshot = await this.dataSource.snapshot(applied);
     return computeAnalytics(

@@ -22,7 +22,8 @@ import {
 } from "./membership/credential.js";
 import type { Queryable } from "./ledger/repository.js";
 import { registerWebhookProcessingWorker, type Transactor } from "./worker.js";
-import { PgBossRecurringScheduler } from "./scheduler.js";
+import { DueWorkScheduler, startDueWorkTicker } from "./scheduling/dueWorkScheduler.js";
+import { PgDueWorkStatusSource } from "./scheduling/dueWork.js";
 import { registerExpiryScan } from "./expiry/scheduler.js";
 import {
   PgBossPreExpiryNotifier,
@@ -49,7 +50,7 @@ import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder } from "./routes/profile.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
-import { registerAnalyticsRefresh } from "./admin/analyticsRefresh.js";
+import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
 import { PgAnalyticsDataSource } from "./admin/pgAnalyticsDataSource.js";
 import { CachedAggregateAnalyticsService } from "./admin/analyticsService.js";
 
@@ -209,10 +210,30 @@ async function main(): Promise<void> {
     ),
     // Admin analytics (task 17.3, Req 20) reads the materialized views through
     // the Pg data source; the pure metric core is unchanged.
-    analyticsService: new CachedAggregateAnalyticsService(new PgAnalyticsDataSource(pool)),
+    // Analytics refreshes ON DEMAND when the aggregates are stale (task 24,
+    // Req 20.3) instead of on an hourly cron a sleeping host cannot fire. The
+    // hook is non-fatal: a failed refresh still serves the current views with
+    // their true `computedAt`.
+    analyticsService: new CachedAggregateAnalyticsService(new PgAnalyticsDataSource(pool), {
+      refreshIfStale: createStaleAnalyticsRefresher({
+        db: pool,
+        onError: (err) => app.log.warn({ err }, "lazy analytics refresh failed; serving current aggregates"),
+      }),
+    }),
+    // Read-only scheduling health on /health so a monitor can spot a schedule
+    // that has stopped firing (previously a silent failure).
+    dueWorkStatus: new PgDueWorkStatusSource(pool),
   });
 
-  const scheduler = new PgBossRecurringScheduler(boss);
+  // Recurring jobs are driven by DUE WORK derived from `scheduled_runs`, not by
+  // pg-boss cron (task 24). Verified in pg-boss@10.4.2: a cron window that
+  // elapses while the process is asleep is skipped silently and never replayed,
+  // so on a host that spins down when idle the daily scans effectively never
+  // ran. Persisting each job's cadence turns a missed window into deferred work
+  // that is claimed on the next wake. The domain schedulers below are registered
+  // through the identical `schedule(name, cron, handler)` contract and are
+  // unchanged; only this adapter differs.
+  const scheduler = new DueWorkScheduler(boss, pool);
 
   // ------------------------------------------------------------------------
   // Admin-dependent wiring (gated on the Shopify Admin API token).
@@ -317,13 +338,30 @@ async function main(): Promise<void> {
     preExpiry: { transactor, notifier: new PgBossPreExpiryNotifier(boss) },
   });
 
-  // (F) Analytics-aggregate refresh (Req 20.3, A12). Pure DB — no Admin token
-  // needed — so it is always registered. Refreshes the materialized views the
-  // Pg analytics data source reads, at least hourly.
-  await registerAnalyticsRefresh(scheduler, { db: pool });
+  // (F) Analytics aggregates are NO LONGER refreshed on a schedule (task 24).
+  // They have a single consumer — an admin opening the view — so the refresh is
+  // demand-driven via the `refreshIfStale` hook wired into the analytics service
+  // above. That removes a schedule a sleeping host cannot fire reliably and makes
+  // the figures fresh as of the request rather than up to an hour stale
+  // (Req 20.3, 20.6).
+
+  // (G) Due-work ticker: claim and enqueue whatever is due, immediately on boot
+  // and then periodically while the process is awake (task 24). The boot pass is
+  // what recovers work missed while the host slept.
+  const dueWorkTicker = await startDueWorkTicker({
+    db: pool,
+    boss,
+    onTick: (enqueued) => {
+      if (enqueued.length > 0) {
+        app.log.info({ enqueued }, "due work claimed and enqueued");
+      }
+    },
+    onError: (err) => app.log.error({ err }, "due-work evaluation failed; will retry on the next tick"),
+  });
 
   const close = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "shutting down");
+    dueWorkTicker.stop();
     await app.close();
     await boss.stop();
     await pool.end();

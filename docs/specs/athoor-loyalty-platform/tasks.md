@@ -301,8 +301,12 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
   - _Requirements: 8.1, 8.3, 8.4, 8.6, 8.7, 8.8, 16.6, 16.7, 16.8, 16.10, 16.11_
 
 - [ ] 28. Exercise FIFO expiry and pre-expiry notifications on staging
-  - Blocked on task 24 (the scan runs on a schedule). Seed a matured lot and a lot inside the pre-expiry window, then verify the daily scan creates exactly one negative expiry entry per matured lot equal to its remainder and zeroes it, that a repeat run for the same scan date is a no-op (Property 9), and that the sweep enqueues exactly one notification per qualifying lot carrying the expiring amount and expiry date with no duplicate for an already-notified lot. The ESP is logging-only, so assert on the queued jobs and provider log rather than a delivered email.
-  - _Requirements: 5.2, 5.3, 5.4, 5.5_
+  - Seed a matured lot and a lot inside the pre-expiry window, then verify the scan creates exactly one negative expiry entry per matured lot equal to its remainder and zeroes it, that a repeat run is a no-op (Property 9), and that the sweep enqueues exactly one notification per qualifying lot carrying the expiring amount and expiry date with no duplicate for an already-notified lot. The ESP is logging-only, so assert on the queued jobs and provider log rather than a delivered email. Task 24 replaced cron with due-work catch-up, so the scan can now be driven deterministically by ageing `scheduled_runs.last_run_at` instead of waiting for a schedule.
+  - _Requirements: 5.2, 5.2a, 5.3, 5.4, 5.5_
+
+- [ ] 29. Decide the backup and disaster-recovery strategy
+  - **The current deployment does not satisfy Req 13.6.** Free-tier Postgres provides no backup retention and no point-in-time recovery, and free projects are paused after a week of inactivity. The ledger is the authoritative record of what members are owed, so this is a data-loss exposure rather than an inconvenience. Evaluate the options — accept a documented deviation, add periodic logical backups from a free runner (recovery to the last dump, so RPO equals the dump interval, and note that this places a database credential in CI), or move to the cheapest paid database that includes retention and PITR. Decide deliberately, then either amend Req 13.6 to match what is delivered or implement what it already requires. Req 13.6 is deliberately left unchanged until this decision is made.
+  - _Requirements: 13.6_
 
 ## Notes
 
@@ -344,7 +348,7 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     { "id": 22, "tasks": ["19.1", "20.1"] },
     { "id": 23, "tasks": ["19.2", "19.3", "20.2", "21.1"] },
     { "id": 24, "tasks": ["21.2"] },
-    { "id": 25, "tasks": ["23", "24", "25", "26", "27"] },
+    { "id": 25, "tasks": ["23", "24", "25", "26", "27", "29"] },
     { "id": 26, "tasks": ["28"] }
   ]
 }

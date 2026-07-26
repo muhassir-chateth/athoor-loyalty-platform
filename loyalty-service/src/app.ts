@@ -4,6 +4,7 @@ import { registerVersioning } from "./plugins/versioning.js";
 import { webhookRoutes } from "./plugins/webhooks.js";
 import type { WebhookEventStore } from "./webhooks/eventStore.js";
 import type { WebhookEnqueuer } from "./webhooks/enqueue.js";
+import type { DueWorkStatusSource } from "./scheduling/dueWork.js";
 import { v1Routes } from "./routes/v1.js";
 import { adminRoutes } from "./admin/routes.js";
 import type { AdminAuthenticator } from "./admin/adminAuth.js";
@@ -19,6 +20,7 @@ import type { LedgerHistorySource } from "./routes/history.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
+import type { OverdueJob } from "./scheduling/dueWork.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
@@ -32,6 +34,14 @@ import { API_VERSION } from "./version.js";
 export interface AppDependencies {
   webhookEventStore?: WebhookEventStore;
   webhookEnqueuer?: WebhookEnqueuer;
+  /**
+   * OPTIONAL read-only view of due-work scheduling state, surfaced on `/health`
+   * (task 24). Lets an external monitor detect a schedule that has stopped
+   * firing — previously a silent failure, because pg-boss skips a missed cron
+   * window without error. Omitted in tests and local runs, where `/health`
+   * keeps its original shape.
+   */
+  dueWorkStatus?: DueWorkStatusSource;
   /**
    * Backs idempotent replay for state-changing `/v1` requests (Req 9.6/9.7).
    * Production wires a Pg-backed store; tests and local runs omit it and an
@@ -172,8 +182,30 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
   registerVersioning(app);
 
   // Liveness/readiness probe (not under /v1 — infra concern, not a loyalty op).
+  //
+  // This is also the endpoint an external free scheduler pings to WAKE a host
+  // that sleeps when idle (task 24). It is deliberately side-effect-free: the
+  // ping only causes the process to start, and the due-work ticker inside the
+  // service then decides what is actually due from its own persisted timestamps.
+  // No scheduling authority is delegated to the caller, so no credential is
+  // shared and no mutating endpoint is exposed.
+  //
+  // When a due-work status source is wired it also reports schedules overdue
+  // beyond their grace period, so a monitor can detect a schedule that has
+  // stopped firing — the failure mode that was previously silent. Reporting is
+  // best-effort: if the lookup fails the probe still answers `ok`, because
+  // liveness must not depend on the scheduling table.
   app.get("/health", async () => {
-    return { status: "ok", version: API_VERSION };
+    const base = { status: "ok", version: API_VERSION };
+    if (!deps.dueWorkStatus) {
+      return base;
+    }
+    try {
+      const overdue = await deps.dueWorkStatus.listOverdue();
+      return { ...base, scheduling: { overdue } };
+    } catch {
+      return base;
+    }
   });
 
   // Mount all loyalty operations under /v1 (Requirement 9.1). The router also
