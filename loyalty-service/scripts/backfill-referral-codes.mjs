@@ -32,6 +32,20 @@
  * cannot be started. Best-effort — a queue failure never loses a committed code,
  * and reconciliation converges the cache regardless.
  *
+ * RUN RECONCILIATION AFTERWARDS. This script only refreshes the cache for codes
+ * it CREATED — by design, since it must not touch customers that already had a
+ * code. But a customer who already had a code may still be MISSING the
+ * `loyalty.referral_code` metafield, because that key was only added to the cache
+ * payload in task 34: their last cache write predates it. Observed exactly that
+ * on staging — the two customers with pre-existing codes had no metafield until
+ * reconciliation ran. So after applying:
+ *
+ *     POST /v1/admin/operations/reconciliation
+ *
+ * which recomputes every customer's cache from the ledger and repairs the drift
+ * (Req 13.7). On staging that also converged a `points_balance` that had been
+ * stale since before the task-35 fix (50 → 450).
+ *
  * USAGE
  *   DATABASE_URL=postgres://... node scripts/backfill-referral-codes.mjs
  *   DATABASE_URL=postgres://... node scripts/backfill-referral-codes.mjs --apply
