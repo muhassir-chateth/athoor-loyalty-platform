@@ -24,10 +24,17 @@ same pattern rather than discovering cases one at a time.
 
 Ordered by impact.
 
-### 1. Idempotency is in-memory in production — HIGH
+### 1. ~~Idempotency is in-memory in production~~ — RESOLVED (commit 782a5e4)
 
-`PgIdempotencyStore` exists and is never constructed. `index.ts` passes no
-`idempotencyStore`, so `buildApp` falls back to `InMemoryIdempotencyStore`.
+**Fixed:** `PgIdempotencyStore` is now wired into `buildApp` in `index.ts`.
+Migration `1785500000000_create-idempotency-keys` creates the backing table.
+A boot-wiring regression test (`src/boot.wiring.test.ts`) prevents future
+unwiring. Verified on staging: stored response replayed from Postgres across
+requests (key `POST /v1/redeem:staging-idem-test-1785073533`, 400 response
+stored and replayed correctly).
+
+~~`PgIdempotencyStore` exists and is never constructed. `index.ts` passes no
+`idempotencyStore`, so `buildApp` falls back to `InMemoryIdempotencyStore`.~~
 
 Consequence: the Req 9.6 **24-hour** replay window is process-local and lost on
 every restart. On zero-cost hosting the service spins down after ~15 idle

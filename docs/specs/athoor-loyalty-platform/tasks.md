@@ -308,6 +308,19 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
 - [ ] 29. Decide the backup and disaster-recovery strategy
   - **The current deployment does not satisfy Req 13.6.** Free-tier Postgres provides no backup retention and no point-in-time recovery, and free projects are paused after a week of inactivity. The ledger is the authoritative record of what members are owed, so this is a data-loss exposure rather than an inconvenience. Evaluate the options — accept a documented deviation, add periodic logical backups from a free runner (recovery to the last dump, so RPO equals the dump interval, and note that this places a database credential in CI), or move to the cheapest paid database that includes retention and PITR. Decide deliberately, then either amend Req 13.6 to match what is delivered or implement what it already requires. Req 13.6 is deliberately left unchanged until this decision is made.
   - _Requirements: 13.6_
+  - _Note (reachability audit, LOW):_ `verifyBackupConfiguration` / `evaluateBackupStatus` helpers remain unused until this task decides whether to implement or amend Req 13.6.
+
+- [ ] 30. Wire VIP benefits and entitlements end to end
+  - **Reachability audit finding 2 (HIGH).** The benefit/entitlement model is fully implemented and unit-tested (tasks 15.1/15.2) but has no production call site: no route exposes benefits, `DbEntitlementResolver` is never constructed, and `GET /v1/balance` / `GET /v1/profile` return no benefits field. Req 18 is therefore unmet end to end. This task wires the existing implementation into the running service: construct `DbEntitlementResolver` with the pool in `index.ts`, add benefits to the profile/balance response, expose a `POST /v1/benefits/:id/request` endpoint for invocable benefits, and validate on staging that tier-gated benefits are resolved, included in responses, and requestable by qualifying members (with rejection for unqualified invocation).
+  - _Requirements: 7.8, 18.2, 18.3, 18.5, 18.6_
+
+- [ ] 31. Wire profile preference write endpoints
+  - **Reachability audit finding 3 (HIGH).** `GET /v1/profile` returns `favourites`, `wishlist`, `recentlyViewed`, and `suggestions` but there is no endpoint to write any of them. `setFavourite`, `reconcileWishlist`, `RecentlyViewedStore`, and `RulesBasedSuggestionEngine` are all unreferenced, and `index.ts` constructs no preference store. This task wires the existing implementations: construct `PgRecentlyViewedStore` and favourite/wishlist stores in `index.ts`, add `POST /v1/profile/favourites`, `DELETE /v1/profile/favourites/:productId`, `POST /v1/profile/recently-viewed` (rate-limited/sampled, Req 17.5), implement the wishlist union-reconciliation trigger on authentication (Req 17.4), and validate on staging that writes persist and are reflected in the next `GET /v1/profile` response. The recently-viewed endpoint must not touch the ledger (Property 13).
+  - _Requirements: 17.2, 17.4, 17.5, 17.6_
+
+- [ ] 32. Configuration-driven earning and reward rules
+  - **Reachability audit finding 4 (MEDIUM).** `DbMarketConfigProvider` and `StaticMarketConfigProvider` are never constructed. The `markets`, `earning_rule_sets`, and `reward_rule_sets` tables are seeded by migration and read by nothing; the engine uses hardcoded constants. Behaviour is correct today (config matches constants) but Req 21.2 intended the engine to read config, so changes require code deploys. Decide whether to wire `DbMarketConfigProvider` into the earning/redemption/tier engines (so thresholds/multipliers/rewards are read from the DB) OR amend Req 21.2 to document that hardcoded constants are the MVP source of truth. If wiring: construct the provider in `index.ts`, thread it into the tier derivation and earning engine, add a test proving a config change propagates without a deploy, and validate on staging. If amending: update requirements.md and close with a documented deviation.
+  - _Requirements: 21.2, 21.3, 21.6_
 
 ## Notes
 
@@ -315,7 +328,9 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
 - Property-based tests use `fast-check` (TypeScript) and each references a specific correctness property (1–16) and the requirement clause it validates.
 - Each task references specific requirement sub-clauses for traceability, and builds on prior tasks so nothing is left orphaned — every component is wired into the running `/v1` service.
 - Checkpoints (tasks 8, 13, 18, 22) provide incremental validation at phase boundaries.
-- Phase 5 (tasks 23–28) tracks post-staging follow-ups. Each is independent and can be run on its own; only task 28 has a prerequisite (task 24, since expiry runs on a schedule). Tasks 24, 26 and 27 are operational/validation work producing evidence and documentation rather than service code.
+- Phase 5 (tasks 23–32) tracks post-staging follow-ups. Tasks 23–29 are the original backlog; 30–32 were raised by the reachability audit. Each is independent and can be run on its own; only task 28 has a prerequisite (task 24, since expiry runs on a schedule). Tasks 24, 26 and 27 are operational/validation work producing evidence and documentation rather than service code.
+- Tasks 30–32 track reachability-audit findings 2–4 (VIP benefits, profile writes, config-driven rules). Each is independent.
+- _LOW-severity note (reachability audit finding 5):_ Notification targeting (`resolveNotificationTargets`) has no call site; device tokens can be registered but nothing targets them. This is expected while no push provider is configured and Req 19.2 only requires the model. Tracked here rather than as a separate task.
 - Basic-plan constraints are honored throughout: all automation lives in the external backend (no Shopify Flow), the checkout page is never customized, the Admin API is called only outbound via a queue with backoff, and metafields remain a display cache only.
 - The migration tasks (7.1–7.3) are strictly data-safe: no metafield is ever deleted, the M0 export is the rollback anchor, and rollback is supported at every phase.
 
@@ -349,7 +364,7 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     { "id": 22, "tasks": ["19.1", "20.1"] },
     { "id": 23, "tasks": ["19.2", "19.3", "20.2", "21.1"] },
     { "id": 24, "tasks": ["21.2"] },
-    { "id": 25, "tasks": ["23", "24", "25", "26", "27", "29"] },
+    { "id": 25, "tasks": ["23", "24", "25", "26", "27", "29", "30", "31", "32"] },
     { "id": 26, "tasks": ["28"] }
   ]
 }
