@@ -44,6 +44,7 @@ import {
   DISCOUNT_CODE_JOB,
 } from "./redemption/generateDiscountCode.js";
 import { PgCustomerResolver } from "./auth/identity.js";
+import { PgIdempotencyStore } from "./idempotency/store.js";
 import { assignReferralCode, awardReferralFirstPurchase } from "./referral/referral.js";
 import { PgCustomerBalanceSource } from "./routes/balance.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
@@ -142,6 +143,14 @@ async function main(): Promise<void> {
   const app = buildApp(config, {
     webhookEventStore,
     webhookEnqueuer: new PgBossWebhookEnqueuer(boss),
+    // Pg-backed 24-hour idempotency store (Req 9.6/9.7, task 14). On zero-cost
+    // hosting the process spins down after ~15 minutes idle, so the previous
+    // in-memory fallback delivered a window of minutes, not a day. Wiring the
+    // Pg store here makes the contract real: any client retry with the same
+    // Idempotency-Key within 24 h will receive the stored response regardless of
+    // spin-downs or restarts. The table is created by migration
+    // 1785500000000_create-idempotency-keys.
+    idempotencyStore: new PgIdempotencyStore(pool),
     // Pg-backed customer sources for the authenticated `/v1` consumer surface
     // (Req 9.2, 6.x, 17.x, 19.x). Without these the endpoints fail closed
     // (empty/not-found). `tokenVerifier` is intentionally left unwired — no Pg
