@@ -128,6 +128,21 @@ describe("boot wiring regression — index.ts must wire Pg-backed implementation
   });
 
   // -------------------------------------------------------------------------
+  // 6b. Latest-backup status source (task 29, Req 13.6 as amended)
+  //     Supabase Free has no automated backups and no PITR; protection is a
+  //     daily encrypted logical dump recorded in `backup_runs`. Without this
+  //     wiring `/health` omits the `backups` block and a backup mechanism that
+  //     stopped running would again be invisible.
+  // -------------------------------------------------------------------------
+  it("imports PgLatestBackupSource", () => {
+    expect(indexSource).toMatch(/import\s.*PgLatestBackupSource.*from/);
+  });
+
+  it("passes PgLatestBackupSource to buildApp as backupStatus", () => {
+    expect(indexSource).toMatch(/backupStatus\s*:\s*new\s+PgLatestBackupSource\s*\(/);
+  });
+
+  // -------------------------------------------------------------------------
   // 7. Analytics service (task 24 / 17.3, Req 20)
   // -------------------------------------------------------------------------
   it("imports CachedAggregateAnalyticsService", () => {

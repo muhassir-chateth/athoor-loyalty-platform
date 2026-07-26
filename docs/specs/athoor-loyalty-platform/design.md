@@ -959,7 +959,10 @@ Processing a paid order never lowers a customer's tier.
 | DB transaction conflict | Serialize/retry | `FOR UPDATE` ensures correctness |
 
 ### Backup & recovery
-- **Point-in-time recovery (PITR)** enabled on Postgres (managed provider); daily automated backups + WAL retention (≥7 days).
+
+> **As deployed (task 29, A17):** the zero-cost database tier provides no automated backups, no PITR and no WAL retention, so the PITR line below describes the **target** state, not the current one. What runs today is a **daily encrypted logical dump** from CI (`.github/workflows/backup.yml`): `pg_dump` → `age` public-key encryption → retained off-site for ≥7 days → one `backup_runs` row written only after the artifact is safely stored. `/health` publishes the age of the newest successful backup so a mechanism that stops running is visible rather than silent, and the keep-alive watchdog fails loudly on a stale value. RPO ≈ 24 hours, RTO manual. The deviation is machine-checked: `LOGICAL_BACKUP_SPEC` encodes the amended standard and the deployment is asserted to **fail** the stricter `REQUIRED_BACKUP_SPEC` on `PITR_DISABLED` and `WAL_RETENTION_TOO_SHORT`. Runbook and adoption triggers: `docs/ops/backup-and-recovery.md`.
+
+- **Point-in-time recovery (PITR)** enabled on Postgres (managed provider); daily automated backups + WAL retention (≥7 days). *(Target state; see the note above for what is deployed.)*
 - The **immutable ledger** means state is fully reconstructable: `customers.lifetime_points`, `tier`, and `point_lots.remaining` are all rebuildable by replaying `ledger_entries`.
 - A **reconciliation job** periodically recomputes cached balances/tiers from the ledger and repairs drift (including metafield cache).
 - `webhook_events` retains raw event hashes for audit; Shopify can also resend recent webhooks if a window is missed.
@@ -1014,12 +1017,20 @@ recorded here so the specification matches reality:
    A free external monitor calls the public, side-effect-free `GET /health` to
    wake the service and to surface any job overdue beyond its grace period.
 
-2. **Requirement 13.6 (automated backups, PITR, WAL ≥ 7 days) is NOT satisfied by
-   the current deployment.** The free database plan provides no backup retention
-   and no point-in-time recovery. Req 13.6 is intentionally **left unchanged** —
-   the deployment does not meet it, and closing that gap is tracked as its own
-   follow-up decision on backup and disaster recovery. Do not read the rest of
-   this document as implying backups exist today.
+2. **Requirement 13.6 has been AMENDED rather than met as originally written
+   (task 29, A17).** The free database plan provides no automated backups, no
+   point-in-time recovery and no WAL retention, so the original requirement was
+   unmet on every clause. The decision taken was to keep zero-cost hosting and
+   deliver a **daily encrypted logical dump** from CI instead: `pg_dump` → `age`
+   public-key encryption (the private key never enters CI or the repository) →
+   ≥7-day off-site retention → a `backup_runs` row written only after the
+   artifact is stored, whose age `/health` publishes so a stalled mechanism is
+   visible rather than silent. Req 13.6 now states that standard, 13.6a requires
+   the freshness reporting, and 13.6b keeps the stricter PITR standard
+   machine-checked with explicit adoption triggers. **What this means in
+   practice: RPO ≈ 24 hours and a manual RTO — recovery is to the previous
+   nightly dump, not to an arbitrary second.** Runbook:
+   `docs/ops/backup-and-recovery.md`.
 
 Full evaluation: `docs/ops/zero-cost-architecture.md` in the repository.
 

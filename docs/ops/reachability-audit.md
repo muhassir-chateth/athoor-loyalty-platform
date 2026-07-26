@@ -104,11 +104,18 @@ recording so it is a known gap rather than an assumption.
 
 *Requirements affected: 19.2.*
 
-### 6. Backup verification helpers unused — LOW (already tracked)
+### 6. ~~Backup verification helpers unused~~ — RESOLVED (task 29)
 
-`verifyBackupConfiguration` / `evaluateBackupStatus` are never called, consistent
-with Req 13.6 being unmet on free-tier hosting. Already tracked as task 29; noted
-here only for completeness.
+**Fixed:** `LogicalBackupStatusProvider` in `src/reliability/backupRuns.ts` is the
+production `BackupStatusProvider` these helpers always lacked, deriving the real
+posture from the newest `backup_runs` row. `verifyBackupConfiguration` is now
+reachable, and the free-tier deviation is machine-checked rather than implied: the
+deployment passes `LOGICAL_BACKUP_SPEC` and is asserted to **fail**
+`REQUIRED_BACKUP_SPEC` on exactly `PITR_DISABLED` and `WAL_RETENTION_TOO_SHORT`.
+`/health` publishes backup freshness so a stalled mechanism is visible.
+
+~~`verifyBackupConfiguration` / `evaluateBackupStatus` are never called, consistent
+with Req 13.6 being unmet on free-tier hosting.~~
 
 ## Not findings
 

@@ -24,6 +24,7 @@ import type { Queryable } from "./ledger/repository.js";
 import { registerWebhookProcessingWorker, type Transactor } from "./worker.js";
 import { DueWorkScheduler, startDueWorkTicker } from "./scheduling/dueWorkScheduler.js";
 import { PgDueWorkStatusSource } from "./scheduling/dueWork.js";
+import { PgLatestBackupSource } from "./reliability/backupRuns.js";
 import { registerExpiryScan } from "./expiry/scheduler.js";
 import {
   PgBossPreExpiryNotifier,
@@ -238,6 +239,14 @@ async function main(): Promise<void> {
     // Read-only scheduling health on /health so a monitor can spot a schedule
     // that has stopped firing (previously a silent failure).
     dueWorkStatus: new PgDueWorkStatusSource(pool),
+    // Read-only backup health on /health (task 29). Supabase Free provides no
+    // automated backups and no PITR, so protection is a daily encrypted logical
+    // dump taken by `.github/workflows/backup.yml`, which records each success in
+    // `backup_runs` (migration 1785600000000_create-backup-runs). Publishing the
+    // age of the newest dump is what turns "backups stopped weeks ago" from a
+    // discovery made during an incident into an alert the keep-alive watchdog can
+    // raise the next morning.
+    backupStatus: new PgLatestBackupSource(pool),
     // Referral attribution (task 25, Req 2.9/11.8). Shopify's customers/create
     // payload carries no referral field, so the friend submits their code
     // through the signed App Proxy surface; this is what finally gives the

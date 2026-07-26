@@ -1,0 +1,301 @@
+# Daily encrypted logical backup of the loyalty Postgres database (task 29).
+#
+# WHY THIS EXISTS
+#   Requirement 13.6 asks for point-in-time recovery, automated backups and WAL
+#   retention of at least 7 days. Supabase's free tier provides NONE of those
+#   three, so on zero-cost hosting the requirement was unmet on every clause —
+#   quietly. This workflow is the amended standard: one encrypted logical dump a
+#   day, retained for at least 7 days. That buys a ~24-hour RPO and a manual RTO.
+#   It cannot recover to an arbitrary second; see docs/ops/backup-and-recovery.md
+#   for the documented deviation and the trigger for adopting real PITR.
+#
+# WHY IT IS ENCRYPTED
+#   `customers.email` is a CITEXT column, so a dump contains customer PII. The
+#   artifact is encrypted to an `age` PUBLIC key whose PRIVATE half never leaves
+#   the operator (password manager / offline store — never this repository, never
+#   CI). CI can therefore WRITE backups but cannot READ them, and neither can
+#   anyone who gains access to CI or to the artifact store. That asymmetry is
+#   deliberate: it is the whole point of using a public-key scheme here rather
+#   than a shared passphrase.
+#
+# WHY IT NEVER TOUCHES THE REPOSITORY
+#   Dumps are PII. They are uploaded as workflow artifacts (and optionally to R2)
+#   and are never committed; `permissions: {}` means this job holds no write
+#   access to repository contents at all.
+#
+# REQUIRED CONFIGURATION (Settings → Secrets and variables → Actions)
+#   Secret   BACKUP_DATABASE_URL     Postgres connection URL used for the dump
+#                                    and for recording the run. Include
+#                                    `?sslmode=require`.
+#   Variable BACKUP_AGE_PUBLIC_KEY   `age` recipient public key (`age1...`).
+#                                    A public key, so a repository VARIABLE
+#                                    rather than a secret — it is not sensitive,
+#                                    and being able to read it in the log is
+#                                    useful when confirming which keypair a given
+#                                    artifact was encrypted to.
+#
+# OPTIONAL OFF-SITE COPY (all four must be present, or the step skips cleanly)
+#   Secret   R2_ACCOUNT_ID           Cloudflare account id (builds the endpoint)
+#   Secret   R2_BUCKET               Destination bucket name
+#   Secret   R2_ACCESS_KEY_ID        S3-compatible access key id
+#   Secret   R2_SECRET_ACCESS_KEY    S3-compatible secret access key
+#   R2 is a DIFFERENT FAILURE DOMAIN from Supabase and from GitHub, which is the
+#   only reason to bother. The workflow is fully functional before it is
+#   configured, so R2 can be added later without touching this file.
+#
+# FAILURE PHILOSOPHY
+#   Fail loudly. `set -euo pipefail` plus explicit `::error::` annotations, so a
+#   broken backup is a red run rather than a green one with an empty file. The
+#   run is recorded in `backup_runs` ONLY after the artifact is safely uploaded,
+#   so `/health` can never report a recovery point that does not exist.
+name: Daily encrypted database backup
+
+on:
+  schedule:
+    # 03:15 UTC — quiet hour for a UK storefront, and offset from the top of the
+    # hour because GitHub's scheduled queue is busiest there.
+    - cron: "15 3 * * *"
+  # Manual run, used when verifying the setup and when taking a pre-migration dump.
+  workflow_dispatch:
+
+# No repository contents are read or written, so grant nothing.
+permissions: {}
+
+concurrency:
+  group: database-backup
+  # Never cancel a backup in flight — a half-finished dump is worse than a late one.
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # ---------------------------------------------------------------------
+      # Fail fast and clearly when the workflow has not been configured yet,
+      # rather than producing a confusing pg_dump or age error further down.
+      # ---------------------------------------------------------------------
+      - name: Check required configuration
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_PUBLIC_KEY: ${{ vars.BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          if [ -z "${BACKUP_DATABASE_URL:-}" ]; then
+            echo "::error::Secret BACKUP_DATABASE_URL is not set; cannot take a backup."
+            missing=1
+          fi
+          if [ -z "${BACKUP_AGE_PUBLIC_KEY:-}" ]; then
+            echo "::error::Variable BACKUP_AGE_PUBLIC_KEY is not set; refusing to write an UNENCRYPTED dump containing customer PII."
+            missing=1
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+
+          # An age recipient key is always `age1...`. Catching a pasted PRIVATE
+          # key here matters: `AGE-SECRET-KEY-...` in a repository variable would
+          # be a leaked private key, and the encryption would still "work",
+          # hiding the mistake.
+          case "$BACKUP_AGE_PUBLIC_KEY" in
+            age1*) : ;;
+            AGE-SECRET-KEY-*)
+              echo "::error::BACKUP_AGE_PUBLIC_KEY looks like an age PRIVATE key. Rotate the keypair immediately and store only the age1... public key here."
+              exit 1
+              ;;
+            *)
+              echo "::error::BACKUP_AGE_PUBLIC_KEY does not look like an age public key (expected it to start with 'age1')."
+              exit 1
+              ;;
+          esac
+
+          echo "Configuration present."
+
+      - name: Install age
+        run: |
+          set -euo pipefail
+          # `age` ships in the Ubuntu archive, so no third-party download and no
+          # extra trust root is introduced for the tool that protects the PII.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+          age --version
+
+      # ---------------------------------------------------------------------
+      # Dump, then encrypt, in one step so the PLAINTEXT dump never outlives
+      # the step that created it and is never handed to another action.
+      #
+      # WHY A PINNED POSTGRES DOCKER IMAGE RATHER THAN THE RUNNER'S CLIENT:
+      # pg_dump REFUSES to dump from a server newer than itself ("server version
+      # X; pg_dump version Y ... aborting because of server version mismatch").
+      # The runner image's client version is outside our control and changes
+      # without notice, so relying on it means the backup breaks on a GitHub
+      # image update or a Supabase upgrade — silently, from our point of view,
+      # until someone reads a failed run. Pinning the client to a major version
+      # we choose makes that a deliberate, reviewed change instead.
+      # ---------------------------------------------------------------------
+      - name: Dump and encrypt
+        env:
+          # Passed to docker with `-e NAME` (no value on the command line), so
+          # the URL never appears in a process listing or in the run log.
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_PUBLIC_KEY: ${{ vars.BACKUP_AGE_PUBLIC_KEY }}
+          # Must be >= the Supabase server's major version. Verified against the
+          # live database: `SHOW server_version` reports 17.6, hence 17. Bump
+          # deliberately when Supabase is upgraded.
+          PG_IMAGE: postgres:17-alpine
+        run: |
+          set -euo pipefail
+
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          base="loyalty-${stamp}"
+          plain="${base}.sql.gz"
+          cipher="${plain}.age"
+
+          # --no-owner / --no-privileges: the dump must restore into ANY database
+          #   (a scratch validation database, a new Supabase project) without
+          #   depending on role names that exist only in the current one. Without
+          #   these, a restore fails on unknown roles exactly when you are least
+          #   able to debug it.
+          # --compress=9: a loyalty ledger dump is highly compressible text, and
+          #   age does not compress, so compressing before encrypting is what
+          #   keeps the artifact small.
+          # Plain SQL (not -Fc) keeps the restore path dependency-light: psql can
+          #   restore it, so recovery never depends on having a matching
+          #   pg_restore to hand.
+          # The URL is expanded INSIDE the container (single-quoted here), so it
+          # never appears in the host's process listing or in the run log.
+          docker run --rm \
+            -e BACKUP_DATABASE_URL \
+            "$PG_IMAGE" \
+            sh -c 'pg_dump \
+              --dbname="$BACKUP_DATABASE_URL" \
+              --format=plain \
+              --no-owner \
+              --no-privileges \
+              --compress=9' \
+            > "$plain"
+
+          # A zero-byte or trivially small dump means the dump failed in a way
+          # that still exited 0. Refuse to record such a run as a backup.
+          plain_size="$(stat -c %s "$plain")"
+          if [ "$plain_size" -lt 1024 ]; then
+            echo "::error::pg_dump produced only ${plain_size} bytes; treating this as a failed backup."
+            rm -f "$plain"
+            exit 1
+          fi
+
+          # Encrypt to the operator's public key. `-r` takes a RECIPIENT, so this
+          # job can create backups it cannot itself read.
+          age --recipient "$BACKUP_AGE_PUBLIC_KEY" --output "$cipher" "$plain"
+
+          # The plaintext PII must not survive the step, be cached, or be
+          # uploaded anywhere.
+          rm -f "$plain"
+
+          size_bytes="$(stat -c %s "$cipher")"
+          sha256="$(sha256sum "$cipher" | awk '{print $1}')"
+
+          if [ "$size_bytes" -le 0 ]; then
+            echo "::error::Encrypted artifact is empty; treating this as a failed backup."
+            exit 1
+          fi
+
+          # Only non-sensitive metadata is logged: never the URL, never dump
+          # contents. The digest is what an operator checks a download against.
+          echo "artifact: $cipher"
+          echo "size_bytes: $size_bytes"
+          echo "sha256: $sha256"
+
+          {
+            echo "ARTIFACT=$cipher"
+            echo "SIZE_BYTES=$size_bytes"
+            echo "SHA256=$sha256"
+            echo "STARTED_AT=$started_at"
+          } >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------------
+      # Retention: 14 days of artifacts, comfortably above the 7-day standard,
+      # so a backup taken on a Friday is still available a week later.
+      # ---------------------------------------------------------------------
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+          retention-days: 14
+          # A missing file must fail the run, not warn.
+          if-no-files-found: error
+
+      # ---------------------------------------------------------------------
+      # Optional off-site copy. GitHub artifacts and Supabase are different
+      # providers already, but R2 adds a copy we control the lifecycle of and can
+      # keep beyond the artifact window. Skipped cleanly (with a notice, not a
+      # failure) until the secrets exist, so this workflow is useful on day one.
+      # ---------------------------------------------------------------------
+      - name: Copy off-site to Cloudflare R2 (optional)
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # R2 is S3-compatible but region-less; `auto` is what it expects.
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+
+          if [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${R2_BUCKET:-}" ] || \
+             [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::notice::R2 secrets are not configured; keeping the GitHub artifact as the only copy. Add R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY to gain an off-site copy in a separate failure domain."
+            echo "DESTINATION=gha-artifact" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          # The AWS CLI is preinstalled on GitHub-hosted runners.
+          aws s3 cp "$ARTIFACT" "s3://${R2_BUCKET}/loyalty/${ARTIFACT}" \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --only-show-errors
+
+          echo "Off-site copy uploaded to R2."
+          echo "DESTINATION=r2" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------------
+      # Record the run LAST, and only on success. `backup_runs.completed_at` is
+      # what `/health` publishes as the platform's most recent recovery point, so
+      # writing it before the artifact is safely stored would make the service
+      # advertise a backup that does not exist — precisely the silent failure this
+      # whole mechanism is meant to eliminate.
+      # ---------------------------------------------------------------------
+      - name: Record the successful run in backup_runs
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PG_IMAGE: postgres:17-alpine
+        run: |
+          set -euo pipefail
+
+          # The statement lives in a file fed to psql on stdin, and every value is
+          # passed as a psql VARIABLE interpolated with :'name' (quoted
+          # server-side). Nothing is string-concatenated into SQL, and the
+          # connection URL is expanded inside the container so it stays out of the
+          # log and out of the host's process listing.
+          cat > record.sql <<'SQL'
+          INSERT INTO backup_runs (kind, destination, size_bytes, sha256, encrypted, started_at)
+          VALUES (:'kind', :'destination', :'size_bytes', :'sha256', true, :'started_at');
+          SQL
+
+          docker run --rm -i \
+            -e BACKUP_DATABASE_URL \
+            -e DESTINATION="${DESTINATION:-gha-artifact}" \
+            -e SIZE_BYTES="$SIZE_BYTES" \
+            -e SHA256="$SHA256" \
+            -e STARTED_AT="$STARTED_AT" \
+            "$PG_IMAGE" \
+            sh -c 'psql "$BACKUP_DATABASE_URL" --no-psqlrc --quiet -v ON_ERROR_STOP=1 -v kind=logical_dump -v destination="$DESTINATION" -v size_bytes="$SIZE_BYTES" -v sha256="$SHA256" -v started_at="$STARTED_AT" --file -' \
+            < record.sql
+
+          echo "Recorded the backup run; /health will report it as the latest recovery point."
+
+      - name: Report failure loudly
+        if: failure()
+        run: |
+          echo "::error::The daily encrypted backup FAILED. No row was recorded, so /health will begin reporting backups.stale once the newest dump passes 26 hours old. Investigate before the next scheduled run."

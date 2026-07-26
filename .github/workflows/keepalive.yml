@@ -79,3 +79,21 @@ jobs:
           fi
 
           echo "No overdue scheduled jobs."
+
+          # `backups.stale` (task 29) is true when the newest encrypted dump is
+          # older than its 26-hour threshold OR when none has ever been recorded.
+          # A backup mechanism that stops silently is worthless — you discover it
+          # at the moment you need the backup — so it pages exactly like a dead
+          # schedule does. The block is absent when the service cannot read the
+          # bookkeeping table, which is reported but not treated as a failure,
+          # because liveness must not depend on it.
+          backups="$(echo "$response" | jq -c '.backups // empty')"
+          if [ -z "$backups" ]; then
+            echo "::notice::No backups block reported; the service could not read backup state."
+          elif [ "$(echo "$backups" | jq -r '.stale')" = "true" ]; then
+            last="$(echo "$backups" | jq -r '.lastSuccessAt // "never"')"
+            echo "::error::Database backups are stale (last successful: $last). Check the 'Daily encrypted database backup' workflow; see docs/ops/backup-and-recovery.md."
+            exit 1
+          else
+            echo "Backups fresh (last successful: $(echo "$backups" | jq -r '.lastSuccessAt'))."
+          fi

@@ -22,6 +22,7 @@ import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
 import type { OverdueJob } from "./scheduling/dueWork.js";
+import { evaluateBackupFreshness, type LatestBackupSource } from "./reliability/backupRuns.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
@@ -43,6 +44,23 @@ export interface AppDependencies {
    * keeps its original shape.
    */
   dueWorkStatus?: DueWorkStatusSource;
+  /**
+   * OPTIONAL read-only view of the most recent successful database backup,
+   * surfaced on `/health` (task 29). Supabase Free provides no automated backups
+   * and no PITR, so protection comes from a daily encrypted logical dump taken
+   * by `.github/workflows/backup.yml`, which records each success in
+   * `backup_runs`.
+   *
+   * WHY IT IS REPORTED HERE: a backup that quietly stops running is the classic
+   * backup failure mode — you discover it at the exact moment you need the
+   * backup. This codebase has a documented history of precisely this class of
+   * bug (pg-boss skipping cron windows without error; four rounds of
+   * implemented-but-unreachable wiring), so the freshness of the last dump is
+   * made observable rather than assumed, letting the keep-alive watchdog fail
+   * loudly on it. Omitted in tests and local runs, where `/health` keeps its
+   * original shape.
+   */
+  backupStatus?: LatestBackupSource;
   /**
    * Pg-backed dependencies for the referral attribution endpoints (task 25,
    * Req 2.9/11.8). When omitted the routes are not registered at all, so tests
@@ -204,17 +222,48 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
   // stopped firing — the failure mode that was previously silent. Reporting is
   // best-effort: if the lookup fails the probe still answers `ok`, because
   // liveness must not depend on the scheduling table.
+  //
+  // The `backups` block (task 29) follows the IDENTICAL pattern for the same
+  // reason: Supabase Free has no automated backups and no PITR, so protection is
+  // a daily encrypted logical dump whose only durable evidence is a `backup_runs`
+  // row. A backup mechanism that silently stops is worthless — you learn about it
+  // when you need the backup — so its freshness is published here where the
+  // existing keep-alive watchdog can fail loudly on it. Also best-effort: a
+  // failed lookup omits the block rather than failing the probe.
   app.get("/health", async () => {
-    const base = { status: "ok", version: API_VERSION };
-    if (!deps.dueWorkStatus) {
-      return base;
+    const payload: {
+      status: string;
+      version: string;
+      scheduling?: { overdue: OverdueJob[] };
+      backups?: { lastSuccessAt: string | null; ageHours: number | null; stale: boolean };
+    } = { status: "ok", version: API_VERSION };
+
+    if (deps.dueWorkStatus) {
+      try {
+        payload.scheduling = { overdue: await deps.dueWorkStatus.listOverdue() };
+      } catch {
+        // Best-effort: liveness must not depend on the scheduling table.
+      }
     }
-    try {
-      const overdue = await deps.dueWorkStatus.listOverdue();
-      return { ...base, scheduling: { overdue } };
-    } catch {
-      return base;
+
+    if (deps.backupStatus) {
+      try {
+        const latest = await deps.backupStatus.getLatestSuccessful();
+        const freshness = evaluateBackupFreshness(latest, new Date());
+        payload.backups = {
+          lastSuccessAt: freshness.lastSuccessAt,
+          ageHours: freshness.ageHours,
+          // `stale` is true both when the newest dump is too old AND when none
+          // has ever been recorded — from a monitor's point of view "no recovery
+          // point" is at least as urgent as "an ageing one".
+          stale: !freshness.ok,
+        };
+      } catch {
+        // Best-effort: liveness must not depend on the backup bookkeeping table.
+      }
     }
+
+    return payload;
   });
 
   // Mount all loyalty operations under /v1 (Requirement 9.1). The router also
