@@ -373,3 +373,53 @@ describe("boot wiring regression — the app channel stays deliberately unreacha
     expect(code).not.toMatch(/function isGrantableOnChannel/);
   });
 });
+
+/**
+ * Benefit-request fulfilment workflow (task 41, Req 18.5/10.5/10.9). Task 30 made
+ * `benefit_requests` rows real and nothing read or advanced them. These assertions
+ * fail if the queue is unwired again, or if the status change stops sharing a
+ * transaction with its audit record — which is what makes a transition
+ * attributable.
+ */
+describe("boot wiring regression — the benefit-request queue is reachable (task 41)", () => {
+  it("index.ts constructs the service over the Pg store, the audit recorder and the transactor", () => {
+    expect(indexSource).toMatch(/adminBenefitRequestService\s*:\s*new\s+BenefitRequestService\s*\(/);
+    expect(indexSource).toMatch(/store\s*:\s*new\s+PgBenefitRequestStore\s*\(\s*pool\s*\)/);
+    expect(indexSource).toMatch(/audit\s*:\s*auditRecorder/);
+    expect(indexSource).toMatch(/transactor\s*:\s*adminTransactor/);
+  });
+
+  it("app.ts forwards it into the /v1/admin router", () => {
+    expect(appSource).toMatch(/benefitRequestService\s*:\s*deps\.adminBenefitRequestService/);
+  });
+
+  it("the admin router registers both endpoints only when the service is wired", () => {
+    const adminSource = readFileSync(join(__dirname, "admin", "routes.ts"), "utf8");
+    expect(adminSource).toMatch(/if\s*\(\s*benefitRequestService\s*\)/);
+    expect(adminSource).toMatch(/"\/benefit-requests"/);
+    expect(adminSource).toMatch(/"\/benefit-requests\/:id\/transition"/);
+  });
+
+  it("the transition and its audit record share one transaction", () => {
+    const svcSource = readFileSync(join(__dirname, "admin", "benefitRequests.ts"), "utf8");
+    // The audit append must happen inside the transactor callback, taking the
+    // same `tx`; an audit written outside it could be lost or orphaned.
+    expect(svcSource).toMatch(/this\.deps\.transactor\(async \(tx\) => \{[\s\S]*?this\.deps\.audit\.record\([\s\S]*?tx,\s*\)/);
+  });
+
+  it("the workflow is off-ledger", () => {
+    const svcSource = readFileSync(join(__dirname, "admin", "benefitRequests.ts"), "utf8");
+    const code = svcSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code).not.toMatch(/ledger_entries|point_lots/);
+  });
+
+  it("the audit operation type is in step with the migration's CHECK", () => {
+    const auditSource = readFileSync(join(__dirname, "admin", "auditTrail.ts"), "utf8");
+    const migration = readFileSync(
+      join(__dirname, "..", "migrations", "1785900000000_benefit-request-lifecycle.ts"),
+      "utf8",
+    );
+    expect(auditSource).toMatch(/"benefit_request"/);
+    expect(migration).toMatch(/"benefit_request"/);
+  });
+});

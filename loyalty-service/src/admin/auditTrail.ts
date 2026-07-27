@@ -23,12 +23,23 @@
  */
 import type { QueryResult, QueryResultRow } from "pg";
 
-/** The four operation types that MUST produce an audit record (Req 10.9). */
+/**
+ * The operation types that MUST produce an audit record (Req 10.9).
+ *
+ * The first four are Req 10.9's own list. `benefit_request` was added by task 41
+ * so an operator advancing a benefit request through its lifecycle
+ * (requested → confirmed/fulfilled/declined/cancelled) is attributable: the
+ * status change and its audit record are written in one transaction, so a
+ * transition can never exist without a record of who made it. Kept in step with
+ * the `admin_audit_log.operation_type` CHECK by migration
+ * 1785900000000_benefit-request-lifecycle.
+ */
 export const AUDIT_OPERATION_TYPES = [
   "adjustment",
   "manual_credit",
   "migration",
   "reconciliation",
+  "benefit_request",
 ] as const;
 
 export type AuditOperationType = (typeof AUDIT_OPERATION_TYPES)[number];

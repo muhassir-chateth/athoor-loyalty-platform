@@ -74,6 +74,12 @@ import {
   type AnalyticsService,
 } from "./analyticsService.js";
 import { InvalidDateRangeError, type DateRange } from "./analytics.js";
+import {
+  BENEFIT_REQUEST_TRANSITIONS,
+  BenefitRequestInvalidTransitionError,
+  BenefitRequestNotFoundError,
+  type BenefitRequestService,
+} from "./benefitRequests.js";
 
 export interface AdminRouterOptions {
   /**
@@ -113,7 +119,24 @@ export interface AdminRouterOptions {
    * materialized-view data source is wired).
    */
   analyticsService?: AnalyticsService;
+  /**
+   * The benefit-request fulfilment workflow (task 41, Req 18.5/10.5/10.9).
+   * Production injects a service over `benefit_requests` + the audit trail. When
+   * ABSENT the benefit-request endpoints are not registered, so a build without
+   * it keeps its existing route surface — rather than showing an operator an
+   * empty queue that could be mistaken for "no work waiting".
+   */
+  benefitRequestService?: BenefitRequestService;
 }
+
+/** Request body for POST /v1/admin/benefit-requests/:id/transition (task 41). */
+const BenefitRequestTransitionSchema = z
+  .object({
+    status: z.enum(BENEFIT_REQUEST_TRANSITIONS),
+    /** Optional free-text context, recorded on the audit record. */
+    reason: z.string().min(1).max(500).optional(),
+  })
+  .strip();
 
 /** Query params for GET /v1/admin/analytics (Req 20.2, 20.4, 20.5). */
 const AnalyticsQuerySchema = z
@@ -181,6 +204,7 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRouterOptions
   const customerLedgerSource =
     opts.customerLedgerSource ?? new InMemoryAdminCustomerLedgerSource();
   const fraudReviewSource = opts.fraudReviewSource ?? new InMemoryFraudReviewSource();
+  const benefitRequestService = opts.benefitRequestService;
   const operationsService = opts.operationsService ?? new InMemoryAdminOperationsService();
   const analyticsService = opts.analyticsService ?? createInMemoryAnalyticsService();
 
@@ -266,6 +290,58 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRouterOptions
     ]);
     return buildFraudReviewView(referrals, redemptions);
   });
+
+  // Benefit-request fulfilment (task 41, Req 18.5/10.5/10.9). Registered only
+  // when the service is wired: an unwired build must not present an empty queue
+  // that reads as "nothing waiting" when the truth is "nothing is connected".
+  if (benefitRequestService) {
+    // GET /v1/admin/benefit-requests — the work queue (open, oldest first) and
+    // the record of what was done (closed, most recent first).
+    app.get("/benefit-requests", async () => benefitRequestService.view());
+
+    // POST /v1/admin/benefit-requests/:id/transition — advance one request.
+    // Idempotent: re-applying the status a request already holds succeeds and
+    // changes nothing. A terminal request cannot be moved to a different status.
+    app.post<{ Params: { id: string } }>(
+      "/benefit-requests/:id/transition",
+      async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+        const admin = req.adminCtx as AdminCtx;
+        const parsed = BenefitRequestTransitionSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: "invalid_request",
+            message:
+              `A body of { status } is required, where status is one of: ` +
+              `${BENEFIT_REQUEST_TRANSITIONS.join(", ")}. An optional reason of up to 500 characters may be supplied.`,
+          });
+        }
+        try {
+          const result = await benefitRequestService.transition(
+            req.params.id,
+            parsed.data.status,
+            admin.adminUserId,
+            parsed.data.reason,
+          );
+          return reply.code(200).send(result);
+        } catch (err) {
+          if (err instanceof BenefitRequestNotFoundError) {
+            return reply.code(404).send({ error: err.code, message: err.message });
+          }
+          if (err instanceof BenefitRequestInvalidTransitionError) {
+            // 409: the request exists, the transition is simply not legal from
+            // where it stands. `from`/`to` are echoed so the operator sees why.
+            return reply.code(409).send({
+              error: err.code,
+              message: err.message,
+              from: err.from,
+              to: err.to,
+            });
+          }
+          throw err;
+        }
+      },
+    );
+  }
 
   // POST /v1/admin/operations/migration — the M0–M2 data cutover is NOT
   // exposed over HTTP (Req 10.7a): it depends on the M0 metafield export as its

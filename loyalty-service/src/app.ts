@@ -14,6 +14,7 @@ import type { AdminCustomerLedgerSource } from "./admin/customerView.js";
 import type { FraudReviewSource } from "./admin/fraudReview.js";
 import type { AdminOperationsService } from "./admin/operations.js";
 import type { AnalyticsService } from "./admin/analyticsService.js";
+import type { BenefitRequestService } from "./admin/benefitRequests.js";
 import type { FragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import type {
   PortalVisitRecorder,
@@ -237,6 +238,13 @@ export interface AppDependencies {
    * used, returning empty-safe metrics until the data source is wired.
    */
   analyticsService?: AnalyticsService;
+  /**
+   * The benefit-request fulfilment workflow (task 41, Req 18.5/10.5/10.9).
+   * Production wires a service over `benefit_requests` + the audit trail; omitted,
+   * the benefit-request admin endpoints are not registered. Forwarded into the
+   * `/v1/admin` router.
+   */
+  adminBenefitRequestService?: BenefitRequestService;
 }
 
 /**
@@ -412,6 +420,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     fraudReviewSource: deps.fraudReviewSource,
     operationsService: deps.adminOperationsService,
     analyticsService: deps.analyticsService,
+    benefitRequestService: deps.adminBenefitRequestService,
   });
 
   return app;

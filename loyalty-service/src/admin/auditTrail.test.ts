@@ -49,13 +49,18 @@ function makeFakeDb(): { db: Queryable; inserts: Captured[] } {
   return { db, inserts };
 }
 
-describe("AUDIT_OPERATION_TYPES covers exactly the four Req 10.9 operations", () => {
-  it("declares adjustment, manual_credit, migration, reconciliation", () => {
+describe("AUDIT_OPERATION_TYPES covers the Req 10.9 operations plus benefit_request", () => {
+  it("declares adjustment, manual_credit, migration, reconciliation, benefit_request", () => {
+    // The first four are Req 10.9's own list; `benefit_request` was added by
+    // task 41 so an operator advancing a benefit request's lifecycle is
+    // attributable. Kept in step with the `admin_audit_log.operation_type` CHECK
+    // by migration 1785900000000_benefit-request-lifecycle.
     expect([...AUDIT_OPERATION_TYPES]).toEqual([
       "adjustment",
       "manual_credit",
       "migration",
       "reconciliation",
+      "benefit_request",
     ]);
   });
 });

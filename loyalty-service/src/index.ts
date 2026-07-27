@@ -62,6 +62,10 @@ import {
 } from "./shopify/purchaseHistory.js";
 import { ProviderMarketConfigDriftSource } from "./markets/configDrift.js";
 import { DbChannelReachabilitySource } from "./channel/reachability.js";
+import {
+  BenefitRequestService,
+  PgBenefitRequestStore,
+} from "./admin/benefitRequests.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
@@ -271,6 +275,17 @@ async function main(): Promise<void> {
     // return empty results, which reads as "no data" rather than "not wired".
     adminCustomerLedgerSource: new PgAdminCustomerLedgerSource(pool),
     fraudReviewSource: new PgFraudReviewSource(pool),
+    // Benefit-request fulfilment (task 41, Req 18.5/10.5/10.9). Task 30 made
+    // `benefit_requests` rows real, and nothing read or advanced them — a member
+    // could book a consultation that no member of staff would ever see. This is
+    // the queue and the lifecycle. The status change and its audit record share
+    // ONE transaction (the same pool-backed transactor the adjustment service
+    // uses), so a transition can never exist unattributed.
+    adminBenefitRequestService: new BenefitRequestService({
+      store: new PgBenefitRequestStore(pool),
+      audit: auditRecorder,
+      transactor: adminTransactor,
+    }),
     // Admin operations (Req 10.7/10.7a): reconciliation runs the real job;
     // migration is refused (the M0–M2 cutover is an operator script, since it
     // depends on the M0 export as its rollback anchor).
