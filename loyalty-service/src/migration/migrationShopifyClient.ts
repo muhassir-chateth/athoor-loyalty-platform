@@ -320,7 +320,14 @@ interface CustomerIdentityNode {
   email: string | null;
 }
 
-interface OrderNode {
+/**
+ * The order fields the inclusion predicate reads. EXPORTED alongside
+ * {@link OrderInclusionPolicy} (task 44) so another reader of Shopify orders can
+ * be type-checked against the same predicate. The money fields stay optional, so
+ * a caller that needs no amounts (the profile's purchase history) satisfies it
+ * without requesting money it will not use.
+ */
+export interface OrderNode {
   id: string;
   test?: boolean | null;
   cancelledAt?: string | null;
@@ -343,12 +350,22 @@ interface OrderLineItemTotalsData {
   order: { id: string; lineItems: Connection<{ originalTotalSet: MoneyBag | null }> } | null;
 }
 
-/** Everything the per-order derivation needs, resolved once per client run. */
-interface SpendPolicy {
-  expectedCurrency: string;
+/**
+ * The subset of the policy that decides whether an order counts at all — i.e.
+ * what "a paid order" means. EXPORTED (task 44) so the profile's purchase-history
+ * source answers that question with this exact predicate instead of restating
+ * the status/cancelled/test rules and letting the two drift apart. Nothing about
+ * money is included here, because inclusion is independent of amount.
+ */
+export interface OrderInclusionPolicy {
   acceptedStatuses: Set<string>;
   includeCancelledOrders: boolean;
   includeTestOrders: boolean;
+}
+
+/** Everything the per-order derivation needs, resolved once per client run. */
+interface SpendPolicy extends OrderInclusionPolicy {
+  expectedCurrency: string;
   pageSize: number;
   retry: ThrottleRetryOptions;
 }
@@ -406,7 +423,10 @@ function assertExpectedCurrency(
  * True iff the order counts towards lifetime spend under the documented policy:
  * payment captured at some point, not cancelled, not a test order.
  */
-export function orderCountsTowardsSpend(order: OrderNode, policy: SpendPolicy): boolean {
+export function orderCountsTowardsSpend(
+  order: OrderNode,
+  policy: OrderInclusionPolicy,
+): boolean {
   if (!policy.includeCancelledOrders && order.cancelledAt) {
     return false;
   }

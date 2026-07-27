@@ -296,3 +296,47 @@ describe("boot wiring regression — the market-config deviation stays machine-c
     expect(driftSource).not.toMatch(/\.query\s*\(/);
   });
 });
+
+/**
+ * Purchased fragrances from Shopify (task 44, Req 17.1/17.6). Before this, the
+ * profile data source was constructed with the default empty Shopify source, so
+ * purchases were always empty and the suggestion engine's exclude-already-purchased
+ * rule excluded nothing. These assertions fail if the source stops being wired, or
+ * if the fail-safe wrapper is removed and a Shopify outage starts failing profiles.
+ */
+describe("boot wiring regression — Shopify purchase history reaches the profile (task 44)", () => {
+  it("index.ts constructs the purchase-history source over the real transport and pool lookup", () => {
+    expect(indexSource).toMatch(/new\s+ShopifyGraphqlPurchaseHistorySource\s*\(/);
+    expect(indexSource).toMatch(/new\s+PgShopifyCustomerIdLookup\s*\(\s*pool\s*\)/);
+  });
+
+  it("it is wrapped in the caching/fail-safe source, not passed raw", () => {
+    expect(indexSource).toMatch(
+      /new\s+CachingPurchaseHistorySource\s*\(\s*[\s\S]{0,400}?new\s+ShopifyGraphqlPurchaseHistorySource/,
+    );
+  });
+
+  it("it is passed to the profile data source as its Shopify source", () => {
+    expect(indexSource).toMatch(/shopify\s*:\s*shopifyPurchaseHistory/);
+  });
+
+  it("it is Admin-token gated, so a non-Shopify boot keeps the empty-source fallback", () => {
+    expect(indexSource).toMatch(/config\.shopify\.adminApiToken\s*\n?\s*\?\s*new\s+CachingPurchaseHistorySource/);
+  });
+
+  it("a degraded read is reported rather than swallowed", () => {
+    expect(indexSource).toMatch(/purchased-fragrance read from Shopify degraded to empty/);
+  });
+
+  it("ranking and exclusion stay in the suggestion engine — the client does neither", () => {
+    const raw = readFileSync(join(__dirname, "shopify", "purchaseHistory.ts"), "utf8");
+    // Strip comments: prose explaining the division of responsibility is fine and
+    // useful; an import or a call into the suggestion engine is not.
+    const clientCode = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(clientCode).not.toMatch(/from\s+"\.\.\/profile\/suggestions/);
+    expect(clientCode).not.toMatch(/SuggestionEngine|SuggestionDataSource|getSuggestions/);
+    // Read-only: no mutation, and no money fields requested.
+    expect(clientCode).not.toMatch(/mutation/);
+    expect(clientCode).not.toMatch(/PriceSet/);
+  });
+});

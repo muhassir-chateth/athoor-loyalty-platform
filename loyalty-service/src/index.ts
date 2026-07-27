@@ -55,6 +55,11 @@ import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profil
 import { RecentlyViewedStore } from "./profile/recentlyViewed.js";
 import { RulesBasedSuggestionEngine } from "./profile/suggestions.js";
 import { DbMarketConfigProvider } from "./markets/marketConfig.js";
+import {
+  CachingPurchaseHistorySource,
+  PgShopifyCustomerIdLookup,
+  ShopifyGraphqlPurchaseHistorySource,
+} from "./shopify/purchaseHistory.js";
 import { ProviderMarketConfigDriftSource } from "./markets/configDrift.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
@@ -143,6 +148,25 @@ async function main(): Promise<void> {
   let metafieldEnqueuer: PgBossMetafieldCacheEnqueuer | undefined;
   let reconciliationMetafieldWriter: MetafieldCacheWriter | undefined;
 
+  // Purchase history for the Fragrance_Profile (task 44, Req 17.1/17.6). Built
+  // BEFORE `buildApp` because the profile data source is constructed eagerly,
+  // unlike the queue-backed collaborators above. Read-only: it issues Admin
+  // GraphQL queries and nothing else. `app.log` is not available yet, so the
+  // degradation reporter is bound lazily below via the mutable `app` reference.
+  let purchaseHistoryDegraded: ((err: unknown, customerId: string) => void) | undefined;
+  const shopifyPurchaseHistory = config.shopify.adminApiToken
+    ? new CachingPurchaseHistorySource(
+        new ShopifyGraphqlPurchaseHistorySource(
+          config.shopify.shopDomain,
+          config.shopify.adminApiToken,
+          new PgShopifyCustomerIdLookup(pool),
+        ),
+        {
+          onDegraded: (err, customerId) => purchaseHistoryDegraded?.(err, customerId),
+        },
+      )
+    : undefined;
+
   // Build the app up-front so its logger is available for boot-time wiring
   // warnings. Analytics is served from the hourly-refreshed materialized views
   // via the Pg-backed data source (Req 20; the refresh job is registered below).
@@ -183,6 +207,20 @@ async function main(): Promise<void> {
     // purchase + view history and excludes already-purchased fragrances.
     fragranceProfileDataSource: new PgFragranceProfileDataSource(pool, {
       suggestionEngine: new RulesBasedSuggestionEngine(),
+      // Purchased fragrances from the customer's paid Shopify orders (task 44,
+      // Req 17.1/17.6). Until now this defaulted to `EmptyShopifyFragranceSource`,
+      // so purchases were always empty and the suggestion engine's
+      // exclude-already-purchased rule excluded nothing. Order reading reuses the
+      // migration client's own inclusion predicate, so "a paid order" means the
+      // same thing here as when lifetime spend is derived.
+      //
+      // Only when an Admin token is configured; on a non-Shopify boot the
+      // previous empty-source behaviour stands, which is the documented fail-safe
+      // (Req 17.9 — empty, never an error). Wrapped so a slow or failing Shopify
+      // read degrades this one field instead of the whole profile, with the
+      // degradation logged because it can let an already-purchased fragrance
+      // appear in suggestions.
+      ...(shopifyPurchaseHistory ? { shopify: shopifyPurchaseHistory } : {}),
     }),
     portalVisitRecorder: new PgPortalVisitRecorder(pool),
     // Profile preference WRITES (task 31, Req 17.2/17.4/17.5). The profile could
@@ -308,6 +346,18 @@ async function main(): Promise<void> {
       },
     },
   });
+
+  // The purchase-history source was built before the app so the profile data
+  // source could be constructed eagerly; bind its degradation reporter now that
+  // a logger exists. A degraded read means suggestions may include a fragrance
+  // the member already owns for that request, so it is logged at warn rather than
+  // swallowed (task 44).
+  purchaseHistoryDegraded = (err, customerId) =>
+    app.log.warn(
+      { err, customerId },
+      "purchased-fragrance read from Shopify degraded to empty; suggestions may include an " +
+        "already-purchased product for this request",
+    );
 
   // Recurring jobs are driven by DUE WORK derived from `scheduled_runs`, not by
   // pg-boss cron (task 24). Verified in pg-boss@10.4.2: a cron window that
