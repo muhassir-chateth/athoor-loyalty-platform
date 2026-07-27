@@ -82,7 +82,28 @@ its tests.
 
 *Requirements affected: 18.2, 18.3, 18.5, 18.6, 7.8.*
 
-### 3. Profile preferences are read-only — no way to write them — HIGH
+### 3. ~~Profile preferences are read-only — no way to write them~~ — RESOLVED (task 31)
+
+**Resolved 2026-07-27 (commit `e0f6734`).** `PgProfilePreferenceStore` and
+`RecentlyViewedStore` are constructed in `index.ts`, forwarded through
+`buildApp`, and reached by `PUT /v1/profile/favourites/:id`,
+`POST /v1/profile/wishlist/reconcile` and `POST /v1/profile/recently-viewed`,
+with the paired reads. `RulesBasedSuggestionEngine` — the third unreferenced
+piece — is now passed into `PgFragranceProfileDataSource`, so Req 17.6 returns a
+real list instead of always empty. Verified live on staging: writes reflected on
+the next `GET /v1/profile`, a genuine wishlist union, sampling proven by an
+unchanged `viewed_at`, and the ledger untouched throughout (Property 13).
+
+**Two gaps this exposed, tracked separately:** task 43 — nothing on the
+storefront calls reconcile, and the device-local `shopify-wishlist` entry stores
+product **handles** while the column is `BIGINT`, so a translation is needed
+before Req 17.4's "on authentication" union can happen for a real member;
+task 44 — no `ShopifyFragranceSource` is wired, so `purchasedFragrances` is
+always empty and suggestions exclude nothing.
+
+Original finding, retained for the record:
+
+### 3 (original). Profile preferences are read-only — no way to write them — HIGH
 
 `GET /v1/profile` returns `favourites`, `wishlist`, `recentlyViewed` and
 `suggestions`, but there is **no endpoint to write any of them**. `setFavourite`,
