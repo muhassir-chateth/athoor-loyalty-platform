@@ -103,18 +103,23 @@ class FakeDb implements Queryable {
       s.referredBy.set(customerId, referrerId);
       return ok([{ id: customerId }], "UPDATE");
     }
-    // Existing referral for (referrer, referred)
-    if (text.includes("SELECT id, signup_rewarded, purchase_rewarded")) {
-      const [referrerId, referredId] = values as [string, string];
-      const row = s.referrals.find(
-        (r) => r.referrer_id === referrerId && r.referred_id === referredId,
-      );
+    // Task 40: this customer's ONE accepted referral, found by `referred_id`.
+    // Reading by the (referrer, referred) pair is what let a claimant collect
+    // codes from unlimited different referrers.
+    if (text.includes("SELECT id, referrer_id, signup_rewarded, purchase_rewarded")) {
+      const referredId = values[0] as string;
+      const row = s.referrals.find((r) => r.referred_id === referredId);
       return ok(row ? [row] : []);
     }
     if (text.includes("INSERT INTO referrals")) {
       const [referrerId, referredId] = values as [string, string];
       if (referrerId === referredId) {
         throw new Error('violates check constraint "referrals_check"');
+      }
+      // Partial unique index on `referred_id`, with `ON CONFLICT DO NOTHING`:
+      // the loser gets zero rows back, not an exception.
+      if (s.referrals.some((r) => r.referred_id === referredId)) {
+        return ok([], "INSERT");
       }
       // The real INSERT inlines the stage flags in the SQL (`VALUES ($1, $2,
       // $3, true, false)`) — it records the row ALREADY signup-rewarded. Mirror

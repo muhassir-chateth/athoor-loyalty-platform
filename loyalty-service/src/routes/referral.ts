@@ -212,8 +212,19 @@ export function registerReferralRoutes(
         await enqueueReferrerCacheRefresh(req, opts, outcome.referrerId);
         return reply.code(200).send({ status: "rewarded", referralCode });
       case "already_rewarded":
-        // Idempotent at the data layer: the claim was already recorded.
+        // Idempotent at the data layer: this exact claim was already recorded and
+        // the named referrer really was credited.
         return reply.code(200).send({ status: "already_rewarded", referralCode });
+      case "already_claimed":
+        // Task 40: the member has already accepted a DIFFERENT referrer's code,
+        // and a customer gets exactly one. Distinct from `already_rewarded`,
+        // which would wrongly imply this code's owner had been credited. The
+        // existing referrer's identity is NOT disclosed — the claimant has no
+        // business learning which other member holds their attribution.
+        return reply.code(409).send({
+          error: "referral_already_claimed",
+          message: "A referral code has already been applied to this account.",
+        });
       case "self_referral_rejected":
         // Req 11.8 / Property 12: no row, no earning, no balance change.
         return reply.code(409).send({

@@ -83,6 +83,7 @@
       "claim_self": "You cannot use your own referral code.",
       "claim_unknown": "That code was not recognised. Check it and try again.",
       "claim_ineligible": "A referral code cannot be applied after a purchase has been made.",
+      "claim_already_claimed": "A referral code has already been applied to your account.",
       "claim_invalid": "Enter a referral code of up to 64 characters.",
       "claim_failed": "We could not submit that just now. Please try again."
     },

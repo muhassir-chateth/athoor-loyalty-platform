@@ -100,8 +100,8 @@ class FakeDb implements Queryable {
     if (q.startsWith("UPDATE customers") && q.includes("referred_by =")) {
       return this.setReferredBy<R>(values);
     }
-    if (q.startsWith("SELECT id, signup_rewarded, purchase_rewarded")) {
-      return this.findByPair<R>(values);
+    if (q.startsWith("SELECT id, referrer_id, signup_rewarded, purchase_rewarded")) {
+      return this.findAcceptedByReferred<R>(values);
     }
     if (q.startsWith("SELECT id, referrer_id, purchase_rewarded")) {
       return this.findByReferred<R>(values);
@@ -166,12 +166,26 @@ class FakeDb implements Queryable {
     return this.result<R>([], 0);
   }
 
-  private findByPair<R extends QueryResultRow>(values: unknown[]): QueryResult<R> {
-    const [referrer, referred] = values as [string, string];
-    const row = this.referrals.find((r) => r.referrer_id === referrer && r.referred_id === referred);
+  /**
+   * The task-40 lookup: this customer's ONE accepted referral, found by
+   * `referred_id` rather than by the `(referrer, referred)` pair — a pair read
+   * cannot see that a different referrer already holds the attribution, which is
+   * the hole confirmed live on staging. Insertion order stands in for
+   * `ORDER BY created_at, id`.
+   */
+  private findAcceptedByReferred<R extends QueryResultRow>(values: unknown[]): QueryResult<R> {
+    const referred = values[0] as string;
+    const row = this.referrals.find((r) => r.referred_id === referred);
     return this.result<R>(
       row
-        ? [{ id: row.id, signup_rewarded: row.signup_rewarded, purchase_rewarded: row.purchase_rewarded } as unknown as R]
+        ? [
+            {
+              id: row.id,
+              referrer_id: row.referrer_id,
+              signup_rewarded: row.signup_rewarded,
+              purchase_rewarded: row.purchase_rewarded,
+            } as unknown as R,
+          ]
         : [],
     );
   }
@@ -194,6 +208,14 @@ class FakeDb implements Queryable {
       (err as { code?: string }).code = "23514";
       throw err;
     }
+    // Task 40: model the PARTIAL UNIQUE INDEX on `referrals (referred_id)`. The
+    // statement carries `ON CONFLICT DO NOTHING`, so a conflict yields ZERO rows
+    // rather than a raised error — the engine must then re-read to learn who won.
+    // Modelling this in the fake is the point: without it the tests would pass
+    // while the real constraint did the opposite of what they assert.
+    if (referred !== null && this.referrals.some((r) => r.referred_id === referred)) {
+      return this.result<R>([], 0);
+    }
     const row: ReferralStore = {
       id: this.nextId("ref"),
       referrer_id: referrer,
@@ -204,7 +226,12 @@ class FakeDb implements Queryable {
     };
     this.referrals.push(row);
     return this.result<R>([
-      { id: row.id, signup_rewarded: row.signup_rewarded, purchase_rewarded: row.purchase_rewarded } as unknown as R,
+      {
+        id: row.id,
+        referrer_id: row.referrer_id,
+        signup_rewarded: row.signup_rewarded,
+        purchase_rewarded: row.purchase_rewarded,
+      } as unknown as R,
     ]);
   }
 

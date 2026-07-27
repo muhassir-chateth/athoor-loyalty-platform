@@ -58,6 +58,7 @@ const COPY = {
   claim_self: REFERRAL_COPY.claim_self,
   claim_unknown: REFERRAL_COPY.claim_unknown,
   claim_ineligible: REFERRAL_COPY.claim_ineligible,
+  claim_already_claimed: REFERRAL_COPY.claim_already_claimed,
   claim_invalid: REFERRAL_COPY.claim_invalid,
   claim_failed: REFERRAL_COPY.claim_failed,
 };
@@ -428,6 +429,26 @@ describe("error states, each distinguished from the others", () => {
     expect(postCalls(calls)).toHaveLength(1);
   });
 
+  it("409 referral_already_claimed → its own message, form DISABLED (task 40)", async () => {
+    const { calls } = await boot({
+      referral: { referralCode: "ATH-MINE-0001", wasReferred: false },
+      claim: () =>
+        Promise.resolve(jsonResponse(409, { error: "referral_already_claimed", message: "no" })),
+    });
+
+    await claim("ATH-FRIEND-0002");
+
+    // A customer accepts exactly one referral, so no retry can ever succeed.
+    // Distinct copy from the ineligible case: this member DID use a code.
+    expect(statusEl().textContent).toBe(COPY.claim_already_claimed);
+    expect(statusEl().textContent).not.toBe(COPY.claim_ineligible);
+    expect(input().disabled).toBe(true);
+    expect(submitBtn().disabled).toBe(true);
+
+    await claim("ATH-FRIEND-0003");
+    expect(postCalls(calls)).toHaveLength(1);
+  });
+
   it("400 invalid_request → validation message, form stays usable", async () => {
     await boot({
       referral: { referralCode: "ATH-MINE-0001", wasReferred: false },
@@ -441,9 +462,15 @@ describe("error states, each distinguished from the others", () => {
     expect(submitBtn().disabled).toBe(false);
   });
 
-  it("the four error states produce four DIFFERENT messages", () => {
-    const messages = [COPY.claim_self, COPY.claim_unknown, COPY.claim_ineligible, COPY.claim_invalid];
-    expect(new Set(messages).size).toBe(4);
+  it("the five error states produce five DIFFERENT messages", () => {
+    const messages = [
+      COPY.claim_self,
+      COPY.claim_unknown,
+      COPY.claim_ineligible,
+      COPY.claim_invalid,
+      COPY.claim_already_claimed,
+    ];
+    expect(new Set(messages).size).toBe(5);
     expect(messages).not.toContain(COPY.claim_failed);
   });
 

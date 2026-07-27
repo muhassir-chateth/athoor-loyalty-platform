@@ -112,15 +112,19 @@ class ClaimFakeDb implements Queryable {
       s.referredBy.set(customerId, referrerId);
       return ok([{ id: customerId }], "UPDATE");
     }
-    if (text.includes("SELECT id, signup_rewarded, purchase_rewarded")) {
-      const [referrerId, referredId] = values as [string, string];
-      const row = s.referrals.find(
-        (r) => r.referrer_id === referrerId && r.referred_id === referredId,
-      );
+    // Task 40: the accepted-referral lookup is by `referred_id`, not by the pair.
+    if (text.includes("SELECT id, referrer_id, signup_rewarded, purchase_rewarded")) {
+      const referredId = values[0] as string;
+      const row = s.referrals.find((r) => r.referred_id === referredId);
       return ok(row ? [row] : []);
     }
     if (text.includes("INSERT INTO referrals")) {
       const [referrerId, referredId] = values as [string, string];
+      // Partial unique index on `referred_id` + `ON CONFLICT DO NOTHING`:
+      // a conflict returns zero rows rather than raising.
+      if (s.referrals.some((r) => r.referred_id === referredId)) {
+        return ok([], "INSERT");
+      }
       const row = {
         id: `ref-${++this.seq}`,
         referrer_id: referrerId,

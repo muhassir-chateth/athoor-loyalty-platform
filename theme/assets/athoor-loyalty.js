@@ -297,6 +297,16 @@
       return;
     }
 
+    if (errorCode === 'referral_already_claimed') {
+      // A code from a different member is already applied, and a customer gets
+      // exactly one. No retry can succeed, so the form closes for the same
+      // reason as the ineligible case. Distinct copy: this member DID use a
+      // code, just not this one.
+      announceClaim(t('claim_already_claimed'));
+      closeClaim();
+      return;
+    }
+
     if (errorCode === 'self_referral_rejected') {
       announceClaim(t('claim_self'));
     } else if (errorCode === 'unknown_referral_code') {

@@ -23,10 +23,11 @@
  *
  * Both staged rewards are awarded to the REFERRER (only the referrer's balance
  * changes, Req 2.11) and each is awarded at most once — the signup reward is
- * guarded by the `referrals.signup_rewarded` flag and a `(referrer, referred)`
- * uniqueness check, the first-purchase reward by the `referrals.purchase_rewarded`
- * flag plus the caller-supplied "is this the friend's first paid purchase" fact
- * (Req 11.9).
+ * guarded by the `referrals.signup_rewarded` flag and, since task 40, by the
+ * PARTIAL UNIQUE INDEX on `referrals (referred_id)` that allows a customer only
+ * one accepted referral; the first-purchase reward by the
+ * `referrals.purchase_rewarded` flag plus the caller-supplied "is this the
+ * friend's first paid purchase" fact (Req 11.9).
  *
  * ---------------------------------------------------------------------------
  * Wiring boundary
@@ -219,19 +220,51 @@ export interface ReferralSignupInput {
  *  - `rewarded`               referrals row created + referrer credited +150.
  *  - `no_referrer`            the friend arrived without a referrer; nothing done.
  *  - `self_referral_rejected` referrer === referred; no row, no earning (Req 11.8).
- *  - `already_rewarded`       a referral for this pair was already signup-rewarded.
+ *  - `already_rewarded`       a referral for THIS EXACT PAIR was already
+ *                             signup-rewarded — a genuine repeat, so the friend's
+ *                             referrer really was credited.
+ *  - `already_claimed`        the friend has already accepted a referral from a
+ *                             DIFFERENT referrer (task 40). Deliberately a
+ *                             separate status: reporting `already_rewarded` here
+ *                             would tell a member their friend had been credited
+ *                             when that friend never was.
  */
 export type ReferralSignupOutcome =
   | { status: "rewarded"; referrerId: string; referredCustomerId: string; referralId: string; entry: LedgerEntry }
   | { status: "no_referrer"; referredCustomerId: string }
   | { status: "self_referral_rejected"; referredCustomerId: string }
-  | { status: "already_rewarded"; referrerId: string; referredCustomerId: string; referralId: string };
+  | { status: "already_rewarded"; referrerId: string; referredCustomerId: string; referralId: string }
+  | {
+      status: "already_claimed";
+      referredCustomerId: string;
+      /** The referrer who legitimately holds this customer's one accepted referral. */
+      existingReferrerId: string;
+      referralId: string;
+    };
 
 interface ReferralRow {
   id: string;
+  referrer_id: string;
   signup_rewarded: boolean;
   purchase_rewarded: boolean;
 }
+
+/**
+ * The single referral a customer may have accepted, if any (task 40).
+ *
+ * Selects by `referred_id` — NOT by the `(referrer, referred)` pair, which was
+ * the bug: a pair read cannot see that the claimant already has a *different*
+ * referrer, which is exactly how the confirmed fan-out paid N referrers for one
+ * account. Deterministically ordered so the row chosen is stable even in the
+ * (now impossible) presence of legacy duplicates.
+ */
+const ACCEPTED_REFERRAL_SQL = `
+  SELECT id, referrer_id, signup_rewarded, purchase_rewarded
+    FROM referrals
+   WHERE referred_id = $1
+   ORDER BY created_at ASC, id ASC
+   LIMIT 1
+`;
 
 /**
  * Records the referral relationship for a freshly-signed-up friend and awards
@@ -244,12 +277,20 @@ interface ReferralRow {
  *   2. Self-referral guard: `referrerId === referredCustomerId` → reject with
  *      `self_referral_rejected`, creating NO `referrals` row and NO earning
  *      (Req 11.8). The DB `CHECK (referrer_id <> referred_id)` is the backstop.
- *   3. Idempotency: if a `(referrer, referred)` referral already exists and was
- *      signup-rewarded, return `already_rewarded` and change nothing.
+ *   3. Read this customer's one accepted referral BY `referred_id` (task 40).
+ *      A different referrer already holds it → `already_claimed`, no write. The
+ *      same pair, already paid → `already_rewarded`.
  *   4. Set the friend's `customers.referred_by` (guarded so it is never self and
  *      is only set once).
- *   5. Insert the `referrals` row with `signup_rewarded = true`.
+ *   5. Insert the `referrals` row with `signup_rewarded = true` using
+ *      `ON CONFLICT DO NOTHING`, letting the partial unique index on
+ *      `referred_id` decide. A losing inserter re-reads to learn who won.
  *   6. Append exactly one +150 `earn_referral` entry for the REFERRER.
+ *
+ * ONE ACCEPTED REFERRAL PER CUSTOMER (task 40): the read in step 3 selects the
+ * *response*, never the outcome. The enforcement is the database index, because
+ * the previous application-level pair read was confirmed live to allow both a
+ * fan-out across different referrers and a duplicate row under concurrency.
  *
  * @param repo the append-only ledger repository (the only sanctioned writer).
  * @param input the referred/referrer ids (+ optional email / event id).
@@ -279,74 +320,109 @@ export async function recordReferralOnSignup(
     return { status: "self_referral_rejected", referredCustomerId };
   }
 
-  // (3) Idempotency: has this (referrer, referred) pair already been recorded?
-  const existing = await executor.query<ReferralRow>(
-    `SELECT id, signup_rewarded, purchase_rewarded
-       FROM referrals
-      WHERE referrer_id = $1 AND referred_id = $2
-      LIMIT 1`,
-    [referrerId, referredCustomerId],
-  );
-  const existingRow = existing.rows[0];
-  if (existingRow && existingRow.signup_rewarded) {
-    return {
-      status: "already_rewarded",
-      referrerId,
+  /** Sets the friend's `referred_by`; guarded so it is set once and never self. */
+  const linkReferredBy = async (): Promise<void> => {
+    await executor.query(
+      `UPDATE customers
+         SET referred_by = $2, updated_at = now()
+       WHERE id = $1 AND referred_by IS NULL AND id <> $2`,
+      [referredCustomerId, referrerId],
+    );
+  };
+
+  /** Appends the single +150 entry and its backing 12-month lot. */
+  const award = async (referralId: string): Promise<ReferralSignupOutcome> => {
+    const entry = await repo.append(
+      {
+        customerId: referrerId,
+        entryType: "earn_referral",
+        points: REFERRAL_SIGNUP_POINTS,
+        reason: REFERRAL_SIGNUP_REASON,
+        sourceEventId: input.sourceEventId ?? null,
+      },
+      executor,
+    );
+    // Back the credit with a matching 12-month Point_Lot so the referrer can
+    // actually redeem it (Req 2.9, Req 1.3a, Property 17).
+    await createExpiringPointLot(executor, referrerId, entry);
+    return { status: "rewarded", referrerId, referredCustomerId, referralId, entry };
+  };
+
+  // (3) Does this customer ALREADY hold an accepted referral? Read by
+  // `referred_id`, not by the pair — a pair read cannot see a *different*
+  // referrer, which is exactly how the confirmed fan-out paid N referrers for one
+  // account. This read chooses the RESPONSE only; it is never the gate, because
+  // an application read-then-write is precisely what failed under concurrency.
+  const preRead = await executor.query<ReferralRow>(ACCEPTED_REFERRAL_SQL, [referredCustomerId]);
+  let row = preRead.rows[0];
+
+  if (!row) {
+    // (4) Link the friend to their referrer, then (5) insert and let the PARTIAL
+    // UNIQUE INDEX on `referred_id` arbitrate. `ON CONFLICT DO NOTHING` covers
+    // every unique constraint on the table, so a concurrent inserter simply gets
+    // zero rows back instead of a raised error; it blocks on the index tuple
+    // until the winner commits, which is the serialisation this path never had.
+    await linkReferredBy();
+
+    const inserted = await executor.query<ReferralRow>(
+      `INSERT INTO referrals
+         (referrer_id, referred_id, referred_email, signup_rewarded, purchase_rewarded)
+       VALUES ($1, $2, $3, true, false)
+       ON CONFLICT DO NOTHING
+       RETURNING id, referrer_id, signup_rewarded, purchase_rewarded`,
+      [referrerId, referredCustomerId, input.referredEmail ?? null],
+    );
+    const insertedRow = inserted.rows[0];
+    if (insertedRow) {
+      // We created the one accepted referral, so we own the +150 (Req 2.9, 2.11).
+      return award(insertedRow.id);
+    }
+
+    // Zero rows means the index refused us. Re-read to learn WHO won, so the
+    // caller can tell "your friend was credited" from "you already used a code".
+    const afterConflict = await executor.query<ReferralRow>(ACCEPTED_REFERRAL_SQL, [
       referredCustomerId,
-      referralId: existingRow.id,
+    ]);
+    row = afterConflict.rows[0];
+    if (!row) {
+      // The insert conflicted yet nothing is readable: a constraint we do not
+      // model refused the row. Fail rather than guess — never award blind.
+      throw new InvalidReferralInputError(
+        "The referrals insert conflicted but no accepted referral could be read back.",
+      );
+    }
+  }
+
+  // (6) A row exists — either pre-existing or a concurrent winner.
+  if (row.referrer_id !== referrerId) {
+    // Task 40: this customer's one accepted referral belongs to someone else.
+    // No write, no earning, and NOT reported as `already_rewarded`.
+    return {
+      status: "already_claimed",
+      referredCustomerId,
+      existingReferrerId: row.referrer_id,
+      referralId: row.id,
     };
   }
 
-  // (4) Record the friend's referred_by (only when unset and never self).
-  await executor.query(
-    `UPDATE customers
-       SET referred_by = $2, updated_at = now()
-     WHERE id = $1 AND referred_by IS NULL AND id <> $2`,
-    [referredCustomerId, referrerId],
-  );
-
-  // (5) Insert the referrals row (signup stage complete).
-  const insertedRow = existingRow
-    ? existingRow
-    : (
-        await executor.query<ReferralRow>(
-          `INSERT INTO referrals
-             (referrer_id, referred_id, referred_email, signup_rewarded, purchase_rewarded)
-           VALUES ($1, $2, $3, true, false)
-           RETURNING id, signup_rewarded, purchase_rewarded`,
-          [referrerId, referredCustomerId, input.referredEmail ?? null],
-        )
-      ).rows[0];
-
-  if (!insertedRow) {
-    throw new InvalidReferralInputError("Failed to record the referrals row for the signup reward.");
+  if (row.signup_rewarded) {
+    // Same pair, already paid — a genuine repeat of the same claim.
+    return { status: "already_rewarded", referrerId, referredCustomerId, referralId: row.id };
   }
 
-  // If the row pre-existed but had not been signup-rewarded, mark it now.
-  if (existingRow && !existingRow.signup_rewarded) {
-    await executor.query(
-      `UPDATE referrals SET signup_rewarded = true WHERE id = $1`,
-      [insertedRow.id],
-    );
+  // (7) Same pair, row pending (`signup_rewarded = false`) — e.g. an invite
+  // recorded ahead of the claim. Claim it exactly once by flipping the flag
+  // guarded on its being false, so a concurrent claimer cannot double-award.
+  await linkReferredBy();
+  const claimed = await executor.query(
+    `UPDATE referrals SET signup_rewarded = true WHERE id = $1 AND signup_rewarded = false`,
+    [row.id],
+  );
+  if ((claimed.rowCount ?? 0) === 0) {
+    return { status: "already_rewarded", referrerId, referredCustomerId, referralId: row.id };
   }
 
-  // (6) Award the REFERRER exactly one +150 earn_referral (Req 2.9, 2.11).
-  const entry = await repo.append(
-    {
-      customerId: referrerId,
-      entryType: "earn_referral",
-      points: REFERRAL_SIGNUP_POINTS,
-      reason: REFERRAL_SIGNUP_REASON,
-      sourceEventId: input.sourceEventId ?? null,
-    },
-    executor,
-  );
-
-  // (7) Back the credit with a matching 12-month Point_Lot so the referrer can
-  // actually redeem it (Req 2.9, Req 1.3a, Property 17).
-  await createExpiringPointLot(executor, referrerId, entry);
-
-  return { status: "rewarded", referrerId, referredCustomerId, referralId: insertedRow.id, entry };
+  return award(row.id);
 }
 
 /** Input to {@link awardReferralFirstPurchase}. */
@@ -411,11 +487,16 @@ export async function awardReferralFirstPurchase(
     throw new InvalidReferralInputError("awardReferralFirstPurchase requires a referred customer id.");
   }
 
-  // (1) Is this friend a referred customer?
+  // (1) Is this friend a referred customer? `ORDER BY` is load-bearing (task 40):
+  // this used to be a bare `LIMIT 1`, so with fan-out rows present Postgres could
+  // return any of them and the +250 recipient was unspecified. The partial unique
+  // index now makes at most one row possible, and the ordering keeps the choice
+  // deterministic regardless — the same row the signup path treats as accepted.
   const found = await executor.query<ReferralPurchaseRow>(
     `SELECT id, referrer_id, purchase_rewarded
        FROM referrals
       WHERE referred_id = $1
+      ORDER BY created_at ASC, id ASC
       LIMIT 1`,
     [referredCustomerId],
   );
