@@ -61,6 +61,7 @@ import {
   ShopifyGraphqlPurchaseHistorySource,
 } from "./shopify/purchaseHistory.js";
 import { ProviderMarketConfigDriftSource } from "./markets/configDrift.js";
+import { DbChannelReachabilitySource } from "./channel/reachability.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
@@ -330,6 +331,14 @@ async function main(): Promise<void> {
     // EXISTING provider — read-only, no engine decision depends on it — and
     // reports on /health whether they still match the constants.
     marketConfigDrift: new ProviderMarketConfigDriftSource(new DbMarketConfigProvider(pool)),
+    // Channel reachability (task 42, A19). `tokenVerifier` is deliberately left
+    // unwired below, so no Customer Account API bearer token can ever be
+    // verified and `channel: "app"` is unreachable — every production request is
+    // `web`. The `false` here is not a guess: it is the same fact as the absent
+    // verifier, and a boot-wiring test fails if a verifier is wired without
+    // updating it. What this publishes is the trap that follows — an
+    // app-exclusive benefit or reward would be grantable to NOBODY, silently.
+    channelReachability: new DbChannelReachabilitySource(pool, false),
     // Referral attribution (task 25, Req 2.9/11.8). Shopify's customers/create
     // payload carries no referral field, so the friend submits their code
     // through the signed App Proxy surface; this is what finally gives the

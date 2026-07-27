@@ -32,6 +32,10 @@ import type {
   MarketConfigDriftReport,
   MarketConfigDriftSource,
 } from "./markets/configDrift.js";
+import type {
+  ChannelReachabilityReport,
+  ChannelReachabilitySource,
+} from "./channel/reachability.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
@@ -78,6 +82,14 @@ export interface AppDependencies {
    * tests and local runs, where `/health` keeps its previous payload exactly.
    */
   marketConfigDrift?: MarketConfigDriftSource;
+  /**
+   * OPTIONAL read-only channel-reachability check, surfaced on `/health`
+   * (task 42, Req 19.3/19.4, A19). Reports which channels a request can be
+   * attributed to and, crucially, any app-exclusive benefit or reward that is
+   * therefore grantable to nobody. Omitted in tests and local runs, where
+   * `/health` keeps its previous payload exactly.
+   */
+  channelReachability?: ChannelReachabilitySource;
   /**
    * Pg-backed dependencies for the referral attribution endpoints (task 25,
    * Req 2.9/11.8). When omitted the routes are not registered at all, so tests
@@ -274,6 +286,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
       scheduling?: { overdue: OverdueJob[] };
       backups?: { lastSuccessAt: string | null; ageHours: number | null; stale: boolean };
       marketConfig?: MarketConfigDriftReport;
+      channels?: ChannelReachabilityReport;
     } = { status: "ok", version: API_VERSION };
 
     if (deps.dueWorkStatus) {
@@ -314,6 +327,21 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
         payload.marketConfig = await deps.marketConfigDrift.report();
       } catch {
         // Best-effort: liveness must not depend on the rule-set tables either.
+      }
+    }
+
+    // Channel reachability (task 42). No Customer Account API token verifier is
+    // wired, so `channel: "app"` cannot be reached and every request is `web`
+    // (A19). That is deliberate, but it makes one configuration edit dangerous:
+    // flipping a benefit to `appExclusive` — a data change, no deploy — would
+    // make it grantable to NOBODY, silently, because the gate is working exactly
+    // as specified. `ungrantable` names any such item so the mistake is visible
+    // instead of an entitlement quietly vanishing for every member.
+    if (deps.channelReachability) {
+      try {
+        payload.channels = await deps.channelReachability.report();
+      } catch {
+        // Best-effort: liveness must not depend on the benefit configuration.
       }
     }
 

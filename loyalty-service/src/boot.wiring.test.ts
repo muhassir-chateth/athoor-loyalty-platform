@@ -340,3 +340,36 @@ describe("boot wiring regression — Shopify purchase history reaches the profil
     expect(clientCode).not.toMatch(/PriceSet/);
   });
 });
+
+/**
+ * Channel reachability and the deliberately-unwired token verifier (task 42,
+ * A19, Req 19.3/19.4/11.5).
+ *
+ * The decision is that `channel: "app"` stays unreachable until a native app
+ * exists. Two things must therefore stay true together, and the danger is them
+ * drifting apart: no verifier is wired, AND the reachability check says so. If a
+ * verifier is ever wired without updating the flag, `/health` would claim the app
+ * channel is unreachable while it is not — so the second test below exists purely
+ * to force those two edits to happen together.
+ */
+describe("boot wiring regression — the app channel stays deliberately unreachable (task 42)", () => {
+  it("index.ts wires NO Customer Account API token verifier", () => {
+    // Only the explanatory comment may mention it; no `tokenVerifier:` key.
+    const code = indexSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code).not.toMatch(/tokenVerifier\s*:/);
+  });
+
+  it("index.ts declares the app channel unreachable, matching the absent verifier", () => {
+    expect(indexSource).toMatch(
+      /channelReachability\s*:\s*new\s+DbChannelReachabilitySource\s*\(\s*pool\s*,\s*false\s*\)/,
+    );
+  });
+
+  it("the reachability check is read-only and changes no grant decision", () => {
+    const raw = readFileSync(join(__dirname, "channel", "reachability.ts"), "utf8");
+    const code = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code).not.toMatch(/(INSERT INTO|UPDATE \w+ SET|DELETE FROM)/i);
+    // It must not re-implement the gate; the gate stays in channel.ts.
+    expect(code).not.toMatch(/function isGrantableOnChannel/);
+  });
+});
