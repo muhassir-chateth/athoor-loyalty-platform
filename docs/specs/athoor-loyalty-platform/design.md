@@ -353,12 +353,18 @@ interface LoyaltyAPI {
 
   // Admin analytics (Requirements 10 & 20) — admin-authenticated
   "GET   /v1/admin/analytics":          (admin: AdminCtx, q: DateRange) => Promise<AnalyticsResult>
+
+  // Admin benefit-request queue (Requirements 18.5a–18.5d) — admin-authenticated;
+  // registered only when the benefit-request service is wired, mirroring the other Pg-wired admin views
+  "GET   /v1/admin/benefit-requests":   (admin: AdminCtx) => Promise<BenefitRequest[]>                  // operator queue of recorded requests
+  "POST  /v1/admin/benefit-requests/:id/transition": (admin: AdminCtx, body: { status: BenefitRequestStatus }) => Promise<BenefitRequest> // advance status
 }
 
 interface RedeemBody { rewardId: RewardId; idempotencyKey: string }
 interface AuthCtx { customerId: CustomerId; source: "app_proxy" | "customer_account_api"; channel: "web" | "app" }
 interface AdminCtx { adminUserId: string; role: "admin" }
 interface DeviceRegistration { token: string; platform: "ios" | "android" }
+type BenefitRequestStatus = "requested" | "confirmed" | "fulfilled" | "declined" | "cancelled"
 ```
 
 ### Component 5: Scheduler
@@ -388,6 +394,8 @@ interface Benefit {
   active: boolean
 }
 ```
+
+> **Advancing a recorded request is not the resolver's concern (Requirements 18.5a–18.5d).** The resolver stays read-only; the operator lifecycle over a recorded `benefit_requests` row is owned by the admin surface (`src/admin/benefitRequests.ts`). `fulfilled`, `declined` and `cancelled` are terminal. Transitions are idempotent — a repeat into the status a request already holds is a no-op that writes no audit record. Concurrent transitions are made mutually exclusive by a guarded conditional `UPDATE` (the status change applies only if the row still holds the expected status). The audit record is written in the same transaction as the status change, under Requirement 10 criterion 9.
 
 ### Component 7: Analytics / Reporting (additive — Requirements 10 & 20)
 **Purpose**: Compute loyalty-program analytics for admins, derived **solely** from the immutable ledger + Shopify order data. No separate mutable source of truth.
@@ -618,14 +626,22 @@ CREATE TABLE benefits (
     active              BOOLEAN NOT NULL DEFAULT true
 );
 
+-- Recorded benefit requests (Requirement 18 criterion 5) and their operator lifecycle (criteria 5a–5d).
+-- `declined` is an addition to the original four-value set (requested | confirmed | fulfilled | cancelled):
+-- an operator must be able to close a request that will not be honoured without leaving it indefinitely
+-- 'requested' or misrepresenting it as 'fulfilled' (A20).
 CREATE TABLE benefit_requests (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id         UUID NOT NULL REFERENCES customers(id),
     benefit_id          UUID NOT NULL REFERENCES benefits(id),
-    status              TEXT NOT NULL DEFAULT 'requested', -- requested | confirmed | fulfilled | cancelled
-    requested_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    status              TEXT NOT NULL DEFAULT 'requested', -- requested | confirmed | fulfilled | declined | cancelled
+    requested_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status_changed_at   TIMESTAMPTZ,                -- set on each real status change; NULL until first transition
+    CONSTRAINT benefit_requests_status_check
+        CHECK (status IN ('requested','confirmed','fulfilled','declined','cancelled'))
 );
 CREATE INDEX idx_benefit_requests_customer ON benefit_requests(customer_id, requested_at);
+CREATE INDEX idx_benefit_requests_status ON benefit_requests(status);   -- operator queue filters by status
 
 -- Push-notification device registration for a FUTURE mobile app (Requirement 19). Delivery is future.
 CREATE TABLE device_tokens (
