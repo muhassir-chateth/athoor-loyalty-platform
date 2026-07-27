@@ -220,3 +220,46 @@ describe("boot wiring regression — the entitlement resolver reaches the runnin
     expect(balanceSource).toMatch(/entitlementResolver\.resolveBenefits\s*\(/);
   });
 });
+
+/**
+ * Profile preference writes + the suggestion engine (task 31, Req 17.2/17.4/
+ * 17.5/17.6). Reachability-audit finding 3: `setFavourite`, `reconcileWishlist`,
+ * `RecentlyViewedStore` and `RulesBasedSuggestionEngine` were all complete and
+ * referenced by nothing outside their own files. These assertions fail if the
+ * construction or the forwarding is removed again.
+ */
+describe("boot wiring regression — profile preference writes reach the service (task 31)", () => {
+  const profileRouteSource = readFileSync(join(__dirname, "routes", "profile.ts"), "utf8");
+
+  it("index.ts constructs the Pg preference store and the recently-viewed store", () => {
+    expect(indexSource).toMatch(/preferenceStore\s*:\s*new\s+PgProfilePreferenceStore\s*\(\s*pool\s*\)/);
+    expect(indexSource).toMatch(/recentlyViewedRecorder\s*:\s*new\s+RecentlyViewedStore\s*\(\s*pool\s*\)/);
+  });
+
+  it("index.ts wires the suggestion engine into the profile data source (Req 17.6)", () => {
+    expect(indexSource).toMatch(/suggestionEngine\s*:\s*new\s+RulesBasedSuggestionEngine\s*\(/);
+  });
+
+  it("app.ts forwards both preference dependencies into the /v1 router", () => {
+    expect(appSource).toMatch(/preferenceStore\s*:\s*deps\.preferenceStore/);
+    expect(appSource).toMatch(/recentlyViewedRecorder\s*:\s*deps\.recentlyViewedRecorder/);
+  });
+
+  it("v1.ts passes them to the profile routes", () => {
+    expect(v1Source).toMatch(
+      /registerProfileRoutes\s*\(\s*app\s*,\s*\{[\s\S]*?preferenceStore\s*:\s*opts\.preferenceStore/,
+    );
+    expect(v1Source).toMatch(/recentlyViewedRecorder\s*:\s*opts\.recentlyViewedRecorder/);
+  });
+
+  it("the route layer delegates to the existing preference module rather than reimplementing it", () => {
+    // The production store is pure delegation: no product-id validation, no
+    // union, no ON CONFLICT of its own may live in the route module.
+    expect(profileRouteSource).toMatch(/await setFavourite\(this\.db/);
+    expect(profileRouteSource).toMatch(/return reconcileWishlist\(this\.db/);
+    // No SQL literal and no product-id normaliser of its own. (Prose mentioning
+    // the table names is fine; a query string is not.)
+    expect(profileRouteSource).not.toMatch(/`\s*(INSERT|DELETE|UPDATE)\s/i);
+    expect(profileRouteSource).not.toMatch(/normaliseProductId/);
+  });
+});

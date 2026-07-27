@@ -15,7 +15,11 @@ import type { FraudReviewSource } from "./admin/fraudReview.js";
 import type { AdminOperationsService } from "./admin/operations.js";
 import type { AnalyticsService } from "./admin/analyticsService.js";
 import type { FragranceProfileDataSource } from "./profile/fragranceProfile.js";
-import type { PortalVisitRecorder } from "./routes/profile.js";
+import type {
+  PortalVisitRecorder,
+  ProfilePreferenceStore,
+  RecentlyViewedRecorder,
+} from "./routes/profile.js";
 import type { CustomerBalanceSource } from "./routes/balance.js";
 import type { EntitlementResolver } from "./benefits/entitlementResolver.js";
 import type { LedgerHistorySource } from "./routes/history.js";
@@ -140,6 +144,17 @@ export interface AppDependencies {
    * recorder is used, so no live Postgres is required.
    */
   portalVisitRecorder?: PortalVisitRecorder;
+  /**
+   * Backs the profile preference writes (task 31, Req 17.2/17.4). Production
+   * wires a {@link PgProfilePreferenceStore}; omitted, the favourite/wishlist
+   * routes are not registered. Forwarded into the `/v1` router.
+   */
+  preferenceStore?: ProfilePreferenceStore;
+  /**
+   * Backs off-ledger recently-viewed ingestion (task 31, Req 17.5). Production
+   * wires the existing `RecentlyViewedStore`. Forwarded into the `/v1` router.
+   */
+  recentlyViewedRecorder?: RecentlyViewedRecorder;
   /**
    * Registers/de-registers a customer's push Device_Tokens for the additive
    * `POST /v1/devices` and `DELETE /v1/devices/:token` mobile-readiness surface
@@ -297,6 +312,8 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
     portalVisitRecorder: deps.portalVisitRecorder,
+    preferenceStore: deps.preferenceStore,
+    recentlyViewedRecorder: deps.recentlyViewedRecorder,
     deviceTokenStore: deps.deviceTokenStore,
     membershipCredentialService: deps.membershipCredentialService,
     // Dedicated membership signing key (Req 19.5). When no explicit service is

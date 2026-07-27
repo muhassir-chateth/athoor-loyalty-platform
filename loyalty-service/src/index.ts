@@ -51,7 +51,9 @@ import { PgCustomerBalanceSource } from "./routes/balance.js";
 import { DbEntitlementResolver } from "./benefits/entitlementResolver.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
-import { PgPortalVisitRecorder } from "./routes/profile.js";
+import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
+import { RecentlyViewedStore } from "./profile/recentlyViewed.js";
+import { RulesBasedSuggestionEngine } from "./profile/suggestions.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
@@ -173,8 +175,23 @@ async function main(): Promise<void> {
     // DEFAULT options: the existing empty Shopify purchase source stands in
     // until a real Shopify order source is wired; preference data is read from
     // Postgres (Req 17.x).
-    fragranceProfileDataSource: new PgFragranceProfileDataSource(pool),
+    // The suggestion engine was the third unreferenced piece of finding 3
+    // (task 31): without it `PgFragranceProfileDataSource` returned no
+    // suggestions at all, so Req 17.6 was unmet in the running service. It reads
+    // purchase + view history and excludes already-purchased fragrances.
+    fragranceProfileDataSource: new PgFragranceProfileDataSource(pool, {
+      suggestionEngine: new RulesBasedSuggestionEngine(),
+    }),
     portalVisitRecorder: new PgPortalVisitRecorder(pool),
+    // Profile preference WRITES (task 31, Req 17.2/17.4/17.5). The profile could
+    // be read and never written: `setFavourite`, `reconcileWishlist` and
+    // `RecentlyViewedStore` had no production call site. Both of these delegate
+    // to those existing implementations — the guards, the `ON CONFLICT DO
+    // NOTHING` idempotence, the union semantics and the view sampling all stay
+    // where they were written. Off-ledger: `customer_favourites`,
+    // `customer_wishlist` and `customer_recently_viewed` only.
+    preferenceStore: new PgProfilePreferenceStore(pool),
+    recentlyViewedRecorder: new RecentlyViewedStore(pool),
     deviceTokenStore: new PgDeviceTokenStore(pool),
     // Real `POST /v1/redeem` handler (design.md route table; Req 3.2–3.11): the
     // append-only ledger repo, the atomic transactor, and the pg-boss discount-

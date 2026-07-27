@@ -39,7 +39,16 @@ import {
   type FragranceProfileDataSource,
 } from "../profile/fragranceProfile.js";
 import { markPortalVisit } from "../profile/portalVisit.js";
+import {
+  getWishlist,
+  listFavourites,
+  reconcileWishlist,
+  setFavourite,
+  InvalidPreferenceInputError,
+} from "../profile/favouritesWishlist.js";
+import { RecentlyViewedValidationError } from "../profile/recentlyViewed.js";
 import type { Queryable } from "../ledger/repository.js";
+import { z } from "zod";
 
 /**
  * The `POST /v1/profile/visit` response contract (design.md → `{ firstVisit }`).
@@ -98,6 +107,70 @@ export class PgPortalVisitRecorder implements PortalVisitRecorder {
   }
 }
 
+/**
+ * The preference WRITES and their paired reads (task 31, Req 17.2/17.4).
+ *
+ * Expressed as an interface so the routes are unit-testable with an in-memory
+ * fake, and so the production implementation is a thin delegation to the
+ * EXISTING `profile/favouritesWishlist.ts` functions rather than a second copy
+ * of the rules. Nothing here validates a product id or performs a union — those
+ * belong to that module and stay there.
+ */
+export interface ProfilePreferenceStore {
+  /** Mark (`on`) or unmark a favourite; idempotent (Req 17.2). */
+  setFavourite(customerId: string, productId: string, on: boolean): Promise<void>;
+  /** The customer's current favourites, ordered by product id (Req 17.2). */
+  listFavourites(customerId: string): Promise<string[]>;
+  /** The authoritative account-level wishlist (A14). */
+  getWishlist(customerId: string): Promise<string[]>;
+  /** UNION the device-local list into the account wishlist and return the merged set (Req 17.4). */
+  reconcileWishlist(customerId: string, deviceLocalProductIds: string[]): Promise<string[]>;
+}
+
+/** Records an off-ledger product view; sampling/rate-limiting lives in the store (Req 17.5). */
+export interface RecentlyViewedRecorder {
+  recordView(customerId: string, productId: string): Promise<void>;
+}
+
+/**
+ * Postgres-backed {@link ProfilePreferenceStore}. Pure delegation to the task
+ * 14.2 implementations — every guard, the `ON CONFLICT DO NOTHING` idempotence
+ * and the union semantics are theirs. Writes only `customer_favourites` /
+ * `customer_wishlist`, never `ledger_entries` (Req 17.3, Property 13).
+ *
+ * SAFETY: issues SQL only when a caller passes a real Pool/PoolClient at runtime.
+ */
+export class PgProfilePreferenceStore implements ProfilePreferenceStore {
+  constructor(private readonly db: Queryable) {}
+
+  async setFavourite(customerId: string, productId: string, on: boolean): Promise<void> {
+    await setFavourite(this.db, customerId, productId, on);
+  }
+
+  async listFavourites(customerId: string): Promise<string[]> {
+    return listFavourites(this.db, customerId);
+  }
+
+  async getWishlist(customerId: string): Promise<string[]> {
+    return getWishlist(this.db, customerId);
+  }
+
+  async reconcileWishlist(customerId: string, deviceLocalProductIds: string[]): Promise<string[]> {
+    return reconcileWishlist(this.db, customerId, deviceLocalProductIds);
+  }
+}
+
+/** Body of `PUT /v1/profile/favourites/:id`: which way to set the flag. */
+const FAVOURITE_BODY_SCHEMA = z.object({ on: z.boolean() }).strip();
+
+/** Body of `POST /v1/profile/wishlist/reconcile`: the device-local product ids (A14). */
+const WISHLIST_RECONCILE_SCHEMA = z
+  .object({ deviceLocal: z.array(z.string().min(1)).max(500) })
+  .strip();
+
+/** Body of `POST /v1/profile/recently-viewed`: one viewed product. */
+const RECENTLY_VIEWED_SCHEMA = z.object({ productId: z.string().min(1) }).strip();
+
 /** Options accepted by {@link registerProfileRoutes}. */
 export interface ProfileRouteOptions {
   /**
@@ -115,6 +188,19 @@ export interface ProfileRouteOptions {
    * deploy time.
    */
   portalVisitRecorder?: PortalVisitRecorder;
+  /**
+   * Backs the preference WRITES and their paired reads (task 31, Req 17.2/17.4).
+   * Production wires {@link PgProfilePreferenceStore}. When ABSENT the favourite
+   * and wishlist routes are not registered at all, so a build without it keeps
+   * its existing route surface rather than accepting writes that go nowhere.
+   */
+  preferenceStore?: ProfilePreferenceStore;
+  /**
+   * Backs `POST /v1/profile/recently-viewed` (task 31, Req 17.5). Production
+   * wires the existing `RecentlyViewedStore`, which owns the sampling and the
+   * retention window. Absent → the route is not registered.
+   */
+  recentlyViewedRecorder?: RecentlyViewedRecorder;
 }
 
 /**
@@ -177,4 +263,166 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
     // Wrap the array so the versioning plugin can inject the version field.
     return { milestones };
   });
+
+  app.get("/profile/suggestions", async (req: FastifyRequest, reply: FastifyReply) => {
+    const ctx = req.authCtx;
+    if (!ctx) {
+      return reply.code(401).send({
+        error: "identity_resolution_failed",
+        message: "Could not resolve the request to a loyalty customer identity.",
+      });
+    }
+    // Behind the SAME stable interface as the profile payload's field (A11), so
+    // richer logic can replace the engine without changing this contract.
+    const profile = await service.getFragranceProfile(ctx.customerId);
+    return { suggestions: profile.suggestions };
+  });
+
+  /* ------------------------ preference writes (task 31) ------------------------ */
+  /*
+   * Reachability-audit finding 3: `GET /v1/profile` returned `favourites`,
+   * `wishlist` and `recentlyViewed`, and NOTHING could write any of them —
+   * `setFavourite`, `reconcileWishlist` and `RecentlyViewedStore` had no
+   * production call site. These are those call sites, following the design route
+   * table exactly.
+   *
+   * Every one is OFF-LEDGER (Req 17.3, Property 13): they touch only
+   * `customer_favourites`, `customer_wishlist` and `customer_recently_viewed`.
+   * All are state-changing, so the scope-level idempotency plugin requires an
+   * `Idempotency-Key`, per-customer scoped since task 38. Validation belongs to
+   * the underlying modules; the routes translate their typed errors to HTTP.
+   */
+
+  /** Maps a preference module's validation error to 400; returns false otherwise. */
+  const replyInvalidInput = (reply: FastifyReply, err: unknown): boolean => {
+    if (err instanceof InvalidPreferenceInputError || err instanceof RecentlyViewedValidationError) {
+      reply.code(400).send({ error: err.code, message: err.message });
+      return true;
+    }
+    return false;
+  };
+
+  const preferenceStore = opts.preferenceStore;
+  if (preferenceStore) {
+    app.get("/profile/favourites", async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = req.authCtx;
+      if (!ctx) {
+        return reply.code(401).send({
+          error: "identity_resolution_failed",
+          message: "Could not resolve the request to a loyalty customer identity.",
+        });
+      }
+      return { favourites: await preferenceStore.listFavourites(ctx.customerId) };
+    });
+
+    // PUT, not POST/DELETE: the design route table defines a single idempotent
+    // set-or-unset (`(ctx, on: boolean) => void`), which matches the underlying
+    // `setFavourite` contract — marking an already-favourited product and
+    // unmarking one that is not favourited are both no-ops.
+    app.put("/profile/favourites/:id", async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = req.authCtx;
+      if (!ctx) {
+        return reply.code(401).send({
+          error: "identity_resolution_failed",
+          message: "Could not resolve the request to a loyalty customer identity.",
+        });
+      }
+      const params = z.object({ id: z.string().min(1) }).strip().safeParse(req.params);
+      const body = FAVOURITE_BODY_SCHEMA.safeParse(req.body);
+      if (!params.success || !body.success) {
+        return reply.code(400).send({
+          error: "invalid_request",
+          message: "A product id in the path and a body of { on: boolean } are required.",
+        });
+      }
+      try {
+        await preferenceStore.setFavourite(ctx.customerId, params.data.id, body.data.on);
+      } catch (err) {
+        if (replyInvalidInput(reply, err)) return reply;
+        throw err;
+      }
+      // Echo the resulting set so the caller needs no follow-up read.
+      return {
+        productId: params.data.id,
+        on: body.data.on,
+        favourites: await preferenceStore.listFavourites(ctx.customerId),
+      };
+    });
+
+    app.get("/profile/wishlist", async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = req.authCtx;
+      if (!ctx) {
+        return reply.code(401).send({
+          error: "identity_resolution_failed",
+          message: "Could not resolve the request to a loyalty customer identity.",
+        });
+      }
+      return { wishlist: await preferenceStore.getWishlist(ctx.customerId) };
+    });
+
+    // A14 / Req 17.4: the device-local `shopify-wishlist` entries are merged as a
+    // UNION into the account-level wishlist, which is authoritative thereafter.
+    // The CLIENT supplies the device-local list because it lives in
+    // localStorage — the server cannot read it, so "on authentication" means
+    // "the storefront calls this once the member is authenticated".
+    app.post("/profile/wishlist/reconcile", async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = req.authCtx;
+      if (!ctx) {
+        return reply.code(401).send({
+          error: "identity_resolution_failed",
+          message: "Could not resolve the request to a loyalty customer identity.",
+        });
+      }
+      const parsed = WISHLIST_RECONCILE_SCHEMA.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: "invalid_request",
+          message: "A body of { deviceLocal: string[] } with at most 500 ids is required.",
+        });
+      }
+      try {
+        // Nothing is deleted: reconciliation only ever ADDS, so a member who
+        // signs in on a new device cannot lose account-level entries.
+        const wishlist = await preferenceStore.reconcileWishlist(
+          ctx.customerId,
+          parsed.data.deviceLocal,
+        );
+        return { wishlist };
+      } catch (err) {
+        if (replyInvalidInput(reply, err)) return reply;
+        throw err;
+      }
+    });
+  }
+
+  const recentlyViewedRecorder = opts.recentlyViewedRecorder;
+  if (recentlyViewedRecorder) {
+    app.post("/profile/recently-viewed", async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = req.authCtx;
+      if (!ctx) {
+        return reply.code(401).send({
+          error: "identity_resolution_failed",
+          message: "Could not resolve the request to a loyalty customer identity.",
+        });
+      }
+      const parsed = RECENTLY_VIEWED_SCHEMA.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: "invalid_request",
+          message: "A body of { productId: string } is required.",
+        });
+      }
+      try {
+        await recentlyViewedRecorder.recordView(ctx.customerId, parsed.data.productId);
+      } catch (err) {
+        if (replyInvalidInput(reply, err)) return reply;
+        throw err;
+      }
+      // `accepted`, deliberately not `recorded`: the store SAMPLES repeat views
+      // of the same product within its minimum interval, so an accepted request
+      // does not promise a row was written this time (Req 17.5). Claiming
+      // otherwise would be a lie the client could not detect.
+      return { accepted: true };
+    });
+  }
 }

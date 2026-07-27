@@ -116,6 +116,18 @@ export interface V1RouterOptions {
    */
   portalVisitRecorder?: ProfileRouteOptions["portalVisitRecorder"];
   /**
+   * Backs the profile preference WRITES — `PUT /v1/profile/favourites/:id`,
+   * `POST /v1/profile/wishlist/reconcile` and their paired reads (task 31,
+   * Req 17.2/17.4). Production wires `PgProfilePreferenceStore`; absent, those
+   * routes are not registered so the existing surface is unchanged.
+   */
+  preferenceStore?: ProfileRouteOptions["preferenceStore"];
+  /**
+   * Backs `POST /v1/profile/recently-viewed` (task 31, Req 17.5). Production
+   * wires the existing `RecentlyViewedStore`, which owns sampling and retention.
+   */
+  recentlyViewedRecorder?: ProfileRouteOptions["recentlyViewedRecorder"];
+  /**
    * Registers/de-registers a customer's push Device_Tokens for
    * `POST /v1/devices` and `DELETE /v1/devices/:token` (task 19.1, Req 19.1).
    * Additive `/v1` mobile-readiness surface. Defaults inside the device routes
@@ -220,9 +232,14 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // chronological journey milestones on GET /v1/profile/journey. Empty
   // categories return empty (never an error); only the resolved customer's data
   // is returned.
+  // Preference WRITES (task 31, Req 17.2/17.4/17.5; reachability finding 3): the
+  // profile could be read and never written, so `setFavourite`,
+  // `reconcileWishlist` and `RecentlyViewedStore` had no production call site.
   registerProfileRoutes(app, {
     fragranceProfileDataSource: opts.fragranceProfileDataSource,
     portalVisitRecorder: opts.portalVisitRecorder,
+    preferenceStore: opts.preferenceStore,
+    recentlyViewedRecorder: opts.recentlyViewedRecorder,
   });
 
   // Mobile readiness (task 19.1, Req 19.1/19.7): additive device-token
