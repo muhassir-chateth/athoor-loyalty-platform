@@ -284,6 +284,44 @@ describe("a customer accepts at most one referral (task 40)", () => {
     expect(db.lots).toHaveLength(0);
   });
 
+  it("CONCURRENT same-pair claims: two interleaved flows produce one row and one +150", async () => {
+    const db = seeded();
+    const repo = new LedgerRepository(db);
+
+    // Genuinely interleaved, not sequential: both flows start before either has
+    // inserted, so both pre-reads see nothing — the shape that paid the referrer
+    // twice on staging. Serialisation now comes from the unique index alone.
+    const [a, b] = await Promise.all([
+      recordReferralOnSignup(repo, { referredCustomerId: FRIEND, referrerId: REFERRER_A }, db),
+      recordReferralOnSignup(repo, { referredCustomerId: FRIEND, referrerId: REFERRER_A }, db),
+    ]);
+
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual(["already_rewarded", "rewarded"]);
+    expect(db.referrals).toHaveLength(1);
+    expect(db.ledger.filter((e) => e.entry_type === "earn_referral")).toHaveLength(1);
+    expect(db.lots).toHaveLength(1);
+    expect(db.referralPointsFor(REFERRER_A)).toBe(REFERRAL_SIGNUP_POINTS);
+  });
+
+  it("CONCURRENT different-referrer claims: exactly one referrer is paid", async () => {
+    const db = seeded();
+    const repo = new LedgerRepository(db);
+
+    const [a, b] = await Promise.all([
+      recordReferralOnSignup(repo, { referredCustomerId: FRIEND, referrerId: REFERRER_A }, db),
+      recordReferralOnSignup(repo, { referredCustomerId: FRIEND, referrerId: REFERRER_B }, db),
+    ]);
+
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual(["already_claimed", "rewarded"]);
+    expect(db.referrals).toHaveLength(1);
+    expect(db.ledger.filter((e) => e.entry_type === "earn_referral")).toHaveLength(1);
+    // Whichever won, the other got nothing — the total is one reward, not two.
+    const paid = [REFERRER_A, REFERRER_B].map((r) => db.referralPointsFor(r)).sort();
+    expect(paid).toEqual([0, REFERRAL_SIGNUP_POINTS]);
+  });
+
   it("fails loudly rather than awarding blind when a conflict leaves nothing readable", async () => {
     const db = seeded();
     // Conflict with no visible row: a constraint the engine does not model
