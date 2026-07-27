@@ -77,6 +77,13 @@ class FakeDb implements Queryable, Transactor {
   readonly customers: CustomerStore[] = [];
   readonly ledger: LedgerRowStore[] = [];
   readonly lots: PointLotStore[] = [];
+  /** tier_change_history rows written during the flow (task 46). */
+  readonly tierChanges: Array<{
+    customer_id: string;
+    from_tier: string;
+    to_tier: string;
+    reason: string;
+  }> = [];
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -105,12 +112,27 @@ class FakeDb implements Queryable, Transactor {
     if (queryText.includes("UPDATE customers")) {
       return this.updateCustomerTotals<R>(values);
     }
+    if (queryText.includes("INSERT INTO tier_change_history")) {
+      return this.insertTierChange<R>(values);
+    }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }
 
   // Transactor: run the unit of work directly on this fake (no real BEGIN).
   async transaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
     return fn(this);
+  }
+
+  /** Records a tier_change_history row (task 46). */
+  private insertTierChange<R extends QueryResultRow>(values: unknown[]): QueryResult<R> {
+    const [customerId, fromTier, toTier, reason] = values as [string, string, string, string];
+    this.tierChanges.push({
+      customer_id: customerId,
+      from_tier: fromTier,
+      to_tier: toTier,
+      reason,
+    });
+    return this.result<R>([]);
   }
 
   private nextId(prefix: string): string {

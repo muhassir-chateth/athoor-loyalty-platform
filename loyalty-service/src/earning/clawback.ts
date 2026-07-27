@@ -95,6 +95,7 @@ import {
 } from "../ledger/balance.js";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
 import { deriveTier, normalizeTier, type Tier } from "../tier/tier.js";
+import { recordTierChange, TIER_CHANGE_REASON_CLAWBACK } from "../tier/tierHistory.js";
 import type { WebhookJob } from "../webhooks/enqueue.js";
 
 /** The webhook topics this module reverses earnings for. */
@@ -480,6 +481,10 @@ export async function clawback(
       const newSpend = Math.max(0, currentSpend - moneyBack);
       const newTier = deriveTier(newSpend);
       await executor.query(UPDATE_CUSTOMER_TOTALS_SQL, [customerId, moneyBack, newTier]);
+      // Record the downgrade on the same executor so it is atomic with the
+      // UPDATE (task 46). Writes nothing when the tier is retained, so the
+      // DEFAULT policy (downgrade disabled, A4) leaves behaviour unchanged.
+      await recordTierChange(executor, customerId, tier, newTier, TIER_CHANGE_REASON_CLAWBACK);
       tierRetained = newTier === tier;
       tier = newTier;
     }

@@ -83,6 +83,13 @@ class FakeDb implements Queryable, Transactor {
   readonly customers: CustomerStore[] = [];
   readonly ledger: LedgerRowStore[] = [];
   readonly lots: PointLotStore[] = [];
+  /** tier_change_history rows written by a downgrade (task 46). */
+  readonly tierChanges: Array<{
+    customer_id: string;
+    from_tier: string;
+    to_tier: string;
+    reason: string;
+  }> = [];
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -119,6 +126,18 @@ class FakeDb implements Queryable, Transactor {
     }
     if (queryText.includes("UPDATE customers")) {
       return this.updateCustomerTotals<R>(values);
+    }
+    if (queryText.includes("INSERT INTO tier_change_history")) {
+      // Task 46: a clawback that actually lowers the tier records the change.
+      // Only reachable while allowTierDowngradeOnClawback is enabled (A4).
+      const [customerId, fromTier, toTier, reason] = values as [string, string, string, string];
+      this.tierChanges.push({
+        customer_id: customerId,
+        from_tier: fromTier,
+        to_tier: toTier,
+        reason,
+      });
+      return this.result<R>([]);
     }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }
@@ -685,6 +704,9 @@ describe("clawback: tier retained when downgrade disabled (Req 4.7, A4)", () => 
     expect(db.customerById(customerId)!.tier).toBe("gold");
     // Lifetime spend untouched when downgrade is disabled.
     expect(db.customerById(customerId)!.lifetime_spend_gbp).toBe(800);
+    // Task 46: no tier change happened, so no history row is written. This is
+    // the DEFAULT policy, so tier history adds nothing to default behaviour.
+    expect(db.tierChanges).toEqual([]);
   });
 
   it("recomputes the tier downward when downgrade is enabled", async () => {
@@ -713,6 +735,11 @@ describe("clawback: tier retained when downgrade disabled (Req 4.7, A4)", () => 
     expect(outcome.tierRetained).toBe(false);
     expect(db.customerById(customerId)!.tier).toBe("bronze");
     expect(db.customerById(customerId)!.lifetime_spend_gbp).toBe(200);
+    // Task 46: a downgrade IS a tier change, so it is recorded once, with the
+    // clawback reason, atomically with the tier UPDATE.
+    expect(db.tierChanges).toEqual([
+      { customer_id: customerId, from_tier: "gold", to_tier: "bronze", reason: "clawback" },
+    ]);
   });
 });
 

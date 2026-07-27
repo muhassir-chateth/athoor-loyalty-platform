@@ -64,6 +64,7 @@ import { z } from "zod";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
 import { addMonths, createExpiringPointLot, LOT_EXPIRY_MONTHS } from "../ledger/pointLots.js";
 import { advanceTier, tierMultiplier, type Tier } from "../tier/tier.js";
+import { recordTierChange, TIER_CHANGE_REASON_PAID_ORDER } from "../tier/tierHistory.js";
 import type { WebhookJob } from "../webhooks/enqueue.js";
 
 /** The exact first-purchase earning amount (Requirement 2.5). */
@@ -143,6 +144,12 @@ export type OrderEarnOutcome =
       tierAtTime: Tier;
       /** The customer's retained tier after advancement (never lowered). */
       tier: Tier;
+      /**
+       * True iff this order moved the tier and a `tier_change_history` row was
+       * written for it (task 46). False for an order that stayed within the
+       * same tier, which writes no history.
+       */
+      tierChanged: boolean;
       /** The customer's lifetime spend (GBP) after adding this order. */
       lifetimeSpendGBP: number;
     }
@@ -377,6 +384,19 @@ export async function earnOrder(
   const advancedTier = advanceTier(tierAtTime, newLifetimeSpend);
   await executor.query(UPDATE_CUSTOMER_TOTALS_SQL, [customerId, input.eligibleTotal, advancedTier]);
 
+  // (7) Record the promotion so it can appear on the Fragrance_Journey_Timeline
+  // (Req 17.8/17.9, task 46). Written on the SAME executor as the UPDATE above,
+  // so the row and the tier move commit or roll back together; writes nothing
+  // when the order did not cross a threshold. Replay cannot duplicate it: step
+  // (3) returns `already_earned` before reaching here.
+  const tierChanged = await recordTierChange(
+    executor,
+    customerId,
+    tierAtTime,
+    advancedTier,
+    TIER_CHANGE_REASON_PAID_ORDER,
+  );
+
   return {
     status: "earned",
     customerId,
@@ -386,6 +406,7 @@ export async function earnOrder(
     firstPurchase,
     tierAtTime,
     tier: advancedTier,
+    tierChanged,
     lifetimeSpendGBP: newLifetimeSpend,
   };
 }

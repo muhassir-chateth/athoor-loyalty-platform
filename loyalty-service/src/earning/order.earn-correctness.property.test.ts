@@ -74,6 +74,8 @@ const FIXED_CREATED_AT = new Date("2025-01-15T10:00:00.000Z");
 class FakeDb implements Queryable, Transactor {
   readonly customers: CustomerStore[] = [];
   readonly ledger: LedgerRowStore[] = [];
+  /** tier_change_history rows accepted during the run (task 46). */
+  readonly tierChanges: Array<{ customer_id: string; from_tier: string; to_tier: string }> = [];
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -102,6 +104,14 @@ class FakeDb implements Queryable, Transactor {
     }
     if (queryText.includes("UPDATE customers")) {
       return this.updateCustomerTotals<R>(values);
+    }
+    if (queryText.includes("INSERT INTO tier_change_history")) {
+      // Task 46: a threshold-crossing order also records its tier change. Not
+      // asserted here (this property is about earning maths), but the fake must
+      // accept it because random spend can cross a threshold.
+      const [customerId, fromTier, toTier] = values as [string, string, string];
+      this.tierChanges.push({ customer_id: customerId, from_tier: fromTier, to_tier: toTier });
+      return this.result<R>([]);
     }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }

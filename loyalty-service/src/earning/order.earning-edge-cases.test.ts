@@ -64,6 +64,8 @@ class FakeDb implements Queryable, Transactor {
   readonly customers: CustomerStore[] = [];
   readonly ledger: LedgerRowStore[] = [];
   readonly lots: PointLotStore[] = [];
+  /** How many tier_change_history rows were written (task 46). */
+  tierChangeCount = 0;
   private seq = 0;
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -91,6 +93,11 @@ class FakeDb implements Queryable, Transactor {
     }
     if (queryText.includes("UPDATE customers")) {
       return this.updateCustomerTotals<R>(values);
+    }
+    if (queryText.includes("INSERT INTO tier_change_history")) {
+      // Task 46: accepted so a threshold-crossing edge case does not fail here.
+      this.tierChangeCount += 1;
+      return this.result<R>([]);
     }
     throw new Error(`Unexpected query in FakeDb: ${queryText}`);
   }
