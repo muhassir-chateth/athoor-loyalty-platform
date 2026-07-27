@@ -287,3 +287,35 @@ Reasoning:
   household/payment-instrument limits, which are a different class of control
   (they need identity signals the platform does not currently collect).
 - **No fraud-review UI work assessed** beyond noting the surface exists.
+
+---
+
+## 7. Outcome (task 40, 2026-07-27)
+
+The recommendation in §5 was adopted. Both scenarios that this document could
+only infer were **reproduced live** under task 39 and are now **refused** under
+task 40.
+
+| Scenario | Before | After |
+|---|---|---|
+| S1 multi-claim fan-out | 3 different codes all `200 rewarded`, 3 referrers paid +150 each | 2nd code → `409 referral_already_claimed`, only the first referrer paid |
+| S5 duplicate pair under concurrency | 2 parallel claims both `rewarded`, referrer paid twice | one `rewarded`, one `already_rewarded`, one row, one +150 |
+| S1 racing itself (two different codes in parallel) | not previously tested | one `rewarded`, one `409 referral_already_claimed` |
+| +250 recipient with fan-out rows present | unspecified (`LIMIT 1`, no `ORDER BY`) | deterministic; the one accepted referrer |
+
+What enforces it: a partial unique index `referrals (referred_id) WHERE
+referred_id IS NOT NULL`, with the claim path rewritten to
+`INSERT … ON CONFLICT DO NOTHING RETURNING id`. The pre-read survives only to
+choose between the two honest responses — `already_rewarded` for a same-pair
+repeat and the new `already_claimed` for a different referrer. It is not a gate,
+because a read-then-write is exactly what failed here.
+
+`UNIQUE (referrer_id, referred_id)` was added as defence in depth. It is
+**largely subsumed** by the partial index for every row the code writes today,
+and matters mainly if invite rows with a NULL `referred_id` are ever introduced.
+
+Not addressed, deliberately: longer collusive chains (S4). Each participant must
+now be exactly one person's referred party, which bounds the payout per account;
+detection of the wider pattern stays with the fraud-review surface rather than
+blocking legitimate members. `earn_referral` still has no clawback path, so
+anything already paid is reversible only by an admin adjustment under Req 10.2.
