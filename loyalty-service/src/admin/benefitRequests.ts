@@ -225,7 +225,15 @@ export function buildBenefitRequestView(
 /** Reads and transitions benefit requests. Injectable so routes are testable. */
 export interface BenefitRequestStore {
   list(): Promise<AdminBenefitRequest[]>;
-  find(requestId: string): Promise<AdminBenefitRequest | null>;
+  /**
+   * Reads one request. `executor` MUST be passed when reading inside a
+   * transaction that has already written: a read on the pool takes a different
+   * connection and cannot see the uncommitted UPDATE, so the caller would echo
+   * the pre-change state back to the operator. (That is exactly what happened on
+   * the first staging run — the in-memory store has no isolation, so no unit test
+   * could have caught it.)
+   */
+  find(requestId: string, executor?: Queryable): Promise<AdminBenefitRequest | null>;
   /**
    * Applies the guarded transition and returns true iff a row changed. MUST run
    * inside the caller's transaction so the audit record is atomic with it.
@@ -247,8 +255,10 @@ export class PgBenefitRequestStore implements BenefitRequestStore {
     return result.rows.map(toAdminRequest);
   }
 
-  async find(requestId: string): Promise<AdminBenefitRequest | null> {
-    const result = await this.db.query<RequestDbRow>(SELECT_REQUEST_BY_ID_SQL, [requestId]);
+  async find(requestId: string, executor: Queryable = this.db): Promise<AdminBenefitRequest | null> {
+    // Reads through `executor` so a read inside the writing transaction sees the
+    // uncommitted UPDATE; on the pool it would not.
+    const result = await executor.query<RequestDbRow>(SELECT_REQUEST_BY_ID_SQL, [requestId]);
     const row = result.rows[0];
     return row ? toAdminRequest(row) : null;
   }
@@ -276,7 +286,7 @@ export class InMemoryBenefitRequestStore implements BenefitRequestStore {
     return this.rows.map((r) => ({ ...r }));
   }
 
-  async find(requestId: string): Promise<AdminBenefitRequest | null> {
+  async find(requestId: string, _executor?: Queryable): Promise<AdminBenefitRequest | null> {
     const row = this.rows.find((r) => r.id === requestId);
     return row ? { ...row } : null;
   }
@@ -354,7 +364,7 @@ export class BenefitRequestService {
         // Lost a race, or the row moved between the read and the write. Re-read
         // and answer from the truth rather than reporting a change that did not
         // happen.
-        const latest = await this.deps.store.find(requestId);
+        const latest = await this.deps.store.find(requestId, tx);
         if (!latest) {
           throw new BenefitRequestNotFoundError(requestId);
         }
@@ -381,7 +391,10 @@ export class BenefitRequestService {
         tx,
       );
 
-      const updated = await this.deps.store.find(requestId);
+      // Read through `tx`: the UPDATE above is not committed yet, so a read on
+      // the pool would return the PRE-change row and the operator would be shown
+      // a status that had already moved on.
+      const updated = await this.deps.store.find(requestId, tx);
       return { request: updated ?? { ...current, status: to }, changed: true };
     });
   }

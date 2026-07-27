@@ -383,3 +383,82 @@ describe("no-op transitions never reach the database", () => {
     expect(transactor).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * REGRESSION (found on staging, not by these unit tests): the post-transition
+ * read must go through the TRANSACTION, not the pool. On the pool it takes a
+ * different connection, cannot see the uncommitted UPDATE, and returns the
+ * PRE-change row — so the operator is shown the status they just moved away from.
+ * The in-memory store has no isolation, which is precisely why no unit test could
+ * have caught it; these tests assert the executor is threaded so it cannot regress.
+ */
+describe("the response reflects the POST-transition state (staging regression)", () => {
+  it("reads the updated row through the transaction executor", async () => {
+    const seenExecutors: Array<Queryable | undefined> = [];
+    const inner = new InMemoryBenefitRequestStore([request()]);
+    const store: BenefitRequestStore = {
+      list: () => inner.list(),
+      find: (id, executor) => {
+        seenExecutors.push(executor);
+        return inner.find(id);
+      },
+      applyTransition: (id, to, allowed, tx) => inner.applyTransition(id, to, allowed, tx),
+    };
+    const tx = { query: async () => ({}) } as unknown as Queryable;
+    const svc = new BenefitRequestService({
+      store,
+      audit: new InMemoryAuditTrailRecorder(),
+      transactor: async (work) => work(tx),
+    });
+
+    const result = await svc.transition(REQUEST_ID, "fulfilled", "admin-1");
+
+    expect(result.request.status).toBe("fulfilled");
+    // The pre-read is outside the transaction (no executor); the post-read is
+    // inside it and MUST carry the transaction.
+    expect(seenExecutors[0]).toBeUndefined();
+    expect(seenExecutors[seenExecutors.length - 1]).toBe(tx);
+  });
+
+  it("re-reads a lost race through the transaction too", async () => {
+    const seenExecutors: Array<Queryable | undefined> = [];
+    const inner = new InMemoryBenefitRequestStore([request()]);
+    const store: BenefitRequestStore = {
+      list: () => inner.list(),
+      find: (id, executor) => {
+        seenExecutors.push(executor);
+        return inner.find(id);
+      },
+      applyTransition: async () => false, // always lose
+    };
+    const tx = { query: async () => ({}) } as unknown as Queryable;
+    const svc = new BenefitRequestService({
+      store,
+      audit: new InMemoryAuditTrailRecorder(),
+      transactor: async (work) => work(tx),
+    });
+
+    await expect(svc.transition(REQUEST_ID, "fulfilled", "admin-1")).rejects.toBeInstanceOf(
+      BenefitRequestInvalidTransitionError,
+    );
+    expect(seenExecutors[seenExecutors.length - 1]).toBe(tx);
+  });
+
+  it("PgBenefitRequestStore.find uses the executor it is given", async () => {
+    const calls: string[] = [];
+    const makeDb = (label: string): Queryable => ({
+      query: async <R extends QueryResultRow>() => {
+        calls.push(label);
+        return { rows: [] as R[], rowCount: 0, command: "SELECT", oid: 0, fields: [] } as QueryResult<R>;
+      },
+    });
+    const pool = makeDb("pool");
+    const tx = makeDb("tx");
+    const store = new PgBenefitRequestStore(pool);
+
+    await store.find(REQUEST_ID);
+    await store.find(REQUEST_ID, tx);
+
+    expect(calls).toEqual(["pool", "tx"]);
+  });
+});
