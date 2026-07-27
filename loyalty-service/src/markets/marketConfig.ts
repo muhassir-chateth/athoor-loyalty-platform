@@ -3,9 +3,17 @@
  * Rule-set config" (`markets`, `earning_rule_sets`, `reward_rule_sets`) and
  * Requirement 21 (international / configuration readiness).
  *
- * This module is what the engine reads INSTEAD of the old hardcoded constants.
+ * **STATUS (task 32 decision, A18): the engine does NOT read this module.** The
+ * hardcoded constants (`DEFAULT_TIER_RULES`, `REWARDS`) remain the MVP source of
+ * truth; this provider is the retained, tested forward path for a second market,
+ * and its only production call site is the read-only drift check in
+ * `configDrift.ts` that publishes on `/health` whether the configured rows still
+ * agree with those constants. Wiring it into the earning and redemption paths was
+ * evaluated and declined — see A18 and criterion 21.6a for the reasoning.
+ *
  * It resolves the active market's rule sets into the exact shapes the rest of
- * the engine already consumes:
+ * the engine already consumes, so that wiring remains a small change when a
+ * second market arrives:
  *
  *   - a {@link TierRuleSet} (thresholds + multipliers) for the tier module
  *     (`deriveTier` / `advanceTier` / `tierMultiplier` / `buildTierSummary`),

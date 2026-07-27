@@ -108,7 +108,7 @@ Four new components join the Loyalty Service, plus a new logical store:
 3. **Membership-Credential service** — issues a verifiable, signed member identifier for the Digital Membership Card and QR-based verification, and exposes a verification endpoint. Uses a **new dedicated signing key** held in secrets management (Requirement 19).
 4. **Profile / Preferences store** — owns behavioural and preference data (favourites, wishlist, recently-viewed, journey timeline, portal-visit state) in tables **separate from the ledger**. High-volume recently-viewed writes are kept off the ledger entirely (Requirement 17).
 
-Configuration is externalised into **market / rule-set config** (`markets`, `earning_rule_sets`, `reward_rule_sets`) so tier thresholds, multipliers, and the reward map move out of hardcoded constants — i18n/multi-market readiness (Requirement 21). The ledger stays currency-agnostic (points are unitless); only money-bearing records carry an explicit currency.
+Configuration is externalised into **market / rule-set config** (`markets`, `earning_rule_sets`, `reward_rule_sets`) so tier thresholds, multipliers, and the reward map *can* move out of hardcoded constants — i18n/multi-market readiness (Requirement 21). **At MVP the engine still reads the constants** and the rule-set tables are the retained, tested forward path for a second market (A18, criterion 21.6a); the divergence hazard that creates is machine-checked and published on `/health` (task 32). The ledger stays currency-agnostic (points are unitless); only money-bearing records carry an explicit currency.
 
 ```mermaid
 graph TD

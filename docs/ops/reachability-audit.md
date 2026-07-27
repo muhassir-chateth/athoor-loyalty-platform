@@ -118,7 +118,27 @@ no trigger.
 
 *Requirements affected: 17.2, 17.4, 17.5, 17.6.*
 
-### 4. Market/rule-set configuration is dormant — MEDIUM
+### 4. ~~Market/rule-set configuration is dormant~~ — CLOSED BY DECISION (task 32)
+
+**Closed 2026-07-27 (commit `6c90ce9`).** The finding's premise was wrong in one
+respect: Req 21.2/21.4 are **structural** ("structure … so that X can be added"),
+not a requirement that the engine read config at runtime, so nothing was unmet —
+only unexercised. The owner decided the hardcoded constants remain the MVP source
+of truth (A18, criterion 21.6a), because wiring the provider into the earning and
+redemption paths would touch ~11 call sites including the redemption engine, need
+a cache with a refresh policy, and let a malformed row abort a money transaction.
+
+The dormancy that *did* matter is closed: `DbMarketConfigProvider` now has a
+read-only production call site, and `/health` publishes
+`marketConfig: { source: "constants", drifted, differences }` so a rule-set row
+that has diverged from the constants is observable rather than misleading.
+Verified live by perturbing a staging row (detected precisely, liveness
+unaffected) and by proving a £700 customer stays silver while the configured gold
+threshold says 700.
+
+Original finding, retained for the record:
+
+### 4 (original). Market/rule-set configuration is dormant — MEDIUM
 
 `DbMarketConfigProvider` and `StaticMarketConfigProvider` are never constructed.
 The `markets`, `earning_rule_sets` and `reward_rule_sets` tables are seeded by
