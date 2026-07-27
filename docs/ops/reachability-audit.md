@@ -49,7 +49,24 @@ future non-redemption state-changing endpoint would have no protection at all.
 
 *Requirements affected: 9.6, 9.7.*
 
-### 2. VIP benefits / entitlements are entirely unreachable — HIGH
+### 2. ~~VIP benefits / entitlements are entirely unreachable~~ — RESOLVED (task 30)
+
+**Resolved 2026-07-27 (commit `64359ee`).** `DbEntitlementResolver` is now
+constructed over the pool in `index.ts`, forwarded through `buildApp`, and reached
+by three surfaces: `GET /v1/benefits`, `POST /v1/benefits/:key/request`, and a new
+optional `benefits` field on `GET /v1/balance` (Req 18.2). Verified live on
+staging with a throwaway member promoted to `royal_vip` by a real £1,600 paid
+order: the qualifying member saw the benefit and their booking was recorded in
+`benefit_requests`, while a bronze member saw an empty list and was refused `403`
+with `requiredTier: royal_vip` and no row written. Boot-wiring assertions now fail
+if any link in the chain (construction, forwarding, registration) is removed.
+
+**Operator note that follows from A13:** all six seeded benefits ship
+`active = false`, so in production today every member's list is `[]` and a
+qualifying member's request returns `409 entitlement_benefit_disabled`. Enabling a
+perk is an `UPDATE benefits SET active = true` — configuration, no deploy.
+
+Original finding, retained for the record:
 
 No route exposes benefits, and `DbEntitlementResolver` is never constructed.
 `GET /v1/balance` and `GET /v1/profile` return no benefits field — verified in the
