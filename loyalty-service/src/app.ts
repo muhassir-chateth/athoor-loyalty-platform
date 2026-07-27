@@ -17,6 +17,7 @@ import type { AnalyticsService } from "./admin/analyticsService.js";
 import type { FragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import type { PortalVisitRecorder } from "./routes/profile.js";
 import type { CustomerBalanceSource } from "./routes/balance.js";
+import type { EntitlementResolver } from "./benefits/entitlementResolver.js";
 import type { LedgerHistorySource } from "./routes/history.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
@@ -96,6 +97,15 @@ export interface AppDependencies {
    * router (which already accepts `balanceSource`).
    */
   balanceSource?: CustomerBalanceSource;
+  /**
+   * The Entitlement Resolver backing the VIP benefit surface (task 30,
+   * Req 18.2/18.3/18.5/18.6). Production wires a {@link DbEntitlementResolver}
+   * over the pool (index.ts); tests and local runs omit it, and then the benefit
+   * routes are not registered and `GET /v1/balance` omits its `benefits` field,
+   * so the existing route surface and response shape are unchanged. Forwarded
+   * into the `/v1` router.
+   */
+  entitlementResolver?: EntitlementResolver;
   /**
    * Loads a page of a customer's ledger history + total count for
    * `GET /v1/history` (task 6.4). Production wires a {@link PgLedgerHistorySource};
@@ -282,6 +292,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     tokenVerifier: deps.tokenVerifier,
     appProxySecret: config.shopify.appProxySecret,
     balanceSource: deps.balanceSource,
+    entitlementResolver: deps.entitlementResolver,
     historySource: deps.historySource,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,

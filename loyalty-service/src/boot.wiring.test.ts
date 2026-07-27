@@ -167,3 +167,56 @@ describe("boot wiring regression — index.ts must wire Pg-backed implementation
     expect(indexSource).toMatch(/analyticsService\s*:\s*new\s+CachedAggregateAnalyticsService\s*\(/);
   });
 });
+
+/**
+ * VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6).
+ *
+ * This is the exact gap this file exists to catch. `DbEntitlementResolver` was
+ * complete and unit-tested from task 15.2 and **never constructed**, so no test
+ * in a 1 200-test suite noticed that Requirement 18 could not fire in the running
+ * service. These assertions read the source of `index.ts`, `app.ts` and `v1.ts`
+ * and fail if any link in the chain is removed — construction, forwarding, or
+ * route registration.
+ */
+const appSource = readFileSync(join(__dirname, "app.ts"), "utf8");
+const v1Source = readFileSync(join(__dirname, "routes", "v1.ts"), "utf8");
+const balanceSource = readFileSync(join(__dirname, "routes", "balance.ts"), "utf8");
+
+describe("boot wiring regression — the entitlement resolver reaches the running service (task 30)", () => {
+  it("index.ts imports DbEntitlementResolver", () => {
+    expect(indexSource).toMatch(/import\s.*DbEntitlementResolver.*from/);
+  });
+
+  it("index.ts constructs DbEntitlementResolver and passes it to buildApp", () => {
+    expect(indexSource).toMatch(/entitlementResolver\s*:\s*new\s+DbEntitlementResolver\s*\(/);
+  });
+
+  it("index.ts builds the resolver over the real pool, not a fake", () => {
+    expect(indexSource).toMatch(/new\s+DbEntitlementResolver\s*\(\s*pool\s*\)/);
+  });
+
+  it("app.ts forwards entitlementResolver into the /v1 router", () => {
+    expect(appSource).toMatch(/entitlementResolver\s*:\s*deps\.entitlementResolver/);
+  });
+
+  it("v1.ts registers the benefit routes when the resolver is wired", () => {
+    expect(v1Source).toMatch(/if\s*\(\s*opts\.entitlementResolver\s*\)/);
+    expect(v1Source).toMatch(/registerBenefitRoutes\s*\(\s*app\s*,/);
+  });
+
+  it("v1.ts threads the resolver into the balance route so account data carries benefits (Req 18.2)", () => {
+    expect(v1Source).toMatch(
+      /registerBalanceRoute\s*\(\s*app\s*,\s*\{[\s\S]*?entitlementResolver\s*:\s*opts\.entitlementResolver/,
+    );
+  });
+
+  it("the benefit surface computes no tier of its own — it delegates to the resolver", () => {
+    const benefitRouteSource = readFileSync(join(__dirname, "routes", "benefits.ts"), "utf8");
+    // No tier ranking, threshold or multiplier logic may live in the route layer:
+    // duplicating it is how the resolver and the balance summary would drift.
+    expect(benefitRouteSource).not.toMatch(/tierRank|advanceTier|deriveTier|lifetime_spend/);
+    expect(benefitRouteSource).not.toMatch(/FROM\s+benefits|SELECT\s/i);
+    // And the balance route resolves benefits rather than deriving them.
+    expect(balanceSource).toMatch(/entitlementResolver\.resolveBenefits\s*\(/);
+  });
+});

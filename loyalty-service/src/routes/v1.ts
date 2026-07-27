@@ -19,6 +19,8 @@ import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
+import { registerBenefitRoutes } from "./benefits.js";
+import type { EntitlementResolver } from "../benefits/entitlementResolver.js";
 import {
   registerMembershipCardRoutes,
   type MembershipCardRouteOptions,
@@ -136,6 +138,15 @@ export interface V1RouterOptions {
    * reuses another secret. When absent the membership-card surface fails closed.
    */
   membershipSigningKey?: string;
+  /**
+   * The Entitlement Resolver backing `GET /v1/benefits`,
+   * `POST /v1/benefits/:key/request` and the `benefits` field of
+   * `GET /v1/balance` (task 30, Req 18.2/18.3/18.5/18.6). Production wires
+   * `DbEntitlementResolver` over the pool. When ABSENT the benefit routes are
+   * not registered and the balance body omits `benefits`, so tests and local
+   * runs keep their existing route surface and response shape.
+   */
+  entitlementResolver?: EntitlementResolver;
 }
 
 /**
@@ -190,7 +201,13 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
 
   // Authenticated balance summary (task 6.3, Req 7.5/7.6/8.5): spendable
   // balance, tier + progress, and available rewards for the resolved customer.
-  registerBalanceRoute(app, { balanceSource: opts.balanceSource });
+  // The entitlement resolver is threaded into the balance summary so a
+  // customer's qualifying Benefits travel with the account data the dashboard
+  // already reads (Req 18.2), not only on the dedicated endpoint below.
+  registerBalanceRoute(app, {
+    balanceSource: opts.balanceSource,
+    entitlementResolver: opts.entitlementResolver,
+  });
 
   // Authenticated, paginated transaction history (task 6.4, Req 6.1–6.7):
   // entries typed earned/spent/expired with reason, ISO date, and order
@@ -226,6 +243,17 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // contract — no new security surface.
   if (opts.referralDeps) {
     registerReferralRoutes(app, opts.referralDeps);
+  }
+
+  // VIP benefits (task 30, Req 18.2/18.3/18.5/18.6; reachability finding 2).
+  // `GET /v1/benefits` returns the Benefits the customer's derived tier
+  // qualifies for; `POST /v1/benefits/:key/request` records an invocation of an
+  // enabled Benefit and denies an unqualified one with the required tier and no
+  // state change. Every decision belongs to the existing Entitlement Resolver;
+  // the routes only map its typed outcomes to HTTP. Registered only when the
+  // resolver is wired, so tests and local runs are unchanged.
+  if (opts.entitlementResolver) {
+    registerBenefitRoutes(app, { entitlementResolver: opts.entitlementResolver });
   }
 
   // Mobile readiness (task 19.2, Req 19.5/19.6): additive Digital Membership

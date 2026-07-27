@@ -37,6 +37,8 @@ import { computeSpendableBalance } from "../ledger/balance.js";
 import type { Queryable } from "../ledger/repository.js";
 import { REWARD_CATALOG, type Reward } from "../rewards/catalog.js";
 import { buildTierSummary, type Tier, type TierRuleSet } from "../tier/tier.js";
+import type { EntitlementResolver } from "../benefits/entitlementResolver.js";
+import { toBenefitView, type BenefitView } from "./benefits.js";
 
 /**
  * The persisted, tier-driving facts read from the `customers` row for a balance
@@ -103,6 +105,14 @@ export interface BalanceSummary {
   progressToNextTierGBP: number | null;
   /** The redeemable rewards catalog (Req 8.5). */
   availableRewards: readonly Reward[];
+  /**
+   * The Benefits the customer's current tier qualifies for (Req 18.2, task 30).
+   * ADDITIVE and OPTIONAL: present only when an entitlement resolver is wired,
+   * so a build without one returns exactly the previous body (Req 9.4). Resolved
+   * by the existing Entitlement Resolver from the same derived tier this summary
+   * reports — never recomputed here.
+   */
+  benefits?: readonly BenefitView[];
 }
 
 /**
@@ -118,9 +128,10 @@ export interface BalanceSummary {
 export function buildBalanceSummary(
   snapshot: CustomerBalanceSnapshot,
   rules?: TierRuleSet,
+  benefits?: readonly BenefitView[],
 ): BalanceSummary {
   const tier = buildTierSummary(snapshot.lifetimeSpendGBP, snapshot.tier, rules);
-  return {
+  const summary: BalanceSummary = {
     spendableBalance: snapshot.spendableBalance,
     tier: tier.tier,
     tierMultiplier: tier.multiplier,
@@ -131,6 +142,12 @@ export function buildBalanceSummary(
     progressToNextTierGBP: tier.progressToNextTierGBP,
     availableRewards: REWARD_CATALOG,
   };
+  // Omitted entirely (not `[]`) when no resolver is wired, so the body is
+  // byte-identical to the pre-task-30 response on such a build.
+  if (benefits !== undefined) {
+    summary.benefits = benefits;
+  }
+  return summary;
 }
 
 const SELECT_CUSTOMER_BALANCE_ROW_SQL = `
@@ -217,6 +234,14 @@ export interface BalanceRouteOptions {
   balanceSource?: CustomerBalanceSource;
   /** Tier rule set to apply (defaults to the GBP defaults inside the tier module). */
   tierRules?: TierRuleSet;
+  /**
+   * OPTIONAL Entitlement Resolver (task 30, Req 18.2). When wired, the summary
+   * includes the Benefits the customer's tier qualifies for — this is what makes
+   * "account data includes the qualifying Benefits" true of the dashboard's own
+   * read, rather than only of a separate endpoint. When absent the `benefits`
+   * field is omitted and the response is unchanged.
+   */
+  entitlementResolver?: EntitlementResolver;
 }
 
 /**
@@ -233,6 +258,7 @@ export interface BalanceRouteOptions {
 export function registerBalanceRoute(app: FastifyInstance, opts: BalanceRouteOptions = {}): void {
   const balanceSource = opts.balanceSource ?? new InMemoryCustomerBalanceSource();
   const tierRules = opts.tierRules;
+  const entitlementResolver = opts.entitlementResolver;
 
   app.get("/balance", async (req: FastifyRequest, reply: FastifyReply) => {
     const ctx = req.authCtx;
@@ -252,6 +278,24 @@ export function registerBalanceRoute(app: FastifyInstance, opts: BalanceRouteOpt
       });
     }
 
-    return buildBalanceSummary(snapshot, tierRules);
+    let benefits: readonly BenefitView[] | undefined;
+    if (entitlementResolver) {
+      try {
+        const resolved = await entitlementResolver.resolveBenefits(ctx.customerId, ctx.channel);
+        benefits = resolved.map(toBenefitView);
+      } catch (err) {
+        // The balance is the dashboard's core read and the entitlement lookup is
+        // an additive extra, so a resolver failure DEGRADES the optional field
+        // rather than failing the whole summary — the same fallback philosophy
+        // the storefront already applies. It is logged at warn so the failure is
+        // visible instead of silent; `GET /v1/benefits` surfaces the real error.
+        req.log?.warn(
+          { err, customerId: ctx.customerId },
+          "entitlement resolution failed for the balance summary; benefits omitted from this response",
+        );
+      }
+    }
+
+    return buildBalanceSummary(snapshot, tierRules, benefits);
   });
 }

@@ -48,6 +48,7 @@ import { PgCustomerResolver } from "./auth/identity.js";
 import { PgIdempotencyStore } from "./idempotency/store.js";
 import { assignReferralCode, awardReferralFirstPurchase } from "./referral/referral.js";
 import { PgCustomerBalanceSource } from "./routes/balance.js";
+import { DbEntitlementResolver } from "./benefits/entitlementResolver.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder } from "./routes/profile.js";
@@ -160,6 +161,15 @@ async function main(): Promise<void> {
     customerResolver: new PgCustomerResolver(pool),
     balanceSource: new PgCustomerBalanceSource(pool),
     historySource: new PgLedgerHistorySource(pool),
+    // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
+    // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
+    // unmet end to end (reachability-audit finding 2). Constructing it here gives
+    // it its production call site: `GET /v1/benefits`,
+    // `POST /v1/benefits/:key/request`, and the `benefits` field on
+    // `GET /v1/balance`. It reads the `benefits` table plus the customer's
+    // derived tier — the same derivation the balance summary uses — and writes
+    // only `benefit_requests`, never the ledger.
+    entitlementResolver: new DbEntitlementResolver(pool),
     // DEFAULT options: the existing empty Shopify purchase source stands in
     // until a real Shopify order source is wired; preference data is read from
     // Postgres (Req 17.x).
