@@ -54,6 +54,8 @@ import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
 import { RecentlyViewedStore } from "./profile/recentlyViewed.js";
 import { RulesBasedSuggestionEngine } from "./profile/suggestions.js";
+import { DbMarketConfigProvider } from "./markets/marketConfig.js";
+import { ProviderMarketConfigDriftSource } from "./markets/configDrift.js";
 import { PgDeviceTokenStore } from "./devices/deviceTokens.js";
 import { registerReconciliationJob, runReconciliation } from "./reconciliation/reconcile.js";
 import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
@@ -282,6 +284,14 @@ async function main(): Promise<void> {
     // discovery made during an incident into an alert the keep-alive watchdog can
     // raise the next morning.
     backupStatus: new PgLatestBackupSource(pool),
+    // Market-config drift (task 32). The owner's decision is that the hardcoded
+    // constants stay the MVP source of truth and the rule-set tables remain the
+    // forward path for a second market. That leaves two representations of the
+    // same rules with only one obeyed, so the deviation is machine-checked here
+    // rather than only written down: this reads the configured rows through the
+    // EXISTING provider — read-only, no engine decision depends on it — and
+    // reports on /health whether they still match the constants.
+    marketConfigDrift: new ProviderMarketConfigDriftSource(new DbMarketConfigProvider(pool)),
     // Referral attribution (task 25, Req 2.9/11.8). Shopify's customers/create
     // payload carries no referral field, so the friend submits their code
     // through the signed App Proxy surface; this is what finally gives the

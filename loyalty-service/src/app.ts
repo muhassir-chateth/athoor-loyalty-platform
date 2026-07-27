@@ -28,6 +28,10 @@ import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
 import type { OverdueJob } from "./scheduling/dueWork.js";
 import { evaluateBackupFreshness, type LatestBackupSource } from "./reliability/backupRuns.js";
+import type {
+  MarketConfigDriftReport,
+  MarketConfigDriftSource,
+} from "./markets/configDrift.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
@@ -66,6 +70,14 @@ export interface AppDependencies {
    * original shape.
    */
   backupStatus?: LatestBackupSource;
+  /**
+   * OPTIONAL read-only market-config drift check, surfaced on `/health`
+   * (task 32, Req 21.1–21.4/21.6). The engine reads the hardcoded constants;
+   * this reports whether the retained rule-set rows still agree with them, so a
+   * table that has quietly diverged is visible instead of misleading. Omitted in
+   * tests and local runs, where `/health` keeps its previous payload exactly.
+   */
+  marketConfigDrift?: MarketConfigDriftSource;
   /**
    * Pg-backed dependencies for the referral attribution endpoints (task 25,
    * Req 2.9/11.8). When omitted the routes are not registered at all, so tests
@@ -261,6 +273,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
       version: string;
       scheduling?: { overdue: OverdueJob[] };
       backups?: { lastSuccessAt: string | null; ageHours: number | null; stale: boolean };
+      marketConfig?: MarketConfigDriftReport;
     } = { status: "ok", version: API_VERSION };
 
     if (deps.dueWorkStatus) {
@@ -285,6 +298,22 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
         };
       } catch {
         // Best-effort: liveness must not depend on the backup bookkeeping table.
+      }
+    }
+
+    // Market-config drift (task 32). The engine reads the hardcoded constants;
+    // `markets` / `earning_rule_sets` / `reward_rule_sets` are retained as the
+    // forward path for a second market. Two representations of the same rules
+    // therefore exist and only one is obeyed, so this block states which
+    // (`source: "constants"`) and whether the configured rows still agree.
+    // Publishing it is what stops an operator reading a rule-set row and drawing
+    // a false conclusion about live behaviour. Informational — drift never fails
+    // the probe, because no engine decision depends on those rows.
+    if (deps.marketConfigDrift) {
+      try {
+        payload.marketConfig = await deps.marketConfigDrift.report();
+      } catch {
+        // Best-effort: liveness must not depend on the rule-set tables either.
       }
     }
 

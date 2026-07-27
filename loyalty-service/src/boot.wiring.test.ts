@@ -263,3 +263,36 @@ describe("boot wiring regression — profile preference writes reach the service
     expect(profileRouteSource).not.toMatch(/normaliseProductId/);
   });
 });
+
+/**
+ * Market-config drift check (task 32, Req 21.6a, A18).
+ *
+ * The decision is that the engine keeps reading the hardcoded constants, so the
+ * only thing that must stay wired is the READ-ONLY drift check. If it is removed,
+ * the deviation silently stops being machine-checked and a hand-edited rule-set
+ * row becomes invisible again — which is the whole hazard the decision accepted.
+ */
+describe("boot wiring regression — the market-config deviation stays machine-checked (task 32)", () => {
+  it("index.ts wires the drift source over the real provider and pool", () => {
+    expect(indexSource).toMatch(
+      /marketConfigDrift\s*:\s*new\s+ProviderMarketConfigDriftSource\s*\(\s*new\s+DbMarketConfigProvider\s*\(\s*pool\s*\)\s*\)/,
+    );
+  });
+
+  it("the engine still reads the CONSTANTS, not the provider (the decision itself)", () => {
+    // A18: wiring the provider into the money paths was declined. If someone
+    // later injects it into the earning or redemption engine, that is a
+    // behaviour change that must be a deliberate task, not a quiet edit.
+    const orderSource = readFileSync(join(__dirname, "earning", "order.ts"), "utf8");
+    const redeemSource = readFileSync(join(__dirname, "redemption", "redeem.ts"), "utf8");
+    expect(orderSource).not.toMatch(/MarketConfigProvider|loadActiveMarketConfig/);
+    expect(redeemSource).not.toMatch(/MarketConfigProvider|loadActiveMarketConfig/);
+  });
+
+  it("the drift check is read-only: it writes nothing", () => {
+    const driftSource = readFileSync(join(__dirname, "markets", "configDrift.ts"), "utf8");
+    // Statement keywords only — prose mentioning "the seed inserts with…" is fine.
+    expect(driftSource).not.toMatch(/(INSERT INTO|UPDATE \w+ SET|DELETE FROM)/i);
+    expect(driftSource).not.toMatch(/\.query\s*\(/);
+  });
+});
