@@ -136,15 +136,40 @@
   window.addEventListener('load', (event) => {
 
     const root = document.documentElement;
-    const marqueeElementsDisplayed = getComputedStyle(root).getPropertyValue("--marquee-inview-blocks");
     const marqueeContent = document.querySelector("ul.marquee-wrapper");
 
-    root.style.setProperty("--marquee-blocks", marqueeContent.children.length);
-    console.log(marqueeElementsDisplayed);
-    console.log(marqueeContent.children.length);
+    // The wrapper is absent whenever the section renders no list (an empty
+    // collection, or the section present but unconfigured). Previously this
+    // threw on `marqueeContent.children`.
+    if (!marqueeContent) return;
 
-    for(let i=0; i<marqueeElementsDisplayed; i++) {
-      marqueeContent.appendChild(marqueeContent.children[i].cloneNode(true));
+    // Snapshot the ORIGINAL items before cloning. The old loop appended into
+    // the same live `children` collection it was indexing, so it could re-clone
+    // freshly-added nodes and drift away from the intended duplication.
+    const originalItems = Array.from(marqueeContent.children);
+    const originalCount = originalItems.length;
+
+    root.style.setProperty("--marquee-blocks", originalCount);
+
+    // Nothing to duplicate: a zero-item marquee is a valid state, not an error.
+    if (originalCount === 0) return;
+
+    // The value arrives from CSS as a string like " 3", and media queries change
+    // it per breakpoint. Parse it explicitly rather than relying on `i < "3"`
+    // coercion, and treat an unset or unparseable value as zero.
+    const requested = parseInt(
+      getComputedStyle(root).getPropertyValue("--marquee-inview-blocks"),
+      10
+    );
+    const cloneCount = Number.isFinite(requested) && requested > 0 ? requested : 0;
+
+    // Bound by the original item count so a marquee holding fewer items than the
+    // configured in-view count cannot read past the end. This was the cause of
+    // `TypeError: cannot read properties of undefined (reading 'cloneNode')`.
+    const safeCount = Math.min(cloneCount, originalCount);
+
+    for (let i = 0; i < safeCount; i++) {
+      marqueeContent.appendChild(originalItems[i].cloneNode(true));
     }
 
   });

@@ -762,12 +762,17 @@ document.addEventListener('mousemove', function(e) {
 
 });
 </script>
-<script>
-document.addEventListener('scroll', function() {
-  const header = document.querySelector('.header-wrapper');
-  ...
-});
-</script>
+
+    {%- comment -%}
+      A scroll listener used to sit here containing a literal `...` placeholder
+      that was never replaced. Because that is a syntax error, the entire script
+      block failed to parse, so the handler NEVER ran on any page — it only ever
+      produced `SyntaxError: Unexpected token '...'` in the console. Removed
+      rather than completed: the original intent is unknown, and inventing
+      sticky-header behaviour here would be adding a feature, not fixing a bug.
+      Removal restores nothing, because nothing in the block ever executed.
+      Found by the task 27 storefront audit; see task 50.
+    {%- endcomment -%}
 
     <script src="{{ 'athoor-enhancements.js' | asset_url }}" defer></script>
   </body>

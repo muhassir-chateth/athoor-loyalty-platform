@@ -914,7 +914,14 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
       </details-modal>
         {%- endif -%}
               {%- if section.settings.show_header_wishlist -%}        
-              <a href="/pages/wishlist" data-wishlist-drawer-open class="header__icon header__icon--wishlist link">
+              {%- comment -%}
+                aria-label added for task 47: the `.icon__fallback-text` span is
+                hidden by CSS, so axe reported these icon links as having no
+                discernible name (serious, WCAG 2.4.4 / 4.1.2). An aria-label
+                names the link for assistive technology and changes nothing
+                visually.
+              {%- endcomment -%}
+              <a href="/pages/wishlist" data-wishlist-drawer-open class="header__icon header__icon--wishlist link" aria-label="{{ 'products.product.wishlist' | t }}">
                 {% render 'icon-wishlist' %}
                 <span class="icon__fallback-text">{{ 'products.product.wishlist' | t }}</span>
                 <dtx-wish-count class="dtxc-wishlist-count cart-count-bubble" grid_type="wishList" count="0">
@@ -926,7 +933,7 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
               {%- endif -%}
 
               {%- if section.settings.show_header_compare -%}          
-              <a href="/pages/compare" class="header__icon header__icon--compare link">
+              <a href="/pages/compare" class="header__icon header__icon--compare link" aria-label="{{ 'products.product.compare' | t }}">
                 {% render 'icon-compare' %}
                 <span class="icon__fallback-text">{{ 'products.product.compare' | t }}</span>
                 <dtx-wish-count class="dtxc-compare-count cart-count-bubble" grid_type="compareList" count="0">
@@ -938,7 +945,7 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
               {%- endif -%}
    
   {%- if section.settings.show_header_cart -%}   
-      <a href="{{ routes.cart_url }}" class="header__icon header__icon--cart link focus-inset" id="cart-icon-bubble">
+      <a href="{{ routes.cart_url }}" class="header__icon header__icon--cart link focus-inset" id="cart-icon-bubble" aria-label="{{ 'templates.cart.cart' | t }}">
         {%- liquid
           if cart == empty
             render 'icon-cart'
@@ -959,7 +966,21 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
  {%- endif -%}
                  
      {%- if shop.customer_accounts_enabled and section.settings.show_account -%}
-        <a href="{%- if customer -%}{{ routes.account_url }}{%- else -%}/pages/account-landing{%- endif -%}"{% unless customer %} data-account-drawer-open{% endunless %} class="header__icon header__icon--account link focus-inset{% if section.settings.menu != blank %} small-hide{% endif %}">
+        {%- comment -%}
+          aria-label added for task 47, same cause as the wishlist/compare/cart
+          links above: the `.icon__fallback-text` span below is hidden by CSS, so
+          the link had no discernible name. The label reuses the exact strings the
+          span already renders, so the accessible name matches the visible intent
+          in both the logged-in and logged-out states.
+        {%- endcomment -%}
+        {%- liquid
+          if customer
+            assign account_link_label = 'customer.account_fallback' | t
+          else
+            assign account_link_label = 'customer.log_in' | t
+          endif
+        -%}
+        <a href="{%- if customer -%}{{ routes.account_url }}{%- else -%}/pages/account-landing{%- endif -%}"{% unless customer %} data-account-drawer-open{% endunless %} class="header__icon header__icon--account link focus-inset{% if section.settings.menu != blank %} small-hide{% endif %}" aria-label="{{ account_link_label | escape }}">
           {% render 'icon-account' %}
           <span class="icon__fallback-text">
             {%- liquid

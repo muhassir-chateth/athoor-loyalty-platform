@@ -90,7 +90,14 @@
                       {%- assign footer_logo_w = block.settings.logo_width | default: 150 -%}
                       {%- if footer_logo_w < 1 -%}{%- assign footer_logo_w = 150 -%}{%- endif -%}
                       {%- assign image_size_2x = footer_logo_w | times: 2 | at_most: 5760 -%}
-                      <a href="{{ shop.url }}"><img
+                      {%- comment -%}
+                        aria-label added for task 47. The image `alt` is taken from
+                        `block.settings.logo.alt`, which is empty on this store, so
+                        the anchor had no discernible name (axe `link-name`).
+                        Labelling with the shop name is correct here: the anchor
+                        points at the store home page.
+                      {%- endcomment -%}
+                      <a href="{{ shop.url }}" aria-label="{{ shop.name | escape }}"><img
                         srcset= "{{ block.settings.logo | image_url: width: footer_logo_w }}, {{ block.settings.logo | image_url: width: image_size_2x }} 2x"
                         src="{{ block.settings.logo | image_url: width: 400 }}"
                         alt="{{ block.settings.logo.alt | escape }}"
@@ -100,7 +107,11 @@
                         style="max-width: min(100%, {{ block.settings.logo_width }}px);"
                       ></a> 
                     {%- else -%}
-                     <a href="{{ shop.url }}"> {{ 'logo' | placeholder_svg_tag: 'placeholder-svg' }}</a> 
+                     {%- comment -%}
+                       Same fix for the placeholder branch (task 47): a
+                       `placeholder_svg_tag` carries no accessible text either.
+                     {%- endcomment -%}
+                     <a href="{{ shop.url }}" aria-label="{{ shop.name | escape }}"> {{ 'logo' | placeholder_svg_tag: 'placeholder-svg' }}</a> 
                     {%- endif -%}
                   <div class="footer-block__details-content rte {{ block.settings.alignment }}">
                     {{ block.settings.subtext }}

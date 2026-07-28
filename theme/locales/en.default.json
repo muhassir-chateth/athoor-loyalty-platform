@@ -264,6 +264,7 @@
       "save": "Save",
       "quick_buy": "Quick view",
       "wishlist": "Wishlist",
+      "compare": "Compare",
       "media": {
         "gallery_viewer": "Gallery Viewer",
         "load_image": "Load image {{ index }} in gallery view",
