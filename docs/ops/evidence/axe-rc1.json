@@ -1,0 +1,62 @@
+{
+  "whole": {
+    "violations": [
+      {
+        "id": "frame-title",
+        "impact": "serious",
+        "help": "Frames must have an accessible name",
+        "wcag": [
+          "wcag2a",
+          "wcag412"
+        ],
+        "nodes": [
+          {
+            "target": "#PBarNextFrame",
+            "html": "<iframe id=\"PBarNextFrame\" src=\"https://cdn.shopify.com/shopifycloud/preview-bar/index.html\" sandbox=\"allow-same-origin allow-popups allow-top-navigat"
+          }
+        ],
+        "count": 1
+      },
+      {
+        "id": "link-name",
+        "impact": "serious",
+        "help": "Links must have discernible text",
+        "wcag": [
+          "wcag2a",
+          "wcag244",
+          "wcag412"
+        ],
+        "nodes": [
+          {
+            "target": ".header__icon--wishlist",
+            "html": "<a href=\"/pages/wishlist\" data-wishlist-drawer-open=\"\" class=\"header__icon header__icon--wishlist link\">"
+          },
+          {
+            "target": ".header__icon--compare",
+            "html": "<a href=\"/pages/compare\" class=\"header__icon header__icon--compare link\">"
+          },
+          {
+            "target": "#cart-icon-bubble",
+            "html": "<a href=\"/cart\" class=\"header__icon header__icon--cart link focus-inset\" id=\"cart-icon-bubble\" role=\"button\" aria-haspopup=\"dialog\">"
+          },
+          {
+            "target": ".header__icon--account",
+            "html": "<a href=\"https://shopify.com/79847555271/account?locale=en&amp;region_country=US&amp;buyer_flags=eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhdGhvb3ItbG95YWx0eS1z"
+          },
+          {
+            "target": ".footer-block.grid__item:nth-child(2) > a",
+            "html": "<a href=\"https://athoor-loyalty-staging.myshopify.com\">"
+          }
+        ],
+        "count": 5
+      }
+    ],
+    "passes": 32,
+    "incomplete": 2
+  },
+  "scoped": {
+    "violations": [],
+    "passes": 20,
+    "incomplete": 1
+  }
+}
