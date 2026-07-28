@@ -531,3 +531,102 @@ first `refunds/create` from real Shopify traffic, and `/health` for
 | `docs/ops/evidence-genuine-orders-paid-fields.md` | Task 45 — redacted payload field extract |
 | `docs/ops/tier-change-history-verification.md` | Task 46 — tier-change milestone live verification |
 | `docs/specs/athoor-loyalty-platform/` | Requirements, design, tasks (mirror of `~/.kiro/specs/`) |
+
+---
+
+# Addendum — 2026-07-28
+
+## Task 27 closed; tasks 47–52 opened
+
+The storefront measurement pass ran against a real authenticated customer session
+and task 27 is **complete**. Full evidence and attribution:
+`docs/ops/storefront-validation-rc1.md`. Summary: **0 axe violations inside
+`.loyalty-dashboard`**, correct keyboard focus indicators, `prefers-reduced-motion`
+honoured, no horizontal overflow 320–1920px, dashboard payload 11 KB of 1,898 KB,
+CLS contribution 0.00012, App Proxy 387–432 ms all `200`. Task 26's **M2 shadow
+comparison agreed on all four fields** between ledger and metafield cache, closing
+that dependency.
+
+Measured on the preview theme: mobile 88/93/96/92 (LCP 3.7 s, CLS 0), desktop
+95/93/74/92 (LCP 1.0 s, CLS 0.103). The two target misses are dominated by code
+outside this feature and by the 364 KB Shopify preview bar; they are carried as
+tasks 48 and 51, not blockers.
+
+New open tasks: **47** header/footer link names, **48** desktop CLS, **49** rewards
+page SEO, **50** console-error attribution, **51** production re-measure, **52**
+Meta Pixel after deployment. None is a release blocker.
+
+**Staging baseline replaced** (owner decision to keep the test account): customers
+9, ledger_entries 38, point_lots 30, webhook_events 23, referrals 1,
+idempotency_keys 2, tier_change_history 1, admin_audit_log 7, preference tables 0.
+Tiers 5 bronze / 3 silver / 1 gold. Restore to THIS baseline, not the earlier one.
+
+## Revised deployment order — DR gate first
+
+The database is now provisioned **before** its backup configuration is tested, and
+no customer-impacting work begins until disaster recovery is proven.
+
+### Gate 0 — Disaster recovery (BLOCKING; must pass before Gate 1)
+
+1. Provision the production database.
+2. Run all 15 migrations against it; confirm `pgmigrations` lists 15 with none
+   unapplied and no orphans.
+3. Generate the `age` keypair **on the operator's machine**; store the private half
+   offline (password manager). The private key must never enter CI or this repo.
+4. Configure GitHub secret `BACKUP_DATABASE_URL` and variable
+   `BACKUP_AGE_PUBLIC_KEY` with production-specific values.
+5. Trigger `Daily encrypted database backup` manually (`workflow_dispatch`).
+6. Record the artifact name, timestamp, size and sha256, plus its storage location
+   (GitHub artifact, and R2 if those four secrets are configured).
+7. Confirm `/health` reports `backups.stale: false` with a non-null
+   `lastSuccessAt`, and that a `backup_runs` row exists with `encrypted = true`.
+8. **Restore rehearsal** per `docs/ops/backup-and-recovery.md` §"Restore procedure":
+   verify the digest, decrypt with the private key, restore into a **scratch**
+   database, and validate migration state, table availability and representative
+   row counts.
+9. Drop the scratch database. Retain the encrypted artifact under the ≥7-day
+   retention policy.
+
+**Gate 0 cannot be executed by the AI agent.** It requires database-provider
+account access, GitHub repository administration, and `age` / `pg_dump` / `psql`
+locally — none of which are available in the agent's environment. Attempting to
+report it as passed without executing it would be fabricated evidence. It is an
+operator task.
+
+### Gate 1 — Shopify app and service (after Gate 0 passes)
+
+10. Create the production custom app with scopes `read_customers`,
+    `write_customers`, `read_orders`, `read_products`, `write_discounts`, plus
+    `read_themes` / `write_themes` and `read_content` / `write_content` for
+    deployment. Check the oldest enrolled customer order date first: if anything
+    predates 60 days, request `read_all_orders` (needs Shopify approval, so not
+    same-day). `write_price_rules` is **not** required — proven on staging, which
+    lacks it and mints codes successfully.
+11. Deploy the service with production-specific secrets, all distinct from staging.
+    The `shpat_` token in `.kiro/settings/mcp.json` is local MCP tooling only and
+    must not be reused.
+
+### Gate 2 — Migration (after Gate 1)
+
+12. **M0** export — the rollback anchor. Operator script only, never the API
+    (Req 10.7a). Reconcile all 39 customers against `50 + spend × 1`; abort on any
+    mismatch.
+13. **M1** ledger backfill for the 8 enrolled; assert
+    `SUM(ledger) == exported balance`; abort retaining no partial state.
+14. **M2** register the four webhooks, configure the App Proxy, run in parallel
+    with metafields authoritative for display, and repeat the shadow comparison.
+
+### Gate 3 — Storefront cutover (after Gate 2)
+
+15. Deploy and publish the theme; create the `rewards` page **with SEO fields**
+    (task 49); add the `/pages/loyalty` → `/pages/rewards` redirect by hand.
+16. **M3** cut the dashboard over to `/v1` and retire the `mailto:` redemption.
+17. Re-measure Lighthouse (task 51) and verify Meta Pixel (task 52).
+
+## Status
+
+**NO-GO for production launch.** Gate 0 has not been executed: no production
+database exists, `backup_runs` is empty, and `/health` still reports
+`backups.stale: true` with `lastSuccessAt: null`. There is no recovery point.
+
+No release blockers remain in the platform or storefront implementation.
