@@ -4,18 +4,22 @@ import { z } from "zod";
  * Least-privilege Admin API scopes the Shopify custom app requests.
  *
  * Requirement 11.11 lists: read_customers, read_orders, read_products,
- * write_discounts, write_price_rules, and required webhook scopes.
+ * write_discounts, and required webhook scopes.
  *
  * This is the single source of truth for scope configuration/documentation.
  * NOTE (task-1.1 scope): defined as configuration only — no Shopify app is
  * created and no webhooks are registered here (webhook registration is task 3.2).
+ *
+ * NOTE: `write_price_rules` was removed because the service uses only
+ * `discountCodeBasicCreate` (the newer Discounts API) and never calls the
+ * legacy PriceRule API. The `discount_codes.shopify_price_rule_id` column
+ * exists in the schema but is always NULL.
  */
 export const ADMIN_API_SCOPES = [
   "read_customers",
   "read_orders",
   "read_products",
   "write_discounts",
-  "write_price_rules",
 ] as const;
 
 /**
@@ -112,13 +116,6 @@ export interface AppConfig {
 }
 
 /**
- * A known token prefix we explicitly refuse: the local MCP `shpat_` token must
- * not be reused for the production service (Requirement 11.7). This is a
- * best-effort guard — the real protection is operational (separate custom app).
- */
-const MCP_TOKEN_PREFIX = "shpat_";
-
-/**
  * Loads and validates configuration from the process environment.
  * Throws a descriptive error if validation fails so misconfiguration is caught
  * at boot rather than at request time.
@@ -137,13 +134,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   if (env.NODE_ENV === "production" && !env.REQUIRE_HTTPS) {
     throw new Error(
       "REQUIRE_HTTPS must be true in production (Requirement 11.11: serve all traffic over HTTPS).",
-    );
-  }
-
-  // Requirement 11.7: never reuse the local MCP shpat_ token in production.
-  if (env.NODE_ENV === "production" && env.SHOPIFY_ADMIN_API_TOKEN?.startsWith(MCP_TOKEN_PREFIX)) {
-    throw new Error(
-      "SHOPIFY_ADMIN_API_TOKEN must not be a local MCP `shpat_` token in production (Requirement 11.7).",
     );
   }
 

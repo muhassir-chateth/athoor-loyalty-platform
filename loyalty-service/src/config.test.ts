@@ -15,11 +15,11 @@ describe("config loading + security guardrails", () => {
       "read_orders",
       "read_products",
       "write_discounts",
-      "write_price_rules",
     ]);
     // Guard against accidental scope creep.
     expect(ADMIN_API_SCOPES).not.toContain("write_orders");
     expect(ADMIN_API_SCOPES).not.toContain("write_customers");
+    expect(ADMIN_API_SCOPES).not.toContain("write_price_rules");
   });
 
   it("declares the webhook topics used by the service", () => {
@@ -37,14 +37,27 @@ describe("config loading + security guardrails", () => {
     ).toThrow(/REQUIRE_HTTPS must be true in production/);
   });
 
-  it("rejects reuse of the local MCP shpat_ token in production (Req 11.7)", () => {
+  it("accepts a valid shpat_ Admin API token in production (Req 11.7 — operational separation, not prefix-based)", () => {
+    // Requirement 11.7 prohibits reusing the SPECIFIC local MCP credential,
+    // not all tokens with the standard Shopify `shpat_` prefix. Valid
+    // production custom-app tokens use the same prefix format.
+    const c = loadConfig({
+      NODE_ENV: "production",
+      REQUIRE_HTTPS: "true",
+      SHOPIFY_ADMIN_API_TOKEN: "shpat_production_custom_app_token_abc123",
+    });
+    expect(c.shopify.adminApiToken).toBe("shpat_production_custom_app_token_abc123");
+  });
+
+  it("rejects an empty SHOPIFY_ADMIN_API_TOKEN when explicitly provided", () => {
+    // The zod schema enforces min(1) — an empty string is a validation error.
     expect(() =>
       loadConfig({
         NODE_ENV: "production",
         REQUIRE_HTTPS: "true",
-        SHOPIFY_ADMIN_API_TOKEN: "shpat_example_local_mcp_token",
+        SHOPIFY_ADMIN_API_TOKEN: "",
       }),
-    ).toThrow(/must not be a local MCP `shpat_` token/);
+    ).toThrow(/SHOPIFY_ADMIN_API_TOKEN/);
   });
 
   it("does not surface secret values by default", () => {
