@@ -84,13 +84,17 @@ describe("/health backups block (task 29)", () => {
     // version identifier the versioning plugin adds to every JSON response
     // (Req 9.8), plus the two ALWAYS-PRESENT diagnostic blocks.
     //
-    // `build` and `runtime` are unconditional by design. They exist because a
-    // production 401 could not be attributed without knowing which commit was
-    // running and whether the enrollment fallback was actually live in it —
-    // publishing them only when something else happened to be wired would
-    // reintroduce exactly that blind spot.
+    // `build`, `runtime` and `authChain` are unconditional by design. They exist
+    // because a production 401 could not be attributed without knowing which
+    // commit was running, whether the enrollment fallback was actually live in
+    // it, and which step gated requests were stopping at — publishing them only
+    // when something else happened to be wired would reintroduce exactly that
+    // blind spot. `authChain` in particular must appear on a service with no
+    // optional dependency wired at all, because that is the state in which a
+    // diagnosis is most needed.
     expect(Object.keys(body).sort()).toEqual([
       "apiVersion",
+      "authChain",
       "build",
       "runtime",
       "status",

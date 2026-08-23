@@ -39,6 +39,10 @@ import type {
 } from "./channel/reachability.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
 import type { VerifiedCustomerEnroller } from "./enrollment/ensureCustomerEnrollment.js";
+import {
+  AuthChainCounters,
+  type AuthChainCountersSnapshot,
+} from "./plugins/authChainCounters.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
 
@@ -122,6 +126,12 @@ export interface AppDependencies {
    * awards a signup bonus — a repaired row is not a signup.
    */
   lazyEnroller?: VerifiedCustomerEnroller;
+  /**
+   * OPTIONAL injected auth-chain tally. Production leaves this unset and gets a
+   * fresh per-process instance; tests inject one so they can assert on the
+   * counts `/health` publishes without reaching into module state.
+   */
+  authChainCounters?: AuthChainCounters;
   /**
    * Validates Customer Account API bearer tokens (Req 9.2, 11.5). Kept behind
    * this interface so tests inject a fake and the service never calls live
@@ -275,6 +285,13 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
   // Version identifier on every response + statelessness guarantees.
   registerVersioning(app);
 
+  // Aggregate auth-chain stop points, shared between the auth middleware that
+  // records them and the `/health` route that publishes them. Created here
+  // because that shared ownership is the only reason it is not a local of
+  // either one. Counts and a closed set of labels only — never an identifier;
+  // see `plugins/authChainCounters.ts`.
+  const authChainCounters = deps.authChainCounters ?? new AuthChainCounters();
+
   // Liveness/readiness probe (not under /v1 — infra concern, not a loyalty op).
   //
   // This is also the endpoint an external free scheduler pings to WAKE a host
@@ -303,6 +320,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
       version: string;
       build?: { commit: string | null; deployedAt: string | null };
       runtime?: { lazyEnrollmentFallbackEnabled: boolean; lazyEnrollerWired: boolean };
+      authChain?: AuthChainCountersSnapshot;
       scheduling?: { overdue: OverdueJob[] };
       backups?: { lastSuccessAt: string | null; ageHours: number | null; stale: boolean };
       marketConfig?: MarketConfigDriftReport;
@@ -336,6 +354,19 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
       lazyEnrollmentFallbackEnabled: config.enrollment.lazyFallbackEnabled,
       lazyEnrollerWired: deps.lazyEnroller !== undefined,
     };
+
+    // WHERE gated requests are actually stopping, in aggregate.
+    //
+    // `runtime` above says whether the fallback is live; this says whether it is
+    // ever REACHED, which is the other half of the same question. A verified
+    // request that carries no `logged_in_customer_id` and a wired-but-unreached
+    // fallback are different defects with the same 401, and the difference shows
+    // up here as `verified_but_no_customer_id` versus
+    // `no_local_row_fallback_not_wired`.
+    //
+    // PRIVACY: counts against a closed set of ten labels. No id — not even a
+    // masked suffix — no route, no timestamp per request, no IP.
+    payload.authChain = authChainCounters.snapshot();
 
     if (deps.dueWorkStatus) {
       try {
@@ -410,6 +441,9 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     idempotencyStore,
     customerResolver: deps.customerResolver,
     lazyEnroller: deps.lazyEnroller,
+    // Same instance the /health route reads, so what is published is what the
+    // auth middleware actually recorded.
+    authChainCounters,
     tokenVerifier: deps.tokenVerifier,
     appProxySecret: config.shopify.appProxySecret,
     balanceSource: deps.balanceSource,

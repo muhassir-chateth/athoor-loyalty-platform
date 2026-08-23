@@ -12,6 +12,7 @@ import {
   type CustomerResolver,
 } from "../auth/identity.js";
 import type { VerifiedCustomerEnroller } from "../enrollment/ensureCustomerEnrollment.js";
+import type { AuthChainCounters } from "./authChainCounters.js";
 
 /**
  * Reusable authentication middleware for consumer `/v1` endpoints (task 6.2,
@@ -101,6 +102,19 @@ export interface AuthPluginOptions {
    * unchanged until it is deliberately switched on.
    */
   lazyEnroller?: VerifiedCustomerEnroller;
+  /**
+   * OPTIONAL aggregate tally of where the chain stopped, published on `/health`.
+   *
+   * The per-request trace below is logged, and reading a production log needs
+   * dashboard access — so without this, every observation of a 401 is a manual
+   * round trip through the hosting console. This lets the service answer
+   * "which step stopped it?" over HTTP instead.
+   *
+   * It receives the trace's BOOLEANS ONLY and retains a single label from a
+   * closed set; see `authChainCounters.ts` for why that boundary is a separate
+   * module. Omitted in tests that do not assert on it.
+   */
+  counters?: AuthChainCounters;
   /** Overrides the public (unauthenticated) route allowlist. */
   publicRoutes?: readonly string[];
 }
@@ -353,6 +367,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
   const tokenVerifier = opts.tokenVerifier ?? new UnconfiguredTokenVerifier();
   const appProxySecret = opts.appProxySecret;
   const lazyEnroller = opts.lazyEnroller;
+  const counters = opts.counters;
   const publicRoutes = new Set(opts.publicRoutes ?? DEFAULT_PUBLIC_ROUTES);
 
   app.addHook("preHandler", async (req: FastifyRequest, reply: FastifyReply) => {
@@ -377,6 +392,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
 
     if (!result.ok) {
       trace.outcome = result.reason;
+      counters?.record(trace);
       // `warn`, not `error`: a 401 is a correct, expected outcome for an
       // anonymous or unresolvable request. It is logged because a SUSTAINED
       // stream of them is the signal that something upstream is wrong.
@@ -388,6 +404,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
     }
 
     trace.outcome = "resolved";
+    counters?.record(trace);
     // Logged at info so a successful first-time enrollment is visible in
     // production without turning on debug logging.
     if (trace.enrollmentAttempted) {
