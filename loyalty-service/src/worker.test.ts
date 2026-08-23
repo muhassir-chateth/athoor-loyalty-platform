@@ -23,6 +23,7 @@ import type { QueryResult, QueryResultRow } from "pg";
 import { LedgerRepository, type Queryable } from "./ledger/repository.js";
 import type { WebhookJob } from "./webhooks/enqueue.js";
 import { CUSTOMERS_CREATE_TOPIC } from "./earning/signup.js";
+import { MIGRATION_ENTRY_TYPE } from "./migration/m1Backfill.js";
 import type {
   MetafieldCacheEnqueuer,
   MetafieldCacheJob,
@@ -57,11 +58,42 @@ class FakeDb implements Queryable, Transactor {
     if (queryText.includes("INSERT INTO customers")) {
       const shopifyId = values[0] as number;
       let id = this.customersByShopifyId.get(shopifyId);
+      const inserted = id === undefined;
       if (!id) {
         id = this.nextId("cust");
         this.customersByShopifyId.set(shopifyId, id);
       }
-      return this.result<R>([{ id } as unknown as R]);
+      // Only the enrollment upsert asks for the xmax-derived `inserted` flag; the
+      // signup module's upsert returns the id alone.
+      return this.result<R>([(queryText.includes("xmax") ? { id, inserted } : { id }) as unknown as R]);
+    }
+    // MUST be matched BEFORE the signup guard below. `customers/create` is now
+    // dispatched through the shared enrollment service, which first runs a
+    // population-classification read. That query ALSO contains "FROM
+    // ledger_entries" and "earn_signup", so without this branch it would fall
+    // into the guard branch and receive the guard's row shape — leaving
+    // `has_migration_state` and `has_signup_award` undefined, i.e. silently
+    // reporting "not migrated, never awarded" for every customer. The tests would
+    // still pass, because `earnSignup`'s own guard catches a replay downstream,
+    // and the Layer 2 migration veto would be entirely untested. Only the
+    // classification query aggregates with bool_or, so that is the discriminator.
+    if (queryText.includes("bool_or")) {
+      const customerId = values[0] as string;
+      const relevant = this.ledger.filter(
+        (row) =>
+          row.customer_id === customerId &&
+          (row.entry_type === MIGRATION_ENTRY_TYPE || row.entry_type === "earn_signup"),
+      );
+      // bool_or over an empty set yields NULL in Postgres, which the service
+      // reads as false — modelled faithfully rather than as `false`.
+      const row =
+        relevant.length === 0
+          ? { has_migration_state: null, has_signup_award: null }
+          : {
+              has_migration_state: relevant.some((r) => r.entry_type === MIGRATION_ENTRY_TYPE),
+              has_signup_award: relevant.some((r) => r.entry_type === "earn_signup"),
+            };
+      return this.result<R>([row as unknown as R]);
     }
     if (queryText.includes("FROM ledger_entries") && queryText.includes("earn_signup")) {
       const customerId = values[0] as string;
@@ -150,6 +182,56 @@ describe("dispatchWebhookJob: enqueues a metafield-cache refresh on a balance ch
 
     // Still exactly one earning and exactly one enqueue (the first, earned run).
     expect(db.ledger).toHaveLength(1);
+    expect(enqueuer.jobs).toHaveLength(1);
+  });
+});
+
+describe("dispatchWebhookJob: the migration veto reaches the webhook path", () => {
+  /**
+   * The reason `customers/create` is dispatched through the shared enrollment
+   * service rather than calling the signup earning directly. Before that change
+   * the webhook path had no notion of migrated state, so a `customers/create`
+   * arriving for a customer whose opening balance came from the M0→M1 migration
+   * would have credited a fresh +50 on top of it.
+   *
+   * This test would pass vacuously if the FakeDb did not model the
+   * classification query — see the `bool_or` branch above.
+   */
+  it("does NOT award a second +50 to a migrated customer, and enqueues nothing", async () => {
+    const db = new FakeDb();
+    const repo = new LedgerRepository(db);
+    const enqueuer = new RecordingEnqueuer();
+
+    // Seed the customer exactly as the M1 backfill leaves them: a local row plus a
+    // `migration` ledger entry carrying their imported opening balance.
+    const migratedId = "cust-migrated-4995";
+    db.customersByShopifyId.set(1001, migratedId);
+    db.ledger.push({ customer_id: migratedId, entry_type: MIGRATION_ENTRY_TYPE, points: 84 });
+
+    await dispatchWebhookJob(signupJob(), { repo, transactor: db, metafieldEnqueuer: enqueuer });
+
+    // No signup entry was appended: the ledger still holds only the migration row.
+    expect(db.ledger).toHaveLength(1);
+    expect(db.ledger[0]!.entry_type).toBe(MIGRATION_ENTRY_TYPE);
+    expect(db.ledger.some((r) => r.entry_type === "earn_signup")).toBe(false);
+    // Their balance is untouched, so there is nothing to refresh.
+    expect(enqueuer.jobs).toHaveLength(0);
+  });
+
+  it("still awards a genuinely new customer, so the veto is not over-broad", async () => {
+    const db = new FakeDb();
+    const repo = new LedgerRepository(db);
+    const enqueuer = new RecordingEnqueuer();
+
+    await dispatchWebhookJob(signupJob({ payload: { id: 2002 } }), {
+      repo,
+      transactor: db,
+      metafieldEnqueuer: enqueuer,
+    });
+
+    expect(db.ledger).toHaveLength(1);
+    expect(db.ledger[0]!.entry_type).toBe("earn_signup");
+    expect(db.ledger[0]!.points).toBe(50);
     expect(enqueuer.jobs).toHaveLength(1);
   });
 });

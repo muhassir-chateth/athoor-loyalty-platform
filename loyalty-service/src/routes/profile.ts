@@ -47,6 +47,11 @@ import {
   InvalidPreferenceInputError,
 } from "../profile/favouritesWishlist.js";
 import { RecentlyViewedValidationError } from "../profile/recentlyViewed.js";
+import {
+  WISHLIST_RECONCILE_SCHEMA,
+  WISHLIST_RECONCILE_INVALID_REQUEST_MESSAGE,
+  type WishlistReconcileResponse,
+} from "../profile/wishlistReconcileContract.js";
 import type { Queryable } from "../ledger/repository.js";
 import { z } from "zod";
 
@@ -163,10 +168,14 @@ export class PgProfilePreferenceStore implements ProfilePreferenceStore {
 /** Body of `PUT /v1/profile/favourites/:id`: which way to set the flag. */
 const FAVOURITE_BODY_SCHEMA = z.object({ on: z.boolean() }).strip();
 
-/** Body of `POST /v1/profile/wishlist/reconcile`: the device-local product ids (A14). */
-const WISHLIST_RECONCILE_SCHEMA = z
-  .object({ deviceLocal: z.array(z.string().min(1)).max(500) })
-  .strip();
+/*
+ * `POST /v1/profile/wishlist/reconcile`'s body schema is NOT declared here. It
+ * lives in `profile/wishlistReconcileContract.ts`, imported above, together with
+ * the request/response TypeScript types the storefront shares — so the client
+ * and the server can no longer drift into two different contracts the way they
+ * did in defect W2 (design §8.1). That module also records why `deviceLocal` is
+ * the canonical field name and why the client is the side that changed.
+ */
 
 /** Body of `POST /v1/profile/recently-viewed`: one viewed product. */
 const RECENTLY_VIEWED_SCHEMA = z.object({ productId: z.string().min(1) }).strip();
@@ -377,17 +386,22 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
       if (!parsed.success) {
         return reply.code(400).send({
           error: "invalid_request",
-          message: "A body of { deviceLocal: string[] } with at most 500 ids is required.",
+          message: WISHLIST_RECONCILE_INVALID_REQUEST_MESSAGE,
         });
       }
       try {
         // Nothing is deleted: reconciliation only ever ADDS, so a member who
         // signs in on a new device cannot lose account-level entries.
+        //
+        // OWNERSHIP: the customer id comes from `ctx` (the auth preHandler's
+        // resolved identity) and from nowhere else. No body, query, header or
+        // cookie value can redirect this merge into another customer's wishlist
+        // (design §4.3 Rule 1, §4.5 rows 1/2/8).
         const wishlist = await preferenceStore.reconcileWishlist(
           ctx.customerId,
           parsed.data.deviceLocal,
         );
-        return { wishlist };
+        return { wishlist } satisfies WishlistReconcileResponse;
       } catch (err) {
         if (replyInvalidInput(reply, err)) return reply;
         throw err;

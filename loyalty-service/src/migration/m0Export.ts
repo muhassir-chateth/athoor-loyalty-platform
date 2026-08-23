@@ -173,6 +173,16 @@ export interface BalanceMismatch {
   expectedBalance: number;
   /** The lifetime spend the expectation was computed from. */
   lifetimeSpendGBP: number;
+  /**
+   * How the stored value parsed. `fractional` and `malformed` are ALWAYS recorded
+   * for review regardless of arithmetic, because the integer ledger cannot
+   * represent them — this is what stops a fractional balance being dropped.
+   */
+  classification: LegacyBalanceClassification;
+  /** The stored value verbatim, so review never depends on a lossy parse. */
+  rawBalance: string | null;
+  /** Why this record needs a human. */
+  reason: string;
 }
 
 /** A description of why an export was judged incomplete (Req 14.2). */
@@ -244,6 +254,95 @@ function parseIntField(value: string | null | undefined): number | null {
   return Number.isFinite(n) && Number.isInteger(n) ? n : null;
 }
 
+/**
+ * Parses a metafield value expected to hold a NUMBER, integer or fractional.
+ *
+ * WHY THIS EXISTS (production defect, 2026-08-19): the legacy storefront earned
+ * `50 + spend` WITHOUT flooring, so it stored fractional balances such as
+ * `"83.75"` and `"55.99"`. `parseIntField` returns null for those, which made
+ * {@link isEnrolled} false, which excluded the customer from the cohort AND from
+ * balance validation — so M0 exported `SUCCESS` with `mismatches: []` while
+ * silently dropping a real paying customer. Parsing must never decide cohort
+ * membership; see {@link hasLegacyLoyaltyState}.
+ */
+function parseNumericField(value: string | null | undefined): number | null {
+  if (value === null || value === undefined || value.trim() === "") {
+    return null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * How a legacy `points_balance` value parses. Cohort membership does NOT depend
+ * on this — every classification except `absent` (and `absent` too, when other
+ * legacy state exists) must reach an operator rather than vanish.
+ */
+export type LegacyBalanceClassification = "integer" | "fractional" | "malformed" | "absent";
+
+/** The full assessment of a customer's legacy `points_balance` metafield. */
+export interface LegacyBalanceAssessment {
+  /** The stored value exactly as Shopify returned it; null when the key is absent. */
+  raw: string | null;
+  /** True when a `points_balance` metafield EXISTS, whatever its value parses to. */
+  present: boolean;
+  classification: LegacyBalanceClassification;
+  /** Numeric value for `integer` and `fractional`; null for `malformed`/`absent`. */
+  numeric: number | null;
+}
+
+/**
+ * Classifies a customer's legacy `points_balance` by PRESENCE first, parseability
+ * second.
+ *
+ *   `"50"`     → integer    (migrates cleanly)
+ *   `"50.0"`   → integer    (numerically whole despite the decimal point)
+ *   `"83.75"`  → fractional (must reach review — the ledger is integer-only)
+ *   `"abc"`    → malformed  (must reach review)
+ *   key absent → absent
+ */
+export function classifyLegacyBalance(metafields: RawMetafield[]): LegacyBalanceAssessment {
+  const entry = metafields.find(
+    (m) => m.namespace === LOYALTY_METAFIELD_NAMESPACE && m.key === "points_balance",
+  );
+  if (!entry) {
+    return { raw: null, present: false, classification: "absent", numeric: null };
+  }
+
+  const raw = entry.value;
+  const numeric = parseNumericField(raw);
+  if (numeric === null) {
+    // The key exists but holds nothing usable — blank or non-numeric. Either way
+    // this is an anomaly for an operator, never a reason to drop the customer.
+    const blank = raw === null || raw.trim() === "";
+    return { raw, present: true, classification: blank ? "absent" : "malformed", numeric: null };
+  }
+
+  return {
+    raw,
+    present: true,
+    classification: Number.isInteger(numeric) ? "integer" : "fractional",
+    numeric,
+  };
+}
+
+/**
+ * True when the customer carries ANY legacy loyalty state — any `loyalty.*`
+ * metafield with a non-blank value.
+ *
+ * This is the cohort test, and it is deliberately independent of whether any
+ * value parses. Presence of legacy state means the customer MUST be examined;
+ * parsing only decides whether migration can proceed for them.
+ */
+export function hasLegacyLoyaltyState(metafields: RawMetafield[]): boolean {
+  return metafields.some(
+    (m) =>
+      m.namespace === LOYALTY_METAFIELD_NAMESPACE &&
+      m.value !== null &&
+      m.value.trim() !== "",
+  );
+}
+
 /** Returns the metafield value for a key within the loyalty namespace, or null. */
 function metafieldValue(metafields: RawMetafield[], key: string): string | null {
   const found = metafields.find(
@@ -255,8 +354,12 @@ function metafieldValue(metafields: RawMetafield[], key: string): string | null 
 /** Parses the well-known loyalty fields from a customer's raw metafields. */
 export function parseLoyaltyFields(metafields: RawMetafield[]): ParsedLoyaltyFields {
   return {
-    pointsBalance: parseIntField(metafieldValue(metafields, "points_balance")),
-    lifetimePoints: parseIntField(metafieldValue(metafields, "lifetime_points")),
+    // NUMERIC, not integer-only: a fractional legacy balance must survive into the
+    // parsed record so it can be reviewed. `m1Backfill` independently refuses any
+    // non-safe-integer balance, so widening this cannot cause a bad migration —
+    // it converts a silent drop into a loud halt.
+    pointsBalance: parseNumericField(metafieldValue(metafields, "points_balance")),
+    lifetimePoints: parseNumericField(metafieldValue(metafields, "lifetime_points")),
     tier: metafieldValue(metafields, "tier"),
     pointsExpiryDate: metafieldValue(metafields, "points_expiry_date"),
     referralCode: metafieldValue(metafields, "referral_code"),
@@ -266,12 +369,20 @@ export function parseLoyaltyFields(metafields: RawMetafield[]): ParsedLoyaltyFie
 }
 
 /**
- * A customer is an enrolled loyalty member iff they carry a `points_balance`
- * metafield with a parseable value. The 31 non-enrolled customers have no
- * loyalty metafields at all, so this cleanly separates the cohorts.
+ * A customer belongs to the legacy loyalty cohort iff they carry ANY legacy
+ * loyalty state. Customers with no `loyalty.*` metafields at all are cleanly
+ * separated out and are deferred to lazy enrolment (Req 14.5).
+ *
+ * PRESENCE-BASED since 2026-08-19. It previously required `points_balance` to
+ * parse as an INTEGER, so the real production values `"83.75"` and `"55.99"`
+ * made it false: those two customers left the cohort silently, skipped
+ * {@link validateEnrolledBalances} entirely, and M0 reported `SUCCESS` with
+ * `mismatches: []`. Cohort membership must never depend on parseability —
+ * {@link classifyLegacyBalance} reports the parse outcome separately so an
+ * anomaly halts the run instead of erasing the customer.
  */
 export function isEnrolled(metafields: RawMetafield[]): boolean {
-  return parseIntField(metafieldValue(metafields, "points_balance")) !== null;
+  return hasLegacyLoyaltyState(metafields);
 }
 
 /**
@@ -311,8 +422,11 @@ function toExportedCustomer(record: ShopifyCustomerRecord): ExportedCustomer {
  * Judges whether the export is COMPLETE for all expected customers (Req 14.1 /
  * 14.2). Completeness requires: exactly `totalExpected` customers, every record
  * carrying a non-empty id and gid, and every ENROLLED record carrying a
- * parseable `points_balance` (so its balance can be validated). Returns null
- * when complete, or an {@link IncompleteExportDetail} describing the shortfall.
+ * non-empty id and gid. Returns null when complete, or an
+ * {@link IncompleteExportDetail} describing the shortfall.
+ *
+ * Anomalous BALANCE VALUES are not a completeness concern — see the note in the
+ * body and {@link validateEnrolledBalances}.
  */
 export function assessCompleteness(
   customers: ExportedCustomer[],
@@ -321,11 +435,17 @@ export function assessCompleteness(
   const incompleteRecordIds: string[] = [];
   for (const c of customers) {
     const missingIdentity = !c.id || c.id.trim() === "" || !c.gid || c.gid.trim() === "";
-    const enrolledMissingBalance = c.enrolled && c.loyalty.pointsBalance === null;
-    if (missingIdentity || enrolledMissingBalance) {
+    if (missingIdentity) {
       // Use gid/id when available, else a positional marker.
       incompleteRecordIds.push(c.id || c.gid || "<unknown>");
     }
+    // NOTE (2026-08-19): a cohort member with an unparseable `points_balance` is
+    // deliberately NOT treated as an incomplete EXPORT. The export captured the
+    // data faithfully; the value itself is anomalous. Such records are routed to
+    // `validateEnrolledBalances`, which halts with the precise reason
+    // (`fractional` / `malformed` / `absent`) instead of the misleading
+    // "missing required identity or balance data". Both outcomes halt, so no
+    // protection is lost — only the diagnosis improves.
   }
 
   if (customers.length !== totalExpected) {
@@ -361,19 +481,99 @@ export function validateEnrolledBalances(customers: ExportedCustomer[]): Balance
     if (!c.enrolled) {
       continue;
     }
+
     const expected = expectedEnrolledBalance(c.lifetimeSpendGBP);
-    if (c.loyalty.pointsBalance !== expected) {
-      mismatches.push({
-        id: c.id,
-        gid: c.gid,
-        email: c.email,
-        actualBalance: c.loyalty.pointsBalance,
-        expectedBalance: expected,
-        lifetimeSpendGBP: c.lifetimeSpendGBP,
-      });
+    // CLASSIFICATION comes from the raw metafield (the faithful capture), but the
+    // value COMPARED is the record's own parsed `loyalty.pointsBalance`, because
+    // that is the field `m1Backfill` consumes. Validating anything other than the
+    // value downstream actually reads would leave a gap between what is checked
+    // and what is migrated.
+    const assessment = classifyLegacyBalance(c.metafields);
+    const recorded = c.loyalty.pointsBalance;
+    const base = {
+      id: c.id,
+      gid: c.gid,
+      email: c.email,
+      actualBalance: recorded ?? assessment.numeric,
+      expectedBalance: expected,
+      lifetimeSpendGBP: c.lifetimeSpendGBP,
+      classification: assessment.classification,
+      rawBalance: assessment.raw,
+    };
+
+    switch (assessment.classification) {
+      case "fractional":
+        // ALWAYS a review item, even when it reconciles perfectly with spend
+        // (`50 + 33.75 = 83.75` does). The integer ledger cannot hold it, so a
+        // human must choose the conversion — this is the case that used to vanish.
+        mismatches.push({
+          ...base,
+          reason:
+            `Legacy balance ${assessment.raw} is fractional; the ledger stores integer points only, ` +
+            `so the conversion must be decided explicitly (formula value for this spend: ${expected}).`,
+        });
+        break;
+
+      case "malformed":
+        mismatches.push({
+          ...base,
+          reason: `Legacy balance ${JSON.stringify(assessment.raw)} is not numeric and cannot be migrated.`,
+        });
+        break;
+
+      case "absent":
+        // The customer carries legacy loyalty state (that is why they are in the
+        // cohort) but no usable balance. Surfaced rather than assumed to be zero.
+        mismatches.push({
+          ...base,
+          reason:
+            "Customer carries legacy loyalty state but no usable `points_balance`; " +
+            "the intended balance must be stated explicitly.",
+        });
+        break;
+
+      case "integer":
+        if (recorded === null) {
+          // Raw value parses as an integer but the record carries none — the two
+          // disagree, so something rebuilt the record incorrectly. Never assume.
+          mismatches.push({
+            ...base,
+            reason:
+              `Raw balance ${JSON.stringify(assessment.raw)} parses as an integer but the exported ` +
+              `record carries no balance; the record and the metafield disagree.`,
+          });
+        } else if (recorded !== assessment.numeric) {
+          mismatches.push({
+            ...base,
+            reason:
+              `Exported record balance ${recorded} disagrees with the stored metafield ` +
+              `${JSON.stringify(assessment.raw)} (${assessment.numeric}).`,
+          });
+        } else if (recorded !== expected) {
+          mismatches.push({
+            ...base,
+            reason: `Stored balance ${recorded} does not equal the formula value ${expected}.`,
+          });
+        }
+        break;
     }
   }
   return mismatches;
+}
+
+/**
+ * Invariant guard (Req 14.2, hardened 2026-08-19): every customer carrying legacy
+ * loyalty state must appear in the cohort. Returns the ids of any that do not.
+ *
+ * This exists so the specific failure that occurred cannot recur in a different
+ * disguise: if some future parse or filter change ever drops a legacy customer
+ * from the cohort, M0 refuses to report success rather than exporting a quietly
+ * short cohort.
+ */
+export function findUnclassifiedLegacyCustomers(customers: ExportedCustomer[]): string[] {
+  return customers
+    .filter((c) => hasLegacyLoyaltyState(c.metafields) && !c.enrolled)
+    .map((c) => c.id || c.gid || "<unknown>");
 }
 
 /**
@@ -432,6 +632,31 @@ export async function runM0Export(options: M0ExportOptions): Promise<M0Result> {
   const mismatches = validateEnrolledBalances(customers);
   if (mismatches.length > 0) {
     return { status: "halted_balance_mismatch", backup, backupLocation, mismatches };
+  }
+
+  // 5. Invariant (2026-08-19): no customer carrying legacy loyalty state may be
+  // outside the cohort. Success is only reported when nothing was left
+  // unclassified, so a silently short cohort can never look like a clean run.
+  const unclassified = findUnclassifiedLegacyCustomers(customers);
+  if (unclassified.length > 0) {
+    return {
+      status: "halted_balance_mismatch",
+      backup,
+      backupLocation,
+      mismatches: unclassified.map((id) => ({
+        id,
+        gid: "",
+        email: null,
+        actualBalance: null,
+        expectedBalance: 0,
+        lifetimeSpendGBP: 0,
+        classification: "malformed" as const,
+        rawBalance: null,
+        reason:
+          "Customer carries legacy loyalty state but was excluded from the cohort. " +
+          "M0 refuses to report success while any legacy record is unclassified.",
+      })),
+    };
   }
 
   return { status: "exported", backup, backupLocation, mismatches: [] };

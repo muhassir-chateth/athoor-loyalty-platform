@@ -72,6 +72,7 @@ import { createStaleAnalyticsRefresher } from "./admin/lazyAnalyticsRefresh.js";
 import { ANALYTICS_REFRESH_JOB } from "./admin/analyticsService.js";
 import { PgAnalyticsDataSource } from "./admin/pgAnalyticsDataSource.js";
 import { CachedAggregateAnalyticsService } from "./admin/analyticsService.js";
+import { LazyEnrollmentGate } from "./enrollment/ensureCustomerEnrollment.js";
 
 /**
  * Service entrypoint. Loads validated config, wires the durable webhook dedupe
@@ -175,6 +176,13 @@ async function main(): Promise<void> {
   // Build the app up-front so its logger is available for boot-time wiring
   // warnings. Analytics is served from the hourly-refreshed materialized views
   // via the Pg-backed data source (Req 20; the refresh job is registered below).
+  // Lazy-enrollment gate (config default: OFF). Built after `app` so the
+  // degradation reporter can use `app.log`. The gate holds a reference to the
+  // reporter, not to the app reference itself, so construction order is safe.
+  // When the flag is false the gate is undefined and the auth layer falls
+  // through to the normal 401, exactly as today.
+  let lazyEnroller: LazyEnrollmentGate | undefined;
+
   const app = buildApp(config, {
     webhookEventStore,
     webhookEnqueuer: new PgBossWebhookEnqueuer(boss),
@@ -192,6 +200,12 @@ async function main(): Promise<void> {
     // implementation exists and the App Proxy dashboard path does not need it,
     // so Customer Account bearer tokens keep the fail-closed default.
     customerResolver: new PgCustomerResolver(pool),
+    // Lazy enrollment fallback (default OFF). Uses a getter so the instance is
+    // constructed AFTER `buildApp` returns a logger, matching the pattern
+    // established by `metafieldEnqueuer` and `reconciliationMetafieldWriter`.
+    get lazyEnroller() {
+      return lazyEnroller;
+    },
     balanceSource: new PgCustomerBalanceSource(pool),
     historySource: new PgLedgerHistorySource(pool),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
@@ -450,6 +464,22 @@ async function main(): Promise<void> {
     // Real-time cache refresh after any balance-affecting webhook (Req 13.1):
     // only meaningful now that the worker above exists to consume the jobs.
     metafieldEnqueuer = new PgBossMetafieldCacheEnqueuer(boss);
+
+    // Lazy-enrollment gate: assigned now that a logger exists. Default OFF, so
+    // this assignment is reached but the gate.enabled check inside returns null
+    // unless the env var is explicitly set to true.
+    if (config.enrollment.lazyFallbackEnabled) {
+      lazyEnroller = new LazyEnrollmentGate({
+        repo: ledgerRepo,
+        transactor,
+        enabled: true,
+        onEnrollmentError: (err, shopifyCustomerId) =>
+          app.log.warn(
+            { err, shopifyCustomerId },
+            "lazy enrollment failed; request degraded to 401 (identity unresolvable)",
+          ),
+      });
+    }
 
     // (E) Reconciliation scheduler (Req 1.7/13.7). Recomputes cached
     // balances/tiers from the ledger and repairs metafield-cache drift — so it

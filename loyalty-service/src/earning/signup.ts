@@ -253,39 +253,27 @@ export interface SignupJobDeps {
   ensureReferralCode?: (customerId: string, tx: Queryable) => Promise<void>;
 }
 
-/**
- * Consumes a verified, deduplicated `webhook.process` job for the
- * `customers/create` topic (the hand-off produced by task 3.2) and applies the
- * signup earning.
+/*
+ * REMOVED 2026-08-22 — `handleCustomersCreateJob`.
  *
- * This is the ONLY sanctioned invocation path for {@link earnSignup}: the job
- * exists only because the HMAC gate (task 3.1) passed and the webhook-id dedupe
- * (task 3.2) recorded a new event, so no earning is ever created for an
- * unverified event (Req 2.7). The whole earning runs inside one transaction
- * (Req 2.1/2.8 atomicity).
+ * It consumed the verified `customers/create` job and called {@link earnSignup}
+ * directly. That made it a SECOND enrollment implementation alongside
+ * `enrollment/ensureCustomerEnrollment.ts`, and the two disagreed on one thing
+ * that matters: only the enrollment service knows about MIGRATED customers. A
+ * `customers/create` replayed or re-fired for a customer whose opening balance
+ * came from the M0→M1 migration would have been credited a fresh +50 on top of
+ * their imported legacy balance.
  *
- * A job for any other topic is ignored (returns `null`) so this handler can be
- * registered on the shared `webhook.process` queue without mis-handling
- * order/refund jobs owned by other tasks.
+ * `customers/create` is now dispatched (in `worker.ts`) through
+ * `handleCustomersCreateEnrollment`, which upserts the customer, classifies them
+ * against their own ledger, and only then delegates the award to {@link earnSignup}.
  *
- * @throws InvalidCustomersCreatePayloadError if the payload has no usable id.
+ * {@link earnSignup} itself is UNCHANGED and remains the single definition of the
+ * signup award — the +50 amount, the per-customer `earn_signup` idempotency
+ * guard, the 12-month Point_Lot and referral-code assignment all still live here
+ * and are still the only implementation of them. What was removed is a duplicate
+ * ENTRY POINT, not the award logic.
+ *
+ * `SignupJobDeps` above is retained: `worker.ts` still uses it to type the
+ * optional `ensureReferralCode` collaborator that is forwarded through.
  */
-export async function handleCustomersCreateJob(
-  job: WebhookJob,
-  deps: SignupJobDeps,
-): Promise<SignupEarnOutcome | null> {
-  if (job.topic !== CUSTOMERS_CREATE_TOPIC) {
-    return null;
-  }
-
-  const { id, email } = extractShopifyCustomerId(job.payload);
-
-  return deps.transactor.transaction((tx) =>
-    earnSignup(
-      deps.repo,
-      { shopifyCustomerId: id, email, sourceEventId: job.webhookId },
-      tx,
-      deps.ensureReferralCode,
-    ),
-  );
-}

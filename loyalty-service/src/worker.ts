@@ -9,7 +9,8 @@
  * job handler for its topic.
  *
  * All four handlers already exist and are unit-tested:
- *   - `customers/create`  → {@link handleCustomersCreateJob} (signup +50)
+ *   - `customers/create`  → {@link handleCustomersCreateEnrollment} (enrol, then
+ *                          signup +50 only when genuinely due)
  *   - `orders/paid`       → {@link handleOrdersPaidJob}       (order earn + lots)
  *   - `refunds/create`    → {@link handleRefundJob}           (refund clawback)
  *   - `orders/cancelled`  → {@link handleOrderCancelledJob}   (cancellation clawback)
@@ -36,11 +37,12 @@
  */
 import type { LedgerRepository, Queryable } from "./ledger/repository.js";
 import { WEBHOOK_PROCESS_QUEUE, type WebhookJob } from "./webhooks/enqueue.js";
-import {
-  handleCustomersCreateJob,
-  CUSTOMERS_CREATE_TOPIC,
-  type SignupJobDeps,
-} from "./earning/signup.js";
+import { CUSTOMERS_CREATE_TOPIC, type SignupJobDeps } from "./earning/signup.js";
+// The single enrollment implementation. `customers/create` is dispatched through
+// this rather than calling the signup earning directly, so the webhook path, the
+// authenticated fallback and the migration backfill all share one definition of
+// "ensure this customer is enrolled" and one signup-award gate.
+import { handleCustomersCreateEnrollment } from "./enrollment/ensureCustomerEnrollment.js";
 import {
   handleOrdersPaidJob,
   ORDERS_PAID_TOPIC,
@@ -175,8 +177,20 @@ export async function dispatchWebhookJob(
 ): Promise<void> {
   switch (job.topic) {
     case CUSTOMERS_CREATE_TOPIC: {
-      const outcome = await handleCustomersCreateJob(job, deps);
-      if (outcome && outcome.status === "earned") {
+      // Routed through the SHARED enrollment service (task: enrollment repair).
+      // Previously this called `handleCustomersCreateJob` directly, which left
+      // two enrollment implementations: the webhook path and the lazy-fallback /
+      // backfill path. One of them owned the migration veto and the other did
+      // not, so a `customers/create` replayed for a MIGRATED customer could have
+      // credited +50 on top of an imported legacy balance.
+      //
+      // The award itself is unchanged — the service delegates to the same
+      // `earnSignup`, so the +50 amount, the per-customer `earn_signup`
+      // idempotency guard, the 12-month Point_Lot and referral-code assignment
+      // all keep exactly one definition. What is added is the Layer 2 ledger
+      // veto (migrated state ⇒ never a signup).
+      const outcome = await handleCustomersCreateEnrollment(job, deps);
+      if (outcome && outcome.signupAward === "awarded") {
         await enqueueCacheRefresh(deps, outcome.customerId);
       }
       return;

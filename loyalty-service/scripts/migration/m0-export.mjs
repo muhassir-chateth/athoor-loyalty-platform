@@ -30,6 +30,7 @@ import {
   runMain,
   usage,
 } from "./_shared.mjs";
+import { assertEnvironmentIdentity } from "./_envIdentity.mjs";
 import { runM0Export } from "../../dist/migration/m0Export.js";
 import { FileBackupWriter } from "../../dist/migration/backupWriter.js";
 import {
@@ -45,7 +46,8 @@ M0 — export & snapshot (read-only)
   node scripts/migration/m0-export.mjs \\
     --store <shop.myshopify.com> \\
     --backup-dir <directory> \\
-    [--total-expected 39] [--enrolled-expected 8] \\
+    --environment production|staging|development \\
+    --total-expected <n> --enrolled-expected <n> \\
     [--expected-currency GBP] \\
     [--accepted-financial-statuses PAID,PARTIALLY_REFUNDED,REFUNDED] \\
     [--include-cancelled-orders] [--include-test-orders] \\
@@ -62,6 +64,15 @@ Optional environment
 
 Notes
   * Run \`npm run build\` first — this script imports from dist/.
+  * --environment is REQUIRED and has no default. The run ABORTS if the stated
+    environment disagrees with the target shop domain or with DATABASE_URL —
+    e.g. --environment production against a *-staging domain. NODE_ENV is
+    reported but never trusted, because loyalty-service/.env sets it to
+    "production" while pointing at the staging store.
+  * --total-expected and --enrolled-expected are REQUIRED and have no defaults.
+    Read the live cohort immediately before the run and state it explicitly; do
+    not copy the numbers out of documentation. The export ABORTS on a mismatch,
+    which is the intended protection against migrating an unexpected cohort.
   * --expected-currency defaults to GBP (Req 21.1). The export ABORTS if any
     order reports a different currency; summing another currency as GBP would
     misplace every customer's tier.
@@ -93,8 +104,18 @@ await runMain(async () => {
     usage("--backup-dir is required (or set M0_BACKUP_DIR).", USAGE);
   }
 
-  const totalExpected = positiveInt(args["total-expected"], "total-expected", USAGE, 39);
-  const enrolledExpected = positiveInt(args["enrolled-expected"], "enrolled-expected", USAGE, 8);
+  // MANDATORY, no fallback. These were previously defaulted to 39/8, the counts
+  // observed when the migration was designed. Production drifted to 40/9 (a
+  // customer was created 2026-08-03), so the stale defaults would have been
+  // silently applied and the export would abort with a count mismatch that looks
+  // like a data problem rather than an out-of-date literal.
+  //
+  // The GUARD IS DELIBERATELY KEPT — it did its job by refusing to write. What
+  // is removed is only the silent default: the operator must now STATE the
+  // cohort they have independently verified against production at run time, so
+  // the expectation is always a fresh, conscious assertion.
+  const totalExpected = positiveInt(args["total-expected"], "total-expected", USAGE);
+  const enrolledExpected = positiveInt(args["enrolled-expected"], "enrolled-expected", USAGE);
   const pageSize = positiveInt(args["page-size"], "page-size", USAGE, 100);
   const expectedCurrency =
     typeof args["expected-currency"] === "string"
@@ -110,6 +131,21 @@ await runMain(async () => {
   if (acceptedFinancialStatuses.length === 0) {
     usage("--accepted-financial-statuses must list at least one status.", USAGE);
   }
+
+  // Explicit environment identity BEFORE the first Shopify read. Fails closed on
+  // any disagreement between the stated environment, the target shop domain, and
+  // the configured database. `loyalty-service/.env` claims NODE_ENV=production
+  // while pointing at the STAGING store, so nothing here is inferred.
+  assertEnvironmentIdentity({
+    args,
+    store,
+    phase: "M0 — export & snapshot (read-only)",
+    writes: false,
+    expectedTotal: totalExpected,
+    expectedEnrolled: enrolledExpected,
+    databaseUrl: process.env.DATABASE_URL,
+    fail: (message) => usage(message, USAGE),
+  });
 
   printBlock("M0 configuration", {
     store,

@@ -11,6 +11,7 @@ import {
   type CustomerAccountTokenVerifier,
   type CustomerResolver,
 } from "../auth/identity.js";
+import type { VerifiedCustomerEnroller } from "../enrollment/ensureCustomerEnrollment.js";
 
 /**
  * Reusable authentication middleware for consumer `/v1` endpoints (task 6.2,
@@ -80,6 +81,26 @@ export interface AuthPluginOptions {
   tokenVerifier?: CustomerAccountTokenVerifier;
   /** App Proxy shared secret. When absent, App Proxy requests cannot be verified and are rejected. */
   appProxySecret?: string;
+  /**
+   * OPTIONAL lazy-enrollment boundary
+   * (`enrollment/ensureCustomerEnrollment.ts` → {@link VerifiedCustomerEnroller}).
+   *
+   * Consulted ONLY after identity has been fully verified and the read-only
+   * {@link CustomerResolver} found no local row — i.e. exactly the production
+   * failure where a real, logged-in customer 401s with
+   * `identity_resolution_failed` because they never passed through the
+   * `customers/create` webhook.
+   *
+   * Auth deliberately owns NO enrollment logic: no INSERT, no award decision, no
+   * knowledge that a ledger exists. It hands the enroller ONE already-verified
+   * Shopify customer id and takes back a local id or `null`. The enroller is
+   * given no access to this request, so nothing a browser controls — body field,
+   * query parameter, header, or email — can influence which customer is enrolled.
+   *
+   * Omitted by default, and its own config gate defaults to off, so behaviour is
+   * unchanged until it is deliberately switched on.
+   */
+  lazyEnroller?: VerifiedCustomerEnroller;
   /** Overrides the public (unauthenticated) route allowlist. */
   publicRoutes?: readonly string[];
 }
@@ -96,6 +117,41 @@ interface ResolveDeps {
   resolver: CustomerResolver;
   tokenVerifier: CustomerAccountTokenVerifier;
   appProxySecret?: string;
+  lazyEnroller?: VerifiedCustomerEnroller;
+}
+
+/**
+ * Resolve a VERIFIED Shopify customer id to a local `customers.id`, falling back
+ * to lazy enrollment when — and only when — the read-only resolver finds nothing.
+ *
+ * PRECONDITION, and the whole reason this is a separate function: `verifiedShopifyCustomerId`
+ * has already been authenticated, either by a verified App Proxy signature (so
+ * Shopify itself injected the value) or by a verified Customer Account API token
+ * (so the token's subject). Both call sites below sit AFTER that verification.
+ * Nothing else may call this.
+ *
+ * The request object is intentionally NOT a parameter. Enrollment therefore
+ * cannot see a body field, query parameter, header, or browser-supplied email, so
+ * a client cannot nominate which customer gets enrolled — the guarantee is
+ * structural, not a rule someone has to remember.
+ *
+ * A `null` from the enroller (disabled, unusable id, or a failed repair) leaves
+ * identity unresolved and the caller rejects with the ordinary 401 — a repair
+ * failing must never become a 500, and must never let a request through
+ * unidentified.
+ */
+async function resolveLocalCustomerId(
+  verifiedShopifyCustomerId: string,
+  deps: ResolveDeps,
+): Promise<string | null> {
+  const existing = await deps.resolver.resolveByShopifyCustomerId(verifiedShopifyCustomerId);
+  if (existing) {
+    return existing;
+  }
+  if (!deps.lazyEnroller) {
+    return null;
+  }
+  return deps.lazyEnroller.enrollVerifiedCustomer(verifiedShopifyCustomerId);
 }
 
 /** Read a single-valued header, tolerating the array form Node uses. */
@@ -128,7 +184,9 @@ async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promi
     if (!shopifyCustomerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
-    const customerId = await deps.resolver.resolveByShopifyCustomerId(shopifyCustomerId);
+    // The id is the SUBJECT of a token the verifier accepted — verified identity,
+    // so lazy enrollment may repair a missing row for it.
+    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps);
     if (!customerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
@@ -152,9 +210,16 @@ async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promi
     const shopifyCustomerId = firstQueryValue(query[LOGGED_IN_CUSTOMER_ID_PARAM]);
     if (!shopifyCustomerId || shopifyCustomerId === ANONYMOUS_CUSTOMER_ID) {
       // Verified request but no logged-in customer → cannot resolve identity.
+      // Reaching lazy enrollment is impossible from here: an absent or "0"
+      // (anonymous) id returns before any enrollment can be considered, so an
+      // anonymous storefront session can never create loyalty state.
       return { ok: false, reason: "identity_resolution_failed" };
     }
-    const customerId = await deps.resolver.resolveByShopifyCustomerId(shopifyCustomerId);
+    // Past this line the signature has verified AND Shopify supplied a non-anonymous
+    // logged_in_customer_id, so the id is trusted and a missing local row may be
+    // repaired. This is the ONLY value used — the query object is not consulted
+    // for identity again, and the request never reaches the enroller.
+    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps);
     if (!customerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
@@ -205,6 +270,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
   const resolver = opts.resolver;
   const tokenVerifier = opts.tokenVerifier ?? new UnconfiguredTokenVerifier();
   const appProxySecret = opts.appProxySecret;
+  const lazyEnroller = opts.lazyEnroller;
   const publicRoutes = new Set(opts.publicRoutes ?? DEFAULT_PUBLIC_ROUTES);
 
   app.addHook("preHandler", async (req: FastifyRequest, reply: FastifyReply) => {
@@ -214,7 +280,12 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
       return;
     }
 
-    const result = await resolveAuthContext(req, { resolver, tokenVerifier, appProxySecret });
+    const result = await resolveAuthContext(req, {
+      resolver,
+      tokenVerifier,
+      appProxySecret,
+      lazyEnroller,
+    });
     if (!result.ok) {
       // Reject before the handler runs → no state change (Req 9.3, 11.4).
       const { status, body } = rejectionFor(result.reason);
