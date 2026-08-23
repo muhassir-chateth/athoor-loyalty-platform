@@ -34,6 +34,7 @@ import {
   type CustomerAccountTokenVerifier,
   type CustomerResolver,
 } from "../auth/identity.js";
+import type { VerifiedCustomerEnroller } from "../enrollment/ensureCustomerEnrollment.js";
 
 /**
  * Options accepted by the `/v1` router.
@@ -62,6 +63,15 @@ export interface V1RouterOptions {
    * absent, App Proxy requests to customer endpoints are rejected (fail closed).
    */
   appProxySecret?: string;
+  /**
+   * OPTIONAL lazy-enrollment boundary for a VERIFIED customer with no local row
+   * (`enrollment/ensureCustomerEnrollment.ts`). Forwarded to the auth middleware,
+   * which consults it only AFTER identity has been verified and the read-only
+   * resolver returned nothing. Omitted by default — and gated by
+   * `ENROLLMENT_LAZY_FALLBACK_ENABLED`, which defaults to false — so the auth
+   * surface is unchanged until it is deliberately enabled.
+   */
+  lazyEnroller?: VerifiedCustomerEnroller;
   /**
    * Loads a customer's tier row + derived spendable balance for `GET /v1/balance`
    * (task 6.3). Defaults inside the balance route to an empty in-memory source
@@ -191,6 +201,7 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
     resolver: opts.customerResolver ?? new InMemoryCustomerResolver(),
     tokenVerifier: opts.tokenVerifier,
     appProxySecret: opts.appProxySecret,
+    lazyEnroller: opts.lazyEnroller,
   });
 
   // Idempotency + validation for state-changing requests, scoped to /v1.

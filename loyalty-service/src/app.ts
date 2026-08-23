@@ -38,6 +38,7 @@ import type {
   ChannelReachabilitySource,
 } from "./channel/reachability.js";
 import type { CustomerAccountTokenVerifier, CustomerResolver } from "./auth/identity.js";
+import type { VerifiedCustomerEnroller } from "./enrollment/ensureCustomerEnrollment.js";
 import type { RedeemDeps } from "./redemption/redeem.js";
 import { API_VERSION } from "./version.js";
 
@@ -112,6 +113,15 @@ export interface AppDependencies {
    * closed until wired.
    */
   customerResolver?: CustomerResolver;
+  /**
+   * OPTIONAL lazy-enrollment boundary (`enrollment/ensureCustomerEnrollment.ts`
+   * → {@link LazyEnrollmentGate}) used when a VERIFIED customer has no local
+   * `customers` row yet. Production wires it only when
+   * `ENROLLMENT_LAZY_FALLBACK_ENABLED` is true, which it is not by default; tests
+   * and local runs omit it, so `/v1` auth behaves exactly as before. It NEVER
+   * awards a signup bonus — a repaired row is not a signup.
+   */
+  lazyEnroller?: VerifiedCustomerEnroller;
   /**
    * Validates Customer Account API bearer tokens (Req 9.2, 11.5). Kept behind
    * this interface so tests inject a fake and the service never calls live
@@ -369,6 +379,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     prefix: "/v1",
     idempotencyStore,
     customerResolver: deps.customerResolver,
+    lazyEnroller: deps.lazyEnroller,
     tokenVerifier: deps.tokenVerifier,
     appProxySecret: config.shopify.appProxySecret,
     balanceSource: deps.balanceSource,

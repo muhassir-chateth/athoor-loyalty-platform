@@ -38,7 +38,7 @@ import fc from "fast-check";
 import type { QueryResult, QueryResultRow } from "pg";
 import type { Queryable } from "../ledger/repository.js";
 import { computeBalance, computeSpendableBalance } from "../ledger/balance.js";
-import { reconcileWishlist, setFavourite } from "./favouritesWishlist.js";
+import { getWishlist, reconcileWishlist, setFavourite } from "./favouritesWishlist.js";
 import { RecentlyViewedStore } from "./recentlyViewed.js";
 import { markPortalVisit } from "./portalVisit.js";
 
@@ -274,6 +274,49 @@ type Op =
   | { kind: "visit" }
   | { kind: "otherCustomerFavourite"; productId: string };
 
+/**
+ * The same operation families, but addressed at an EXPLICIT customer — used by
+ * the two-customer isolation property below, where which customer acted is the
+ * whole point rather than an incidental detail.
+ */
+type ScopedOp =
+  | { kind: "favourite"; productId: string; on: boolean }
+  | { kind: "wishlist"; productIds: string[] }
+  | { kind: "unfavourite"; productId: string };
+
+const scopedOpArb: fc.Arbitrary<ScopedOp> = fc.oneof(
+  fc.record({
+    kind: fc.constant("favourite" as const),
+    productId: productIdArb,
+    on: fc.boolean(),
+  }),
+  fc.record({
+    kind: fc.constant("wishlist" as const),
+    productIds: fc.array(productIdArb, { maxLength: 6 }),
+  }),
+  fc.record({ kind: fc.constant("unfavourite" as const), productId: productIdArb }),
+);
+
+/** An interleaving of operations, each tagged with the customer performing it. */
+const interleavedOpsArb = fc.array(
+  fc.record({ actor: fc.constantFrom("A" as const, "B" as const), op: scopedOpArb }),
+  { maxLength: 30 },
+);
+
+async function applyScopedOp(db: FakeDb, customerId: string, op: ScopedOp): Promise<void> {
+  switch (op.kind) {
+    case "favourite":
+      await setFavourite(db, customerId, op.productId, op.on);
+      return;
+    case "unfavourite":
+      await setFavourite(db, customerId, op.productId, false);
+      return;
+    case "wishlist":
+      await reconcileWishlist(db, customerId, op.productIds);
+      return;
+  }
+}
+
 const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc.record({
     kind: fc.constant("favourite" as const),
@@ -449,6 +492,125 @@ describe("Property 13 — behavioural data never affects ledger balances (Req 17
         expect(ledgerSnapshot(db)).toBe(tablesBefore);
         expect(await computeBalance(CUSTOMER, db)).toBe(balanceBefore);
         expect(await computeSpendableBalance(CUSTOMER, db, AS_OF)).toBe(spendableBefore);
+      }),
+    );
+  });
+});
+
+/**
+ * Two-customer isolation — design §4.6 item 2, added as part of the Phase 0
+ * wishlist repair (spec tasks 1.3–1.6).
+ *
+ * The wishlist reconcile fix made `POST /v1/profile/wishlist/reconcile` reachable
+ * for the first time in production. Before that endpoint starts writing real
+ * rows, the DATA LAYER's isolation is asserted here as a property rather than as
+ * a spot check:
+ *
+ *   ∀ interleavings of behavioural operations by customers A and B:
+ *     A's operations never add, remove or alter any of B's rows, and never appear
+ *     in B's reads — and vice versa.
+ *
+ * This is the layer below the HTTP one. `wishlistIdor.integration.test.ts` covers
+ * the request surface (foreign identifiers in the body, query, headers and
+ * cookies); this covers the SQL, so a future statement that forgets its
+ * `customer_id = $1` predicate fails here.
+ *
+ * Validates: Requirements 7.1, 7.8, 17.4
+ */
+describe("two-customer isolation across the behavioural tables (design §4.6 item 2)", () => {
+  /** Snapshot of one customer's preference rows, order-independent. */
+  function preferenceSnapshot(db: FakeDb, customerId: string): string {
+    const pick = (rows: PrefRow[]) =>
+      rows
+        .filter((r) => r.customer_id === customerId)
+        .map((r) => r.shopify_product_id)
+        .sort();
+    return JSON.stringify({ favourites: pick(db.favourites), wishlist: pick(db.wishlist) });
+  }
+
+  it("A's operations never alter B's rows, in any interleaving", async () => {
+    await fc.assert(
+      fc.asyncProperty(interleavedOpsArb, async (tagged) => {
+        const db = new FakeDb(AS_OF);
+
+        // Run the interleaving, checking after EVERY step that the customer who
+        // did not act is byte-identical. Checking only at the end would let a
+        // leak followed by a coincidental repair pass.
+        for (const { actor, op } of tagged) {
+          const actingId = actor === "A" ? CUSTOMER : OTHER_CUSTOMER;
+          const bystanderId = actor === "A" ? OTHER_CUSTOMER : CUSTOMER;
+          const bystanderBefore = preferenceSnapshot(db, bystanderId);
+
+          await applyScopedOp(db, actingId, op);
+
+          expect(
+            preferenceSnapshot(db, bystanderId),
+            `an operation by ${actor} changed the other customer's rows`,
+          ).toBe(bystanderBefore);
+        }
+      }),
+    );
+  });
+
+  it("neither customer's reads ever return the other's products", async () => {
+    await fc.assert(
+      fc.asyncProperty(interleavedOpsArb, async (tagged) => {
+        const db = new FakeDb(AS_OF);
+        const written = { A: new Set<string>(), B: new Set<string>() };
+
+        for (const { actor, op } of tagged) {
+          const actingId = actor === "A" ? CUSTOMER : OTHER_CUSTOMER;
+          await applyScopedOp(db, actingId, op);
+          if (op.kind === "wishlist") for (const id of op.productIds) written[actor].add(id);
+        }
+
+        const aWishlist = await getWishlist(db, CUSTOMER);
+        const bWishlist = await getWishlist(db, OTHER_CUSTOMER);
+
+        // Every id A can read was written by A. An id both wrote is legitimately
+        // in both lists — as two independent rows, never one shared row.
+        for (const id of aWishlist) expect(written.A.has(id)).toBe(true);
+        for (const id of bWishlist) expect(written.B.has(id)).toBe(true);
+        // And nothing A never wrote leaked in from B.
+        for (const id of bWishlist) {
+          if (!written.A.has(id)) expect(aWishlist).not.toContain(id);
+        }
+      }),
+    );
+  });
+
+  it("reconciling A's device list can never remove one of B's wishlist entries", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(productIdArb, { minLength: 1, maxLength: 8 }),
+        fc.array(productIdArb, { maxLength: 8 }),
+        async (bIds, aDeviceIds) => {
+          const db = new FakeDb(AS_OF);
+          // B owns a wishlist first.
+          await reconcileWishlist(db, OTHER_CUSTOMER, bIds);
+          const bBefore = await getWishlist(db, OTHER_CUSTOMER);
+
+          // A reconciles — including, deliberately, ids that B also holds.
+          await reconcileWishlist(db, CUSTOMER, [...aDeviceIds, ...bIds]);
+
+          // Reconciliation is add-only AND customer-scoped: B is untouched.
+          expect(await getWishlist(db, OTHER_CUSTOMER)).toEqual(bBefore);
+        },
+      ),
+    );
+  });
+
+  it("un-favouriting a product A does not own never deletes B's row", async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.array(productIdArb, { minLength: 1, maxLength: 8 }), async (bIds) => {
+        const db = new FakeDb(AS_OF);
+        for (const id of bIds) await setFavourite(db, OTHER_CUSTOMER, id, true);
+        const bBefore = preferenceSnapshot(db, OTHER_CUSTOMER);
+
+        // A tries to unset every one of B's favourites by naming the product id.
+        for (const id of bIds) await setFavourite(db, CUSTOMER, id, false);
+
+        expect(preferenceSnapshot(db, OTHER_CUSTOMER)).toBe(bBefore);
       }),
     );
   });

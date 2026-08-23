@@ -67,6 +67,18 @@ const EnvSchema = z.object({
   // absent the membership-card surface fails closed.
   MEMBERSHIP_SIGNING_KEY: z.string().min(1).optional(),
 
+  // Lazy enrollment fallback (src/enrollment/ensureCustomerEnrollment.ts).
+  // DEFAULTS TO FALSE, deliberately: the `customers` table is empty in
+  // production, so every authenticated /v1 request 401s with
+  // `identity_resolution_failed`. The fallback repairs that by creating the
+  // missing local row for a customer Shopify has ALREADY verified — but it
+  // changes when loyalty state comes into existence, so it ships off. Merging it
+  // therefore changes nothing at runtime, and enabling it is a reversible config
+  // change rather than a deploy. It NEVER awards a signup bonus (a repaired row
+  // is not a signup), so turning it on cannot mint points for the historical
+  // cohort.
+  ENROLLMENT_LAZY_FALLBACK_ENABLED: boolish.default(false),
+
   // Database
   DATABASE_URL: z.string().min(1).optional(),
   PGHOST: z.string().optional(),
@@ -103,6 +115,14 @@ export interface AppConfig {
      * secret; undefined = the membership-card surface fails closed.
      */
     signingKey?: string;
+  };
+  enrollment: {
+    /**
+     * Whether an authenticated request may lazily enrol a VERIFIED Shopify
+     * customer who has no local row yet. Default FALSE (fail closed): enrollment
+     * then happens only via the `customers/create` webhook, exactly as today.
+     */
+    lazyFallbackEnabled: boolean;
   };
   database: {
     connectionString?: string;
@@ -155,6 +175,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     membership: {
       signingKey: env.MEMBERSHIP_SIGNING_KEY,
+    },
+    enrollment: {
+      lazyFallbackEnabled: env.ENROLLMENT_LAZY_FALLBACK_ENABLED,
     },
     database: {
       connectionString: env.DATABASE_URL,

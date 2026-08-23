@@ -12,16 +12,31 @@
  * inside ONE database transaction:
  *   - Req 14.4: create the local `customers` row keyed by Shopify id if needed,
  *     then append exactly ONE `entry_type='migration'` Ledger entry equal to the
- *     customer's exported points balance, and create exactly ONE matching
+ *     customer's MIGRATED integer points, and create exactly ONE matching
  *     NON-EXPIRING Point_Lot (`expires_at = NULL`, `original == remaining ==`
  *     the balance) — because no expiry has ever been tracked for legacy points
  *     (A1). The customer's tier is recomputed from their lifetime spend.
+ *   - THE LEGACY CONVERSION. The migrated integer is NOT simply the exported
+ *     `points_balance`. The legacy storefront earned `50 + spend` un-floored and
+ *     without deducting refunds, so real balances are fractional (`83.75`) and
+ *     can carry refunded value (`55.99`). The owner-approved rules — subtract
+ *     the points granted for later-refunded spend, then round any retained
+ *     fraction UP — live in `legacyBalanceConversion.ts` and are applied here via
+ *     {@link resolveMigrationBalance}. M1 writes the resolved integer and records
+ *     the legacy value, both adjustments and the rule name alongside it so the
+ *     migration is auditable after the fact. A refusal from the resolver ABORTS
+ *     the migration; nothing is ever guessed.
+ *   - M1 NEVER AWARDS A SIGNUP BONUS. The only entry type it writes is
+ *     `migration`; the 50-point signup bonus is already embedded in the legacy
+ *     balance being converted, so awarding `earn_signup` here would double it.
+ *     Structurally guaranteed: {@link MIGRATION_ENTRY_TYPE} is the sole
+ *     `entryType` this module passes to the repository.
  *   - Req 14.5 (A3): the 31 Non_Enrolled_Customers are NOT created here. They
  *     are enrolled LAZILY — a `customers` row is created on their first
  *     qualifying webhook event (see `earning/order.ts` / `earning/signup.ts`),
  *     never eagerly at migration. M1 processes only the enrolled cohort.
  *   - Req 14.6: after the backfill, reconcile by asserting
- *     `SUM(ledger_entries.points) == exported balance` for every enrolled
+ *     `SUM(ledger_entries.points) == migrated integer points` for every enrolled
  *     customer. On ANY mismatch the migration ABORTS and retains NO partial
  *     Ledger state — the whole transaction is rolled back — treating the backup
  *     file as authoritative for restore.
@@ -52,7 +67,16 @@
 import { computeBalance } from "../ledger/balance.js";
 import type { LedgerEntry, LedgerRepository, Queryable } from "../ledger/repository.js";
 import { deriveTier, type Tier } from "../tier/tier.js";
-import type { ExportedCustomer, M0Backup } from "./m0Export.js";
+import { SIGNUP_BONUS_POINTS, type ExportedCustomer, type M0Backup } from "./m0Export.js";
+// The owner-approved legacy conversion rules, imported rather than restated.
+// M1 must never reimplement them: the rules are tested in
+// `legacyBalanceConversion.test.ts` against the real production values, and a
+// second copy here would be free to drift away from the approved decision.
+import {
+  describeLegacyMigration,
+  resolveLegacyMigrationBalance,
+  type LegacyMigrationRule,
+} from "./legacyBalanceConversion.js";
 
 /** The `entry_type` recorded for every backfilled opening balance (design M1). */
 export const MIGRATION_ENTRY_TYPE = "migration" as const;
@@ -81,8 +105,35 @@ export interface BackfilledCustomer {
   shopifyCustomerId: number;
   /** The local `customers.id` (UUID) resolved/created for this customer. */
   customerId: string;
-  /** The opening balance backfilled — equals the exported `points_balance` (Req 14.4). */
+  /**
+   * The opening balance ACTUALLY WRITTEN to the ledger: the integer points the
+   * owner-approved conversion resolved to (Req 14.4). This is NOT necessarily
+   * the exported `points_balance` — see {@link legacyBalance} — because the
+   * legacy value may be fractional and/or carry a refunded component.
+   */
   migrationPoints: number;
+  /**
+   * The legacy `points_balance` exactly as M0 exported it, before any
+   * conversion. Kept so the migration is auditable after the fact: the pair
+   * (`legacyBalance` → `migrationPoints`) plus `rule` fully explains the write.
+   */
+  legacyBalance: number;
+  /**
+   * Points removed because the spend behind them was later refunded (0 when
+   * nothing was refunded). Legacy granted these; the live engine would have
+   * clawed them back, so migrating them would import a known error.
+   */
+  refundedPointsRemoved: number;
+  /**
+   * Points ADDED by rounding the retained fraction upward (0 when the remainder
+   * was already whole). A declared, auditable one-time uplift rather than an
+   * invisible one — migration must never reduce retained customer value.
+   */
+  roundingAdjustment: number;
+  /** Which branch of the owner-approved rule produced {@link migrationPoints}. */
+  rule: LegacyMigrationRule;
+  /** One-line human-readable audit note for this customer's conversion. */
+  conversionNote: string;
   /** The tier recomputed from the customer's lifetime spend (Req 14.4). */
   tier: Tier;
   /** The lifetime spend (GBP) the tier was derived from. */
@@ -99,12 +150,30 @@ export interface BackfilledCustomer {
   created: boolean;
 }
 
-/** A reconciliation mismatch: the ledger sum did not equal the exported balance (Req 14.6). */
+/**
+ * A reconciliation mismatch: the ledger sum did not equal the MIGRATED balance
+ * (Req 14.6).
+ *
+ * WHY NOT THE EXPORTED BALANCE (changed with the legacy conversion). This used to
+ * assert `SUM(ledger) == exported points_balance`. That was only correct while
+ * every legacy balance was an integer that migrated verbatim. It is now wrong:
+ * the exported balance is the raw LEGACY value, which may be fractional (83.75)
+ * or carry a refunded component (55.99), and the ledger deliberately holds the
+ * converted integer (84 / 50). Reconciling against the legacy value would fail
+ * every converted customer and abort a correct migration — and, worse, an
+ * unconditional pass would have to be added to make it green, which would remove
+ * the check entirely. So reconciliation asserts against what was written.
+ *
+ * The legacy value is still carried here so a mismatch report shows both numbers
+ * and the operator can see which conversion was involved.
+ */
 export interface ReconciliationMismatch {
   shopifyCustomerId: number;
   customerId: string;
-  /** The exported `points_balance` the ledger was expected to sum to. */
+  /** The MIGRATED integer points the ledger was expected to sum to. */
   expectedBalance: number;
+  /** The raw legacy `points_balance` the migrated value was derived from. */
+  legacyBalance: number;
   /** The actual `SUM(ledger_entries.points)` observed for the customer. */
   actualLedgerSum: number;
 }
@@ -158,10 +227,11 @@ export interface M1BackfillOptions {
 
 /**
  * Thrown for a backfill anomaly (an enrolled record whose data cannot be
- * backfilled — e.g. a non-positive/non-integer balance or an unusable Shopify
- * id). Throwing inside the transaction rolls it back so no partial state is
- * retained (Req 14.7). Caught by {@link runM1Backfill} and reported as
- * `aborted_backfill_error`.
+ * backfilled — e.g. a missing/non-numeric balance, an unusable Shopify id, a
+ * balance that resolves to a non-positive opening amount, or a REFUSAL from the
+ * owner-approved legacy conversion rules). Throwing inside the transaction rolls
+ * it back so no partial state is retained (Req 14.7). Caught by
+ * {@link runM1Backfill} and reported as `aborted_backfill_error`.
  */
 export class M1BackfillError extends Error {
   readonly code = "m1_backfill_error";
@@ -244,32 +314,129 @@ export function nonEnrolledCustomers(backup: M0Backup): ExportedCustomer[] {
   return backup.customers.filter((c) => !c.enrolled);
 }
 
+/** The resolved, auditable decision about what to write for one legacy customer. */
+export interface MigrationBalanceDecision {
+  /** The integer points to write as the opening balance. */
+  integerPoints: number;
+  /** The legacy `points_balance` exported by M0, unchanged. */
+  legacyBalance: number;
+  /** Lifetime GBP spend the customer RETAINED (drives the tier). */
+  retainedSpendGBP: number;
+  /** The refunded component derived from the legacy formula (see below). */
+  refundedSpendGBP: number;
+  /** Points removed because their spend was refunded. */
+  refundedPointsRemoved: number;
+  /** Points added by rounding the retained remainder upward. */
+  roundingAdjustment: number;
+  rule: LegacyMigrationRule;
+  /** One-line audit note; carries no customer identifier, so it is safe to log. */
+  note: string;
+}
+
 /**
- * Validates and returns the positive-integer opening balance to migrate for an
- * enrolled customer (Req 14.4). The `migration` Ledger entry must be a non-zero
- * amount (append-only ledger rules); an enrolled balance is always `50 + spend`
- * so it is > 0. A missing/non-integer/non-positive balance is a data anomaly
- * that aborts the backfill (Req 14.7).
+ * Derives the REFUNDED component of a legacy balance from data already present in
+ * the M0 backup:
+ *
+ *     refundedSpendGBP = max(0, legacyBalance − SIGNUP_BONUS_POINTS − lifetimeSpendGBP)
+ *
+ * WHY THIS IS SOUND, AND WHY IT IS A DERIVATION RATHER THAN A GUESS. The legacy
+ * storefront earned `50 + spend`, un-floored and WITHOUT deducting refunds — a
+ * formula corroborated against the store's only two real orders. M0's
+ * `lifetimeSpendGBP` is RETAINED spend, because its default order policy excludes
+ * cancelled orders. Anything the legacy balance holds ABOVE `50 + retained spend`
+ * therefore came from spend the customer no longer has: refunded money legacy
+ * never took back. So the excess IS the refunded component; it is arithmetic on
+ * the backup, not an assumption about a customer.
+ *
+ * Floored at zero deliberately: a NEGATIVE excess would mean the legacy balance
+ * is LOWER than the formula requires, which is a different anomaly entirely and
+ * must not be silently reinterpreted as a refund. It reaches the resolver as
+ * "nothing refunded" and is then judged on its own terms — a fractional
+ * shortfall still rounds up, and an incoherent value is refused.
+ *
+ * Rounded to 2dp because every legacy value derives from GBP pence, and binary
+ * floating point would otherwise turn `55.99 − 50 − 0` into `5.990000000000002`
+ * and put a false fraction into an audit record.
  */
-export function requireMigrationBalance(
+export function deriveRefundedSpendGBP(legacyBalance: number, lifetimeSpendGBP: number): number {
+  const excess = legacyBalance - SIGNUP_BONUS_POINTS - lifetimeSpendGBP;
+  return Number(Math.max(0, excess).toFixed(2));
+}
+
+/**
+ * Resolves the opening balance to migrate for one enrolled legacy customer, by
+ * applying the OWNER-APPROVED conversion rules (Req 14.4).
+ *
+ * WHAT THIS REPLACED, AND WHY. This function used to be `requireMigrationBalance`,
+ * which read `customer.loyalty.pointsBalance` and THREW unless it was an integer.
+ * That was correct while the balances were believed to be integers, and became a
+ * hard stop once `parseLoyaltyFields` started parsing numerically (deliberately —
+ * a fractional balance must reach review, not vanish): the two real production
+ * customers arrive as `83.75` and `55.99`, so M1 aborted on the first of them and
+ * NEVER applied the approved conversion. It failed CLOSED, so nothing was ever
+ * corrupted — but the approved values were never written either.
+ *
+ * The rules themselves live in {@link resolveLegacyMigrationBalance} and are NOT
+ * duplicated here. This function's whole job is to assemble that resolver's
+ * inputs from the backup and to refuse loudly when the resolver refuses.
+ *
+ * Refusals throw {@link M1BackfillError}, which rolls the transaction back
+ * (Req 14.7). NEVER guess: an incoherent legacy record is an operator decision.
+ */
+export function resolveMigrationBalance(
   customer: ExportedCustomer,
   shopifyCustomerId: number | null,
-): number {
-  const balance = customer.loyalty.pointsBalance;
-  if (balance === null || !Number.isInteger(balance) || !Number.isSafeInteger(balance)) {
+): MigrationBalanceDecision {
+  const legacyBalance = customer.loyalty.pointsBalance;
+  if (legacyBalance === null || typeof legacyBalance !== "number" || !Number.isFinite(legacyBalance)) {
     throw new M1BackfillError(
-      `Enrolled customer ${customer.id} has a non-integer points balance and cannot be backfilled.`,
+      `Enrolled customer ${customer.id} carries no usable numeric points balance ` +
+        `(${JSON.stringify(legacyBalance)}); the intended balance must be stated explicitly by an ` +
+        `operator rather than assumed.`,
       shopifyCustomerId,
     );
   }
-  if (balance <= 0) {
+
+  const retainedSpendGBP = customer.lifetimeSpendGBP;
+  const refundedSpendGBP = deriveRefundedSpendGBP(legacyBalance, retainedSpendGBP);
+
+  const resolution = resolveLegacyMigrationBalance({
+    legacyBalance,
+    retainedSpendGBP,
+    refundedSpendGBP,
+  });
+  if (!resolution.ok) {
+    // The approved rules could not decide a value. Abort the WHOLE migration so
+    // the transaction rolls back; never fall back to the raw legacy number.
     throw new M1BackfillError(
-      `Enrolled customer ${customer.id} has a non-positive balance (${balance}); a migration ` +
-        `entry must record a positive opening balance.`,
+      `Enrolled customer ${customer.id} cannot be migrated: ${resolution.reason}`,
       shopifyCustomerId,
     );
   }
-  return balance;
+
+  // The append-only ledger records signed non-zero movements, so a migration
+  // entry must carry a POSITIVE opening balance. An enrolled legacy balance is
+  // `50 + spend`, so this only fires on anomalous data — which aborts rather
+  // than writing a zero-point entry (Req 14.7).
+  if (!Number.isSafeInteger(resolution.integerPoints) || resolution.integerPoints <= 0) {
+    throw new M1BackfillError(
+      `Enrolled customer ${customer.id} resolves to a non-positive opening balance ` +
+        `(${resolution.integerPoints} from legacy ${legacyBalance}); a migration entry must record ` +
+        `a positive opening balance.`,
+      shopifyCustomerId,
+    );
+  }
+
+  return {
+    integerPoints: resolution.integerPoints,
+    legacyBalance,
+    retainedSpendGBP,
+    refundedSpendGBP,
+    refundedPointsRemoved: resolution.refundedPointsRemoved,
+    roundingAdjustment: resolution.roundingAdjustment,
+    rule: resolution.rule,
+    note: describeLegacyMigration(resolution),
+  };
 }
 
 /** Parses the exported Shopify customer id (a numeric string) into a positive integer. */
@@ -291,15 +458,16 @@ export function requireShopifyCustomerId(customer: ExportedCustomer): number {
  *
  *   1. For each ENROLLED customer (Req 14.5 — non-enrolled are skipped and left
  *      for lazy enrolment):
- *        a. validate the opening balance and Shopify id (anomaly → abort);
+ *        a. resolve the opening balance through the owner-approved legacy rules
+ *           and validate the Shopify id (anomaly/refusal → abort);
  *        b. upsert the local `customers` row keyed by Shopify id, setting the
  *           tier recomputed from lifetime spend (Req 14.4);
  *        c. if a `migration` entry already exists, skip (idempotent re-run);
  *        d. otherwise append exactly one positive `migration` Ledger entry equal
- *           to the balance, and create exactly one matching NON-EXPIRING
- *           Point_Lot of the same value (Req 14.4).
+ *           to the resolved integer points, and create exactly one matching
+ *           NON-EXPIRING Point_Lot of the same value (Req 14.4).
  *   2. Reconcile: for every enrolled customer assert
- *      `SUM(ledger_entries.points) == exported balance`. Any mismatch throws
+ *      `SUM(ledger_entries.points) == migrated integer points`. Any mismatch throws
  *      {@link M1ReconciliationError}, rolling the whole transaction back so no
  *      partial state is retained (Req 14.6).
  *
@@ -325,7 +493,13 @@ export async function runM1Backfill(options: M1BackfillOptions): Promise<M1Resul
       // touched here — they enrol lazily on their first event (Req 14.5).
       for (const c of enrolled) {
         const shopifyCustomerId = requireShopifyCustomerId(c);
-        const balance = requireMigrationBalance(c, shopifyCustomerId);
+        // The owner-approved conversion decides the integer actually written.
+        // A refusal throws, which rolls the whole transaction back (Req 14.7).
+        const decision = resolveMigrationBalance(c, shopifyCustomerId);
+        const balance = decision.integerPoints;
+        // Tier comes from RETAINED lifetime spend: a refunded order must not hold
+        // a tier up, which is why the resolver keeps retained spend separate from
+        // the points arithmetic.
         const tier = deriveTier(c.lifetimeSpendGBP);
 
         // (1b) Create the local customers row keyed by Shopify id if needed,
@@ -354,6 +528,11 @@ export async function runM1Backfill(options: M1BackfillOptions): Promise<M1Resul
             shopifyCustomerId,
             customerId,
             migrationPoints: balance,
+            legacyBalance: decision.legacyBalance,
+            refundedPointsRemoved: decision.refundedPointsRemoved,
+            roundingAdjustment: decision.roundingAdjustment,
+            rule: decision.rule,
+            conversionNote: decision.note,
             tier,
             lifetimeSpendGBP: c.lifetimeSpendGBP,
             ledgerEntryId: null,
@@ -397,6 +576,11 @@ export async function runM1Backfill(options: M1BackfillOptions): Promise<M1Resul
           shopifyCustomerId,
           customerId,
           migrationPoints: balance,
+          legacyBalance: decision.legacyBalance,
+          refundedPointsRemoved: decision.refundedPointsRemoved,
+          roundingAdjustment: decision.roundingAdjustment,
+          rule: decision.rule,
+          conversionNote: decision.note,
           tier,
           lifetimeSpendGBP: c.lifetimeSpendGBP,
           ledgerEntryId: entry.id,
@@ -405,8 +589,10 @@ export async function runM1Backfill(options: M1BackfillOptions): Promise<M1Resul
         });
       }
 
-      // (2) Reconcile: SUM(ledger) must equal the exported balance for every
-      // enrolled customer, else abort and retain no partial state (Req 14.6).
+      // (2) Reconcile: SUM(ledger) must equal the MIGRATED integer points for
+      // every enrolled customer, else abort and retain no partial state
+      // (Req 14.6). Deliberately NOT the exported legacy balance — see
+      // {@link ReconciliationMismatch} for why that comparison is now wrong.
       const mismatches: ReconciliationMismatch[] = [];
       for (const r of results) {
         const actualLedgerSum = await computeBalance(r.customerId, tx);
@@ -415,6 +601,7 @@ export async function runM1Backfill(options: M1BackfillOptions): Promise<M1Resul
             shopifyCustomerId: r.shopifyCustomerId,
             customerId: r.customerId,
             expectedBalance: r.migrationPoints,
+            legacyBalance: r.legacyBalance,
             actualLedgerSum,
           });
         }

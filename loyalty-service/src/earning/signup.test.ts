@@ -19,8 +19,6 @@ import { LedgerRepository, type Queryable } from "../ledger/repository.js";
 import type { WebhookJob } from "../webhooks/enqueue.js";
 import {
   CUSTOMERS_CREATE_TOPIC,
-  handleCustomersCreateJob,
-  InvalidCustomersCreatePayloadError,
   SIGNUP_POINTS,
   SIGNUP_REASON,
   earnSignup,
@@ -241,56 +239,32 @@ describe("earnSignup: affects only the target customer (Req 2.11)", () => {
   });
 });
 
-describe("handleCustomersCreateJob: verified/deduped path only (Req 2.7 surface)", () => {
-  it("earns +50 from a customers/create job", async () => {
-    const db = new FakeDb();
-    const repo = new LedgerRepository(db);
-
-    const outcome = await handleCustomersCreateJob(makeJob(), { repo, transactor: db });
-
-    expect(outcome).not.toBeNull();
-    expect(outcome?.status).toBe("earned");
-    expect(db.ledger).toHaveLength(1);
-    expect(db.ledger[0]!.points).toBe(50);
-    // Traceability: the webhook id is recorded on the entry.
-    expect(db.ledger[0]!.source_event_id).toBe("wh-1");
-  });
-
-  it("ignores jobs for other topics (no earning created)", async () => {
-    const db = new FakeDb();
-    const repo = new LedgerRepository(db);
-
-    const outcome = await handleCustomersCreateJob(
-      makeJob({ topic: "orders/paid", payload: { id: 555 } }),
-      { repo, transactor: db },
-    );
-
-    expect(outcome).toBeNull();
-    expect(db.ledger).toHaveLength(0);
-  });
-
-  it("does not double-credit when the same customers/create job is reprocessed", async () => {
-    const db = new FakeDb();
-    const repo = new LedgerRepository(db);
-
-    await handleCustomersCreateJob(makeJob(), { repo, transactor: db });
-    const again = await handleCustomersCreateJob(makeJob(), { repo, transactor: db });
-
-    expect(again?.status).toBe("already_earned");
-    expect(db.ledger).toHaveLength(1);
-  });
-
-  it("rejects a payload with no usable customer id, creating no earning", async () => {
-    const db = new FakeDb();
-    const repo = new LedgerRepository(db);
-
-    await expect(
-      handleCustomersCreateJob(makeJob({ payload: { email: "x@example.com" } }), {
-        repo,
-        transactor: db,
-      }),
-    ).rejects.toBeInstanceOf(InvalidCustomersCreatePayloadError);
-
-    expect(db.ledger).toHaveLength(0);
-  });
-});
+/*
+ * REMOVED 2026-08-22 — the `handleCustomersCreateJob` describe block.
+ *
+ * That entry point was deleted because it was a second enrollment implementation
+ * that did not know about migrated customers (see the note in `signup.ts`).
+ * `customers/create` is now dispatched through
+ * `enrollment/ensureCustomerEnrollment.ts`.
+ *
+ * Every behaviour these four tests asserted is still covered, in the module that
+ * now owns the entry point:
+ *
+ *   earns +50 from a customers/create job
+ *     → ensureCustomerEnrollment.test.ts, scenario 1 and "classifies a genuinely
+ *       new customer as new, so Population A is still paid"
+ *   ignores jobs for other topics
+ *     → ensureCustomerEnrollment.test.ts, "ignores a job for another topic entirely"
+ *   does not double-credit on reprocessing
+ *     → ensureCustomerEnrollment.test.ts, scenario 4 ("awards on the first
+ *       delivery and nothing on replays, under any webhook id")
+ *   rejects a payload with no usable customer id
+ *     → ensureCustomerEnrollment.test.ts, "refuses a payload with no usable
+ *       customer id and creates nothing"
+ *
+ * plus two NEW assertions at the dispatch layer in `worker.test.ts` proving the
+ * migration veto reaches the webhook path — the gap that motivated the removal.
+ *
+ * `earnSignup` remains fully tested by the blocks ABOVE this comment; only the
+ * duplicate entry point's tests are gone.
+ */
