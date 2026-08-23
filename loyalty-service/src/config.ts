@@ -33,9 +33,27 @@ export const WEBHOOK_TOPICS = [
   "orders/cancelled",
 ] as const;
 
+/**
+ * Truthy env spellings, compared case-insensitively and AFTER TRIMMING.
+ *
+ * The trim is not cosmetic. These values are typed or pasted into a hosting
+ * dashboard, where a trailing space is invisible and survives the save. Without
+ * it, `"true "` silently means FALSE: the variable is present, the config parses
+ * without error, and the feature is simply off. For a flag whose whole purpose is
+ * to repair authentication, that failure is indistinguishable from the bug being
+ * fixed — which is exactly how a flag set to `true` cost two diagnostic cycles.
+ * Fail-closed is right for an unrecognised value; fail-closed on whitespace is
+ * just a trap.
+ */
+const TRUTHY_ENV_VALUES = ["1", "true", "yes", "on"] as const;
+
 const boolish = z
   .union([z.boolean(), z.string()])
-  .transform((v) => (typeof v === "boolean" ? v : ["1", "true", "yes", "on"].includes(v.toLowerCase())));
+  .transform((v) =>
+    typeof v === "boolean"
+      ? v
+      : (TRUTHY_ENV_VALUES as readonly string[]).includes(v.trim().toLowerCase()),
+  );
 
 /**
  * Environment schema. Secrets (Admin API token, webhook secret, App Proxy

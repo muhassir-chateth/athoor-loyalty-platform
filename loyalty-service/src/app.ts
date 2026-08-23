@@ -352,6 +352,9 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     };
     payload.runtime = {
       lazyEnrollmentFallbackEnabled: config.enrollment.lazyFallbackEnabled,
+      // Read at request time through the SAME deferred property the auth plugin
+      // resolves, so this cannot claim the fallback is live while auth holds
+      // `undefined` — the disagreement that concealed the wiring defect.
       lazyEnrollerWired: deps.lazyEnroller !== undefined,
     };
 
@@ -440,7 +443,11 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     prefix: "/v1",
     idempotencyStore,
     customerResolver: deps.customerResolver,
-    lazyEnroller: deps.lazyEnroller,
+    // A FUNCTION, not a plain read. `deps.lazyEnroller` may be a getter backed by
+    // a variable `index.ts` assigns only after buildApp returns; reading it here
+    // would capture `undefined` forever and auth would never see the enroller.
+    // That was a live production defect — see LazyEnrollerSource in plugins/auth.ts.
+    lazyEnroller: () => deps.lazyEnroller,
     // Same instance the /health route reads, so what is published is what the
     // auth middleware actually recorded.
     authChainCounters,

@@ -13,7 +13,7 @@ import {
 } from "../redemption/redeem.js";
 import { registerIdempotency } from "../plugins/idempotency.js";
 import type { IdempotencyStore } from "../idempotency/store.js";
-import { registerAuth } from "../plugins/auth.js";
+import { registerAuth, type LazyEnrollerSource } from "../plugins/auth.js";
 import type { AuthChainCounters } from "../plugins/authChainCounters.js";
 import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
@@ -72,7 +72,7 @@ export interface V1RouterOptions {
    * `ENROLLMENT_LAZY_FALLBACK_ENABLED`, which defaults to false — so the auth
    * surface is unchanged until it is deliberately enabled.
    */
-  lazyEnroller?: VerifiedCustomerEnroller;
+  lazyEnroller?: LazyEnrollerSource;
   /**
    * OPTIONAL aggregate tally of auth-chain stop points, forwarded to the auth
    * middleware and published on `/health` so a 401 can be attributed over HTTP
