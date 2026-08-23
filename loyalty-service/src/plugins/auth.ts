@@ -101,7 +101,7 @@ export interface AuthPluginOptions {
    * Omitted by default, and its own config gate defaults to off, so behaviour is
    * unchanged until it is deliberately switched on.
    */
-  lazyEnroller?: VerifiedCustomerEnroller;
+  lazyEnroller?: LazyEnrollerSource;
   /**
    * OPTIONAL aggregate tally of where the chain stopped, published on `/health`.
    *
@@ -117,6 +117,42 @@ export interface AuthPluginOptions {
   counters?: AuthChainCounters;
   /** Overrides the public (unauthenticated) route allowlist. */
   publicRoutes?: readonly string[];
+}
+
+/**
+ * How the lazy enroller is supplied: either the collaborator itself, or a
+ * function returning it.
+ *
+ * THE FUNCTION FORM EXISTS BECAUSE OF A REAL PRODUCTION BUG. `index.ts` cannot
+ * construct the enroller until after `buildApp` has returned, because the gate
+ * needs the app's logger — so it passes a GETTER. `app.ts` then forwarded that
+ * property into the `/v1` router's options with a plain read, which EVALUATED
+ * the getter at build time, when it still returned `undefined`. That `undefined`
+ * was frozen into the router options, so auth never saw an enroller no matter
+ * what was assigned a moment later.
+ *
+ * It was undetectable from outside, and worse than merely silent: `/health`
+ * read the same property inside a REQUEST handler, where the getter does return
+ * the constructed gate, so the service reported `lazyEnrollerWired: true` while
+ * auth was holding `undefined`. Both were honest about different instants, and
+ * the disagreement was invisible until the two were compared.
+ *
+ * Resolving through a function moves the read to request time, which is the only
+ * time the answer is meaningful. Deferred construction is then a supported
+ * pattern rather than a trap.
+ */
+export type LazyEnrollerSource =
+  | VerifiedCustomerEnroller
+  | (() => VerifiedCustomerEnroller | undefined);
+
+/** Normalise either form to a request-time lookup. */
+function toEnrollerLookup(
+  source: LazyEnrollerSource | undefined,
+): () => VerifiedCustomerEnroller | undefined {
+  if (source === undefined) {
+    return () => undefined;
+  }
+  return typeof source === "function" ? source : () => source;
 }
 
 /** Why identity resolution failed, mapped to a client-facing error below. */
@@ -366,7 +402,10 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
   const resolver = opts.resolver;
   const tokenVerifier = opts.tokenVerifier ?? new UnconfiguredTokenVerifier();
   const appProxySecret = opts.appProxySecret;
-  const lazyEnroller = opts.lazyEnroller;
+  // Resolved PER REQUEST, never captured here: `index.ts` assigns the enroller
+  // after `buildApp` returns, so a value read at registration time would be
+  // permanently `undefined`. See LazyEnrollerSource.
+  const lookUpLazyEnroller = toEnrollerLookup(opts.lazyEnroller);
   const counters = opts.counters;
   const publicRoutes = new Set(opts.publicRoutes ?? DEFAULT_PUBLIC_ROUTES);
 
@@ -382,6 +421,11 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
     // instead of being one ambiguous status covering four different causes.
     // Booleans and a 4-char masked suffix only — see AuthChainTrace for the
     // privacy rules this obeys.
+    // One lookup per request, shared by the trace and the resolution below, so
+    // what the trace REPORTS is necessarily what resolution USED. Reading it
+    // twice would let them disagree — which is the exact class of bug that hid
+    // this defect in production.
+    const lazyEnroller = lookUpLazyEnroller();
     const trace = newTrace(routeUrl, lazyEnroller !== undefined);
 
     const result = await resolveAuthContext(

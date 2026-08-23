@@ -60,6 +60,25 @@ describe("shouldWireLazyEnrollment", () => {
     expect(shouldWireLazyEnrollment(offWithToken)).toBe(false);
   });
 
+  it("tolerates surrounding whitespace, which a dashboard paste hides", () => {
+    // A trailing space in a hosting dashboard is invisible and survives the
+    // save. Treating `"true "` as false makes a correctly-set flag look like the
+    // bug it was set to fix.
+    for (const value of ["true ", " true", "  TRUE  ", "\ttrue\n", " 1 ", " on "]) {
+      expect(
+        shouldWireLazyEnrollment(configWith({ ENROLLMENT_LAZY_FALLBACK_ENABLED: value })),
+        `expected ${JSON.stringify(value)} to enable the fallback`,
+      ).toBe(true);
+    }
+    // Whitespace-only stays false: it expresses no intent, so fail closed.
+    for (const value of ["   ", "\t"]) {
+      expect(
+        shouldWireLazyEnrollment(configWith({ ENROLLMENT_LAZY_FALLBACK_ENABLED: value })),
+        `expected ${JSON.stringify(value)} to leave the fallback off`,
+      ).toBe(false);
+    }
+  });
+
   it("accepts the documented truthy spellings an operator might type", () => {
     for (const value of ["true", "TRUE", "1", "yes", "on"]) {
       expect(
