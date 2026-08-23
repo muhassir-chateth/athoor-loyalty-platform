@@ -301,11 +301,41 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     const payload: {
       status: string;
       version: string;
+      build?: { commit: string | null; deployedAt: string | null };
+      runtime?: { lazyEnrollmentFallbackEnabled: boolean; lazyEnrollerWired: boolean };
       scheduling?: { overdue: OverdueJob[] };
       backups?: { lastSuccessAt: string | null; ageHours: number | null; stale: boolean };
       marketConfig?: MarketConfigDriftReport;
       channels?: ChannelReachabilityReport;
     } = { status: "ok", version: API_VERSION };
+
+    // WHICH BUILD IS ACTUALLY RUNNING, and WHETHER the enrollment fallback is
+    // actually live in it.
+    //
+    // WHY THIS EXISTS. After deploying the lazy-enrollment fallback and setting
+    // ENROLLMENT_LAZY_FALLBACK_ENABLED=true, the authenticated /v1 surface still
+    // returned 401. Two very different causes produce that identical response —
+    // the flag not being parsed by the running process, or Shopify not supplying
+    // `logged_in_customer_id` — and the service published NOTHING that could tell
+    // them apart: no build identifier, no config echo. Diagnosis stalled on an
+    // observability gap rather than on a hard problem.
+    //
+    // `commit` is read from the platform's own build variable, so it cannot drift
+    // from what is deployed the way a hand-maintained version string does.
+    //
+    // PRIVACY: a commit SHA, a timestamp and two booleans. No secret, no
+    // customer data, nothing that reveals a credential. `lazyEnrollerWired`
+    // reports whether the collaborator was actually constructed and injected,
+    // which is a stricter statement than the flag alone — the flag could be true
+    // while the wiring was missed.
+    payload.build = {
+      commit: process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? null,
+      deployedAt: process.env.RENDER_SERVICE_STARTED_AT ?? null,
+    };
+    payload.runtime = {
+      lazyEnrollmentFallbackEnabled: config.enrollment.lazyFallbackEnabled,
+      lazyEnrollerWired: deps.lazyEnroller !== undefined,
+    };
 
     if (deps.dueWorkStatus) {
       try {

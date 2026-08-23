@@ -80,11 +80,28 @@ describe("/health backups block (task 29)", () => {
 
   it("omits the backups block entirely when the dependency is not wired", async () => {
     const body = await health();
-    // The previous shape exactly: status, version, and the version identifier the
-    // versioning plugin adds to every JSON response (Req 9.8).
-    expect(Object.keys(body).sort()).toEqual(["apiVersion", "status", "version"]);
+    // The shape when NO optional dependency is wired: status, version, the
+    // version identifier the versioning plugin adds to every JSON response
+    // (Req 9.8), plus the two ALWAYS-PRESENT diagnostic blocks.
+    //
+    // `build` and `runtime` are unconditional by design. They exist because a
+    // production 401 could not be attributed without knowing which commit was
+    // running and whether the enrollment fallback was actually live in it —
+    // publishing them only when something else happened to be wired would
+    // reintroduce exactly that blind spot.
+    expect(Object.keys(body).sort()).toEqual([
+      "apiVersion",
+      "build",
+      "runtime",
+      "status",
+      "version",
+    ]);
     expect(body).toMatchObject({ status: "ok", version: API_VERSION });
+    // The actual point of this test, unchanged: an unwired dependency must be
+    // ABSENT rather than reported as null/empty, so a monitor cannot mistake
+    // "not configured" for "configured and healthy".
     expect(body).not.toHaveProperty("backups");
+    expect(body).not.toHaveProperty("scheduling");
   });
 
   it("still returns ok when the backup lookup throws (best-effort, like scheduling)", async () => {
