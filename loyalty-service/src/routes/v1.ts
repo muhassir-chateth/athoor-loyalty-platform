@@ -14,6 +14,7 @@ import {
 import { registerIdempotency } from "../plugins/idempotency.js";
 import type { IdempotencyStore } from "../idempotency/store.js";
 import { registerAuth } from "../plugins/auth.js";
+import type { AuthChainCounters } from "../plugins/authChainCounters.js";
 import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
@@ -72,6 +73,12 @@ export interface V1RouterOptions {
    * surface is unchanged until it is deliberately enabled.
    */
   lazyEnroller?: VerifiedCustomerEnroller;
+  /**
+   * OPTIONAL aggregate tally of auth-chain stop points, forwarded to the auth
+   * middleware and published on `/health` so a 401 can be attributed over HTTP
+   * rather than by reading the hosting console's log.
+   */
+  authChainCounters?: AuthChainCounters;
   /**
    * Loads a customer's tier row + derived spendable balance for `GET /v1/balance`
    * (task 6.3). Defaults inside the balance route to an empty in-memory source
@@ -202,6 +209,7 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
     tokenVerifier: opts.tokenVerifier,
     appProxySecret: opts.appProxySecret,
     lazyEnroller: opts.lazyEnroller,
+    counters: opts.authChainCounters,
   });
 
   // Idempotency + validation for state-changing requests, scoped to /v1.

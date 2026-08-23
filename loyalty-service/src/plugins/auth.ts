@@ -12,6 +12,7 @@ import {
   type CustomerResolver,
 } from "../auth/identity.js";
 import type { VerifiedCustomerEnroller } from "../enrollment/ensureCustomerEnrollment.js";
+import type { AuthChainCounters } from "./authChainCounters.js";
 
 /**
  * Reusable authentication middleware for consumer `/v1` endpoints (task 6.2,
@@ -101,6 +102,19 @@ export interface AuthPluginOptions {
    * unchanged until it is deliberately switched on.
    */
   lazyEnroller?: VerifiedCustomerEnroller;
+  /**
+   * OPTIONAL aggregate tally of where the chain stopped, published on `/health`.
+   *
+   * The per-request trace below is logged, and reading a production log needs
+   * dashboard access — so without this, every observation of a 401 is a manual
+   * round trip through the hosting console. This lets the service answer
+   * "which step stopped it?" over HTTP instead.
+   *
+   * It receives the trace's BOOLEANS ONLY and retains a single label from a
+   * closed set; see `authChainCounters.ts` for why that boundary is a separate
+   * module. Omitted in tests that do not assert on it.
+   */
+  counters?: AuthChainCounters;
   /** Overrides the public (unauthenticated) route allowlist. */
   publicRoutes?: readonly string[];
 }
@@ -143,15 +157,76 @@ interface ResolveDeps {
 async function resolveLocalCustomerId(
   verifiedShopifyCustomerId: string,
   deps: ResolveDeps,
+  trace?: AuthChainTrace,
 ): Promise<string | null> {
   const existing = await deps.resolver.resolveByShopifyCustomerId(verifiedShopifyCustomerId);
+  if (trace) trace.existingCustomerFound = existing !== null;
   if (existing) {
     return existing;
   }
   if (!deps.lazyEnroller) {
+    if (trace) trace.enrollmentAttempted = false;
     return null;
   }
-  return deps.lazyEnroller.enrollVerifiedCustomer(verifiedShopifyCustomerId);
+  if (trace) trace.enrollmentAttempted = true;
+  const enrolled = await deps.lazyEnroller.enrollVerifiedCustomer(verifiedShopifyCustomerId);
+  if (trace) trace.enrollmentSucceeded = enrolled !== null;
+  return enrolled;
+}
+
+/**
+ * The identity-resolution chain for ONE request, recorded so a 401 can be
+ * attributed to the exact step that stopped it.
+ *
+ * WHY THIS EXISTS. `identity_resolution_failed` is returned for several
+ * genuinely different situations — Shopify supplied no `logged_in_customer_id`,
+ * the customer has no local row, the fallback is disabled, the fallback ran and
+ * failed. From outside they are one indistinguishable 401, and diagnosing a
+ * production 401 stalled entirely on that ambiguity.
+ *
+ * PRIVACY — this is the whole design constraint. Every field is a BOOLEAN except
+ * the route and a 4-character masked suffix. It records:
+ *   - NO signature, and no other query parameter
+ *   - NO cookie or header
+ *   - NO email
+ *   - NO full customer id (only `…1234`, and only when one was supplied)
+ *   - NO secret, token or connection string
+ * It cannot leak a credential because it never reads one, and it cannot identify
+ * a person from four digits alone.
+ */
+interface AuthChainTrace {
+  route: string;
+  path: "app_proxy" | "bearer_token" | "none";
+  signatureVerified: boolean;
+  loggedInCustomerIdPresent: boolean;
+  loggedInCustomerIdAnonymous: boolean;
+  maskedCustomerSuffix: string | null;
+  existingCustomerFound: boolean;
+  lazyFallbackWired: boolean;
+  enrollmentAttempted: boolean;
+  enrollmentSucceeded: boolean;
+  outcome: string;
+}
+
+/** Last 4 characters only — enough to match a known cohort, useless to identify a person. */
+function maskSuffix(id: string): string {
+  return id.length <= 4 ? "…****" : `…${id.slice(-4)}`;
+}
+
+function newTrace(route: string, lazyFallbackWired: boolean): AuthChainTrace {
+  return {
+    route,
+    path: "none",
+    signatureVerified: false,
+    loggedInCustomerIdPresent: false,
+    loggedInCustomerIdAnonymous: false,
+    maskedCustomerSuffix: null,
+    existingCustomerFound: false,
+    lazyFallbackWired,
+    enrollmentAttempted: false,
+    enrollmentSucceeded: false,
+    outcome: "unknown",
+  };
 }
 
 /** Read a single-valued header, tolerating the array form Node uses. */
@@ -176,17 +251,26 @@ function readBearerToken(req: FastifyRequest): string | undefined {
  * dependencies (no framework state mutated), so it is exercised directly and
  * through the Fastify hook.
  */
-async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promise<AuthResult> {
+async function resolveAuthContext(
+  req: FastifyRequest,
+  deps: ResolveDeps,
+  trace?: AuthChainTrace,
+): Promise<AuthResult> {
   // Customer Account API path takes precedence when a bearer token is present.
   const token = readBearerToken(req);
   if (token) {
+    if (trace) trace.path = "bearer_token";
     const shopifyCustomerId = await deps.tokenVerifier.verify(token);
     if (!shopifyCustomerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
+    if (trace) {
+      trace.loggedInCustomerIdPresent = true;
+      trace.maskedCustomerSuffix = maskSuffix(shopifyCustomerId);
+    }
     // The id is the SUBJECT of a token the verifier accepted — verified identity,
     // so lazy enrollment may repair a missing row for it.
-    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps);
+    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps, trace);
     if (!customerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
@@ -197,6 +281,7 @@ async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promi
   const query = (req.query ?? {}) as QueryParams;
   const hasSignature = firstQueryValue(query[APP_PROXY_SIGNATURE_PARAM]) != null;
   if (hasSignature) {
+    if (trace) trace.path = "app_proxy";
     // Without a configured secret we cannot verify authenticity; never trust
     // logged_in_customer_id on an unverifiable request — fail closed (Req 11.4).
     if (!deps.appProxySecret) {
@@ -207,7 +292,18 @@ async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promi
       // Signature invalid → ignore logged_in_customer_id, reject (Req 11.4).
       return { ok: false, reason: "app_proxy_signature_invalid" };
     }
+    if (trace) trace.signatureVerified = true;
     const shopifyCustomerId = firstQueryValue(query[LOGGED_IN_CUSTOMER_ID_PARAM]);
+    if (trace) {
+      // THE decisive fact this whole trace exists for: did Shopify supply an
+      // identity at all on a request whose signature verified?
+      trace.loggedInCustomerIdPresent =
+        shopifyCustomerId !== undefined && shopifyCustomerId !== null && shopifyCustomerId !== "";
+      trace.loggedInCustomerIdAnonymous = shopifyCustomerId === ANONYMOUS_CUSTOMER_ID;
+      if (trace.loggedInCustomerIdPresent && shopifyCustomerId) {
+        trace.maskedCustomerSuffix = maskSuffix(shopifyCustomerId);
+      }
+    }
     if (!shopifyCustomerId || shopifyCustomerId === ANONYMOUS_CUSTOMER_ID) {
       // Verified request but no logged-in customer → cannot resolve identity.
       // Reaching lazy enrollment is impossible from here: an absent or "0"
@@ -219,7 +315,7 @@ async function resolveAuthContext(req: FastifyRequest, deps: ResolveDeps): Promi
     // logged_in_customer_id, so the id is trusted and a missing local row may be
     // repaired. This is the ONLY value used — the query object is not consulted
     // for identity again, and the request never reaches the enroller.
-    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps);
+    const customerId = await resolveLocalCustomerId(shopifyCustomerId, deps, trace);
     if (!customerId) {
       return { ok: false, reason: "identity_resolution_failed" };
     }
@@ -271,6 +367,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
   const tokenVerifier = opts.tokenVerifier ?? new UnconfiguredTokenVerifier();
   const appProxySecret = opts.appProxySecret;
   const lazyEnroller = opts.lazyEnroller;
+  const counters = opts.counters;
   const publicRoutes = new Set(opts.publicRoutes ?? DEFAULT_PUBLIC_ROUTES);
 
   app.addHook("preHandler", async (req: FastifyRequest, reply: FastifyReply) => {
@@ -280,17 +377,40 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
       return;
     }
 
-    const result = await resolveAuthContext(req, {
-      resolver,
-      tokenVerifier,
-      appProxySecret,
-      lazyEnroller,
-    });
+    // The chain is recorded for EVERY gated request and logged once below, so a
+    // 401 in production can be attributed to the exact step that stopped it
+    // instead of being one ambiguous status covering four different causes.
+    // Booleans and a 4-char masked suffix only — see AuthChainTrace for the
+    // privacy rules this obeys.
+    const trace = newTrace(routeUrl, lazyEnroller !== undefined);
+
+    const result = await resolveAuthContext(
+      req,
+      { resolver, tokenVerifier, appProxySecret, lazyEnroller },
+      trace,
+    );
+
     if (!result.ok) {
+      trace.outcome = result.reason;
+      counters?.record(trace);
+      // `warn`, not `error`: a 401 is a correct, expected outcome for an
+      // anonymous or unresolvable request. It is logged because a SUSTAINED
+      // stream of them is the signal that something upstream is wrong.
+      req.log.warn({ authChain: trace }, "identity resolution did not succeed");
       // Reject before the handler runs → no state change (Req 9.3, 11.4).
       const { status, body } = rejectionFor(result.reason);
       reply.code(status).send(body);
       return reply;
+    }
+
+    trace.outcome = "resolved";
+    counters?.record(trace);
+    // Logged at info so a successful first-time enrollment is visible in
+    // production without turning on debug logging.
+    if (trace.enrollmentAttempted) {
+      req.log.info({ authChain: trace }, "identity resolved via lazy enrollment");
+    } else {
+      req.log.debug({ authChain: trace }, "identity resolved");
     }
 
     req.authCtx = result.ctx;

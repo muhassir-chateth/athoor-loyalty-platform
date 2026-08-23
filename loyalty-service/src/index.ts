@@ -73,6 +73,7 @@ import { ANALYTICS_REFRESH_JOB } from "./admin/analyticsService.js";
 import { PgAnalyticsDataSource } from "./admin/pgAnalyticsDataSource.js";
 import { CachedAggregateAnalyticsService } from "./admin/analyticsService.js";
 import { LazyEnrollmentGate } from "./enrollment/ensureCustomerEnrollment.js";
+import { shouldWireLazyEnrollment } from "./bootWiring.js";
 
 /**
  * Service entrypoint. Loads validated config, wires the durable webhook dedupe
@@ -465,22 +466,6 @@ async function main(): Promise<void> {
     // only meaningful now that the worker above exists to consume the jobs.
     metafieldEnqueuer = new PgBossMetafieldCacheEnqueuer(boss);
 
-    // Lazy-enrollment gate: assigned now that a logger exists. Default OFF, so
-    // this assignment is reached but the gate.enabled check inside returns null
-    // unless the env var is explicitly set to true.
-    if (config.enrollment.lazyFallbackEnabled) {
-      lazyEnroller = new LazyEnrollmentGate({
-        repo: ledgerRepo,
-        transactor,
-        enabled: true,
-        onEnrollmentError: (err, shopifyCustomerId) =>
-          app.log.warn(
-            { err, shopifyCustomerId },
-            "lazy enrollment failed; request degraded to 401 (identity unresolvable)",
-          ),
-      });
-    }
-
     // (E) Reconciliation scheduler (Req 1.7/13.7). Recomputes cached
     // balances/tiers from the ledger and repairs metafield-cache drift — so it
     // needs the metafield writer and is therefore Admin-gated too.
@@ -519,6 +504,37 @@ async function main(): Promise<void> {
         "stubbed; once a token is configured the reconciliation job is the periodic cache " +
         "safety net.",
     );
+  }
+
+  // Lazy-enrollment gate — deliberately OUTSIDE the Admin-token block above.
+  //
+  // THIS WAS A DEFECT. The gate was originally constructed inside
+  // `if (adminApiToken)`, alongside the discount-code and metafield-cache
+  // workers. Those genuinely need an Admin token, because their transport is
+  // built from it. LazyEnrollmentGate does not: its dependencies are the ledger
+  // repository and the transactor, and it makes no Shopify call of any kind
+  // (see enrollment/ensureCustomerEnrollment.ts — it issues SQL only). Nesting
+  // it there meant `ENROLLMENT_LAZY_FALLBACK_ENABLED=true` was SILENTLY INERT on
+  // any boot without an Admin token: the operator sets the flag, the config
+  // parses it, `lazyFallbackEnabled` is true, and no enroller is ever built. The
+  // symptom is the one this flag exists to fix — a verified customer still 401s
+  // — so the failure impersonates the bug.
+  //
+  // The condition is now `shouldWireLazyEnrollment` (src/bootWiring.ts), which
+  // is unit-tested to depend on the enrollment flag and nothing else. `/health`
+  // publishes `runtime.lazyEnrollerWired`, reporting whether this assignment
+  // actually happened rather than merely what the flag says.
+  if (shouldWireLazyEnrollment(config)) {
+    lazyEnroller = new LazyEnrollmentGate({
+      repo: ledgerRepo,
+      transactor,
+      enabled: true,
+      onEnrollmentError: (err, shopifyCustomerId) =>
+        app.log.warn(
+          { err, shopifyCustomerId },
+          "lazy enrollment failed; request degraded to 401 (identity unresolvable)",
+        ),
+    });
   }
 
   // (A) Webhook processing: consume the `webhook.process` hand-off queue and
