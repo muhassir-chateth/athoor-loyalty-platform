@@ -244,14 +244,27 @@ function toLoggableRoute(routePattern: string | undefined, url: string | undefin
   if (url === undefined) {
     return undefined;
   }
+  const masked = maskRequestPath(url);
+  return masked.slice(0, MAX_ROUTE_LENGTH) || undefined;
+}
+
+/**
+ * Reduce a request target to something loggable: drop the query string, then
+ * mask the path segments that are identifiers rather than route shape.
+ *
+ * Exported because TWO callers need exactly this reduction and must not drift
+ * apart. The second is the not-found handler in `app.ts`, which exists because
+ * Fastify's built-in one logs `Route GET:<full target> not found` as a bare
+ * MESSAGE — see {@link scrubRequestTargets}.
+ */
+export function maskRequestPath(url: string): string {
   // Everything from the first `?` is discarded before anything else looks at it:
   // the query string carries `signature` and `logged_in_customer_id`.
   const pathname = url.split("?", 1)[0] ?? "";
-  const masked = pathname
+  return pathname
     .split("/")
     .map((segment) => (segment.length > 0 && OPAQUE_PATH_SEGMENT.test(segment) ? ":id" : segment))
     .join("/");
-  return masked.slice(0, MAX_ROUTE_LENGTH) || undefined;
 }
 
 /**
@@ -539,8 +552,49 @@ export function sanitiseLogArguments(args: readonly unknown[]): unknown[] {
     return message === undefined ? [redactLogPayload(first)] : [redactLogPayload(first), message];
   }
 
-  // Message-only call. Same reasoning as above for the dropped tail.
-  return [typeof first === "string" ? first.slice(0, MAX_STRING_LENGTH) : first];
+  // Message-only call — `log.info("…")`. This is the branch Fastify's not-found
+  // logging arrives on, so it gets the same request-target reduction as any
+  // other message rather than being treated as trusted because it is short.
+  // Same reasoning as above for the dropped tail.
+  return [typeof first === "string" ? safeMessage(first, undefined) : first];
+}
+
+/**
+ * A `/`-leading run inside a free-text message — a request target, or a file
+ * path. Stops at whitespace and at the quote characters a message tends to wrap
+ * a URL in, so the surrounding sentence is preserved.
+ */
+const PATH_LIKE_RUN = /\/[^\s"'`,)]*/g;
+
+/**
+ * Remove request-target material from a log MESSAGE.
+ *
+ * WHY THIS EXISTS — a leak the log-capture gate (task 5.8) found in production
+ * code, not in theory. Fastify's own not-found path logs
+ *
+ *     Route GET:/v1/orders/6012345678901/lines?…&logged_in_customer_id=…&signature=… not found
+ *
+ * as a bare `log.info(string)`. Three §24.3 rows in one line — the full query
+ * string, the App Proxy signature and `logged_in_customer_id` — plus an order
+ * number in the path. None of the existing protections reached it: the payload
+ * allowlist saw no payload, and {@link safeMessage} left it alone because there
+ * was no error in the same call whose text it could have been.
+ *
+ * `app.ts` now installs its own not-found handler, which is the fix at the
+ * source. This is the fix at the CHOKE POINT, and it is the one that matters for
+ * the next occurrence: an author writing `` log.info(`fetching ${req.url}`) ``
+ * gets the same reduction without knowing this rule exists.
+ *
+ * The transformation is the one {@link maskRequestPath} already performs, so a
+ * message and a `route` field cannot disagree about what is loggable. It is
+ * idempotent, and a message with no `/` in it is returned unchanged — which is
+ * every authored call site in this service.
+ */
+function scrubRequestTargets(message: string): string {
+  if (!message.includes("/")) {
+    return message;
+  }
+  return message.replace(PATH_LIKE_RUN, (run) => maskRequestPath(run));
 }
 
 /** Replace a message that carries an exception's text; leave an authored one alone. */
@@ -551,13 +605,15 @@ function safeMessage(candidate: unknown, errorMessage: string | undefined): stri
     return errorMessage === undefined ? undefined : REDACTED_ERROR_MESSAGE;
   }
   if (errorMessage === undefined || errorMessage.length === 0) {
-    return candidate.slice(0, MAX_STRING_LENGTH);
+    return scrubRequestTargets(candidate.slice(0, MAX_STRING_LENGTH));
   }
   // `length >= 4` avoids treating a trivially short error message ("no", "x")
   // as a substring match against an unrelated authored line.
   const carriesErrorText =
     candidate === errorMessage || (errorMessage.length >= 4 && candidate.includes(errorMessage));
-  return carriesErrorText ? REDACTED_ERROR_MESSAGE : candidate.slice(0, MAX_STRING_LENGTH);
+  return carriesErrorText
+    ? REDACTED_ERROR_MESSAGE
+    : scrubRequestTargets(candidate.slice(0, MAX_STRING_LENGTH));
 }
 
 /** Every key {@link redactLogPayload} is capable of emitting. For tests. */

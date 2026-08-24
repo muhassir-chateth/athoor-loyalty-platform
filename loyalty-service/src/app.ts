@@ -2,6 +2,7 @@ import Fastify, { LogController, type FastifyInstance } from "fastify";
 import type { AppConfig } from "./config.js";
 import {
   buildRedactingLoggerOptions,
+  maskRequestPath,
   REQUEST_ID_LOG_LABEL,
   type LogDestination,
 } from "./observability/logRedaction.js";
@@ -323,6 +324,41 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
 
   // Version identifier on every response + statelessness guarantees.
   registerVersioning(app);
+
+  // NOT-FOUND HANDLER, replacing Fastify's own for a PRIVACY reason (task 5.8,
+  // Req 2.8, design §24.3).
+  //
+  // Fastify's `basic404` does two things this service cannot do. It logs
+  //
+  //     Route GET:/v1/orders/6012345678901/lines?…&logged_in_customer_id=…&signature=… not found
+  //
+  // and it echoes that same target back in the response body. The log line
+  // carries four of §24.3's never-log rows at once — the full query string, the
+  // App Proxy signature, `logged_in_customer_id`, and an order number in the
+  // path — and it is emitted for EVERY unmatched request, which on a proxied
+  // storefront is every mistyped or stale portal URL.
+  //
+  // The allowlist serialiser could not catch it: the call is
+  // `log.info("<string>")`, so there was no payload to filter and no error whose
+  // text the message could be compared against. Found by the log-capture gate,
+  // which is what that gate is for.
+  //
+  // Both halves are fixed here. The log line carries `method`, the masked
+  // `route` and `statusCode` — enough to see that a 404 happened and roughly
+  // where — and the body names the status without repeating what was asked for.
+  // `maskRequestPath` is the same reduction the serialiser applies to `route`,
+  // shared rather than duplicated so the two cannot drift.
+  app.setNotFoundHandler(async (req, reply) => {
+    req.log.info(
+      { method: req.method, route: maskRequestPath(req.url), statusCode: 404 },
+      "route not found",
+    );
+    return reply.code(404).send({
+      error: "not_found",
+      message: "The requested resource does not exist on this service.",
+      statusCode: 404,
+    });
+  });
 
   // Aggregate auth-chain stop points, shared between the auth middleware that
   // records them and the `/health` route that publishes them. Created here
