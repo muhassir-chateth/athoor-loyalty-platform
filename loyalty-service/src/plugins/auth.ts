@@ -46,6 +46,25 @@ const LOGGED_IN_CUSTOMER_ID_PARAM = "logged_in_customer_id" as const;
 /** Shopify sends `logged_in_customer_id=0` for an anonymous (not-logged-in) storefront session. */
 const ANONYMOUS_CUSTOMER_ID = "0" as const;
 
+/** Shopify signs a unix-seconds `timestamp` into every App Proxy request. */
+const TIMESTAMP_PARAM = "timestamp" as const;
+
+/**
+ * How far a signed request's timestamp may be from server time (NB-13, Req 1.3).
+ *
+ * WHY A WINDOW IS NEEDED AT ALL. A valid signature proves Shopify produced the
+ * request; it does NOT prove the request is recent. Without a bound, a captured
+ * proxied URL — from a shared link, a browser history entry, a proxy log, a
+ * screenshot — stays replayable for as long as the shared secret lives. Five
+ * minutes each way tolerates ordinary clock skew between Shopify's edge and this
+ * host while keeping the replay window short.
+ *
+ * SYMMETRIC on purpose: a timestamp in the FUTURE is just as suspect as a stale
+ * one, and rejecting only the past would let a skewed or forged forward-dated
+ * value through indefinitely.
+ */
+const TIMESTAMP_TOLERANCE_SECONDS = 300;
+
 /** The header carrying a Customer Account API bearer token (Fastify lower-cases header names). */
 const AUTHORIZATION_HEADER = "authorization";
 const BEARER_SCHEME = /^Bearer\s+(.+)$/i;
@@ -122,6 +141,11 @@ export interface AuthPluginOptions {
    * module. Omitted in tests that do not assert on it.
    */
   counters?: AuthChainCounters;
+  /**
+   * Server clock in ms, used only for the App Proxy timestamp freshness window.
+   * Injectable so a test can advance time without sleeping.
+   */
+  now?: () => number;
   /** Overrides the public (unauthenticated) route allowlist. */
   publicRoutes?: readonly string[];
 }
@@ -166,12 +190,15 @@ function toEnrollerLookup(
 type AuthFailureReason =
   | "app_proxy_signature_invalid"
   | "app_proxy_verification_unavailable"
+  | "app_proxy_request_expired"
   | "identity_resolution_failed";
 
 type AuthResult = { ok: true; ctx: AuthCtx } | { ok: false; reason: AuthFailureReason };
 
 interface ResolveDeps {
   resolver: CustomerResolver;
+  /** Server time in ms. Injectable so freshness is testable with a fake clock. */
+  now: () => number;
   tokenVerifier: CustomerAccountTokenVerifier;
   appProxySecret?: string;
   lazyEnroller?: VerifiedCustomerEnroller;
@@ -272,6 +299,31 @@ function newTrace(route: string, lazyFallbackWired: boolean): AuthChainTrace {
   };
 }
 
+/**
+ * Whether the signed `timestamp` is within {@link TIMESTAMP_TOLERANCE_SECONDS} of
+ * server time.
+ *
+ * FAILS CLOSED on a missing or unparseable value. Shopify always signs a
+ * `timestamp`, so its absence means either a malformed request or a caller
+ * constructing one by hand — neither is something to accept. Treating "no
+ * timestamp" as "fresh" would make the whole window opt-out by omission, which is
+ * the same class of mistake as a security flag that defaults to off.
+ *
+ * Compared as an absolute difference so a future-dated value is rejected too.
+ */
+function isTimestampFresh(query: QueryParams, now: () => number): boolean {
+  const raw = firstQueryValue(query[TIMESTAMP_PARAM]);
+  if (raw === undefined || !/^\d{1,15}$/.test(raw)) {
+    return false;
+  }
+  const signedSeconds = Number(raw);
+  if (!Number.isSafeInteger(signedSeconds)) {
+    return false;
+  }
+  const nowSeconds = Math.floor(now() / 1000);
+  return Math.abs(nowSeconds - signedSeconds) <= TIMESTAMP_TOLERANCE_SECONDS;
+}
+
 /** Read a single-valued header, tolerating the array form Node uses. */
 function readHeader(req: FastifyRequest, name: string): string | undefined {
   const header = req.headers[name];
@@ -336,6 +388,20 @@ async function resolveAuthContext(
       return { ok: false, reason: "app_proxy_signature_invalid" };
     }
     if (trace) trace.signatureVerified = true;
+
+    // FRESHNESS, checked only AFTER the signature verified (NB-13, Req 1.3).
+    //
+    // Order matters: the timestamp is one of the signed parameters, so reading it
+    // before verification would mean acting on an attacker-controlled value. After
+    // verification it is Shopify's own value, and the only remaining question is
+    // whether the request is recent. A verified-but-ancient request is a replay.
+    //
+    // Additive and side-effect free: it rejects before identity is resolved, so no
+    // lookup runs, no enrollment is considered, and nothing is written.
+    if (!isTimestampFresh(query, deps.now)) {
+      return { ok: false, reason: "app_proxy_request_expired" };
+    }
+
     const shopifyCustomerId = firstQueryValue(query[LOGGED_IN_CUSTOMER_ID_PARAM]);
     if (trace) {
       // THE decisive fact this whole trace exists for: did Shopify supply an
@@ -388,6 +454,15 @@ function rejectionFor(reason: AuthFailureReason): { status: number; body: { erro
           message: "App Proxy requests cannot be verified because no shared secret is configured.",
         },
       };
+    case "app_proxy_request_expired":
+      return {
+        status: 401,
+        body: {
+          error: "app_proxy_request_expired",
+          message:
+            "The signed request is outside the permitted time window and was not accepted.",
+        },
+      };
     case "identity_resolution_failed":
       return {
         status: 401,
@@ -414,6 +489,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
   // permanently `undefined`. See LazyEnrollerSource.
   const lookUpLazyEnroller = toEnrollerLookup(opts.lazyEnroller);
   const counters = opts.counters;
+  const now = opts.now ?? Date.now;
   const publicRoutes = new Set(opts.publicRoutes ?? DEFAULT_PUBLIC_ROUTES);
 
   app.addHook("preHandler", async (req: FastifyRequest, reply: FastifyReply) => {
@@ -437,7 +513,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
 
     const result = await resolveAuthContext(
       req,
-      { resolver, tokenVerifier, appProxySecret, lazyEnroller },
+      { resolver, tokenVerifier, appProxySecret, lazyEnroller, now },
       trace,
     );
 

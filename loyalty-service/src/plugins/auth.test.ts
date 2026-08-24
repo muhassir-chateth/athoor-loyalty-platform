@@ -64,7 +64,12 @@ function buildTestApp(): TestHarness {
 
 /** Build the query string for a validly signed App Proxy request. */
 function signedQuery(params: QueryParams): string {
-  const withSig = { ...params, signature: computeAppProxySignature(params, APP_PROXY_SECRET) };
+  // NB-13: every App Proxy request Shopify signs carries a `timestamp`, and the
+  // auth layer now enforces a +/-5 minute freshness window and FAILS CLOSED when it
+  // is absent. Defaulting it here keeps fixtures realistic; an explicit timestamp in
+  // `params` still wins, so a staleness test can override it.
+  const withTimestamp = { timestamp: String(Math.floor(Date.now() / 1000)), ...params };
+  const withSig = { ...withTimestamp, signature: computeAppProxySignature(withTimestamp, APP_PROXY_SECRET) };
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(withSig)) {
     if (typeof value === "string") {
@@ -91,7 +96,7 @@ describe("auth middleware (Req 9.2/9.3/11.3/11.4)", () => {
       shop: "myathoorlondon.myshopify.com",
       logged_in_customer_id: SHOPIFY_CUSTOMER_ID,
       path_prefix: "/apps/loyalty",
-      timestamp: "1700000000",
+      timestamp: String(Math.floor(Date.now() / 1000)),
     });
     const res = await harness.app.inject({ method: "GET", url: `/secure?${qs}` });
     expect(res.statusCode).toBe(200);

@@ -26,7 +26,7 @@ describe("verifyAppProxySignature (Req 11.3/11.4)", () => {
       shop: "myathoorlondon.myshopify.com",
       logged_in_customer_id: "123456789",
       path_prefix: "/apps/loyalty",
-      timestamp: "1700000000",
+      timestamp: String(Math.floor(Date.now() / 1000)),
     });
     expect(verifyAppProxySignature(query, SECRET)).toBe(true);
   });

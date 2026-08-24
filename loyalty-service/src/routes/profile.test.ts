@@ -164,7 +164,7 @@ describe("GET /v1/profile (Req 17.1, 17.2, 17.4, 17.5, 17.6, 17.8, 17.10)", () =
       shop: "myathoorlondon.myshopify.com",
       logged_in_customer_id: SHOPIFY_CUSTOMER_ID,
       path_prefix: "/apps/loyalty",
-      timestamp: "1700000000",
+      timestamp: String(Math.floor(Date.now() / 1000)),
     });
     const proxyRes = await app.inject({ method: "GET", url: `/v1/profile?${qs}` });
 
@@ -306,7 +306,7 @@ describe("POST /v1/profile/visit (Req 16.1, 16.2)", () => {
       shop: "myathoorlondon.myshopify.com",
       logged_in_customer_id: SHOPIFY_CUSTOMER_ID,
       path_prefix: "/apps/loyalty",
-      timestamp: "1700000000",
+      timestamp: String(Math.floor(Date.now() / 1000)),
     });
     const res = await app.inject({
       method: "POST",

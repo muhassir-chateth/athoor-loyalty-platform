@@ -199,7 +199,12 @@ async function census(log: Log): Promise<{ app: FastifyInstance; routes: Route[]
 }
 
 function signedQuery(params: QueryParams): string {
-  const withSig = { ...params, signature: computeAppProxySignature(params, APP_PROXY_SECRET) };
+  // NB-13: every App Proxy request Shopify signs carries a `timestamp`, and the
+  // auth layer now enforces a +/-5 minute freshness window and FAILS CLOSED when it
+  // is absent. Defaulting it here keeps fixtures realistic; an explicit timestamp in
+  // `params` still wins, so a staleness test can override it.
+  const withTimestamp = { timestamp: String(Math.floor(Date.now() / 1000)), ...params };
+  const withSig = { ...withTimestamp, signature: computeAppProxySignature(withTimestamp, APP_PROXY_SECRET) };
   const search = new URLSearchParams();
   for (const [k, v] of Object.entries(withSig)) if (typeof v === "string") search.set(k, v);
   return search.toString();
@@ -211,7 +216,7 @@ function anonymousSignedQuery(): string {
     shop: "myathoorlondon.myshopify.com",
     logged_in_customer_id: "0",
     path_prefix: "/apps/loyalty",
-    timestamp: "1700000000",
+    timestamp: String(Math.floor(Date.now() / 1000)),
   });
 }
 
@@ -221,7 +226,7 @@ function tamperedQuery(): string {
     shop: "myathoorlondon.myshopify.com",
     logged_in_customer_id: SHOPIFY_CUSTOMER_ID,
     path_prefix: "/apps/loyalty",
-    timestamp: "1700000000",
+    timestamp: String(Math.floor(Date.now() / 1000)),
   });
   // Swap the id AFTER signing, so the signature no longer matches the payload.
   return qs.replace(SHOPIFY_CUSTOMER_ID, "1234567890123");
