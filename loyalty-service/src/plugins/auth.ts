@@ -263,8 +263,17 @@ async function resolveLocalCustomerId(
  *   - NO secret, token or connection string
  * It cannot leak a credential because it never reads one, and it cannot identify
  * a person from four digits alone.
+ *
+ * EXPORTED for the log-field allowlist (task 5.7,
+ * `observability/logRedaction.ts`). §24.3 allowlists log keys and drops the rest,
+ * and `authChain` is not one of the allowlisted names — so the allowlist grants
+ * it a documented exemption and filters its INNER keys against this declaration.
+ * Exporting the type is what makes that a compile-time check: adding a field here
+ * fails `tsc` in `AUTH_CHAIN_TRACE_LOG_KEYS` until the new field is deliberately
+ * reviewed and listed. A silent auto-allow is exactly what the privacy rules
+ * above would lose to.
  */
-interface AuthChainTrace {
+export interface AuthChainTrace {
   route: string;
   path: "app_proxy" | "bearer_token" | "none";
   signatureVerified: boolean;
@@ -283,7 +292,15 @@ function maskSuffix(id: string): string {
   return id.length <= 4 ? "…****" : `…${id.slice(-4)}`;
 }
 
-function newTrace(route: string, lazyFallbackWired: boolean): AuthChainTrace {
+/**
+ * A fresh trace with every field initialised.
+ *
+ * Exported alongside {@link AuthChainTrace} so the allowlist's RUNTIME gate has
+ * something to inspect: a test asserts the keys this produces are all covered by
+ * `AUTH_CHAIN_TRACE_LOG_KEYS`, catching a field added to the object literal
+ * without a corresponding type change.
+ */
+export function createAuthChainTrace(route: string, lazyFallbackWired: boolean): AuthChainTrace {
   return {
     route,
     path: "none",
@@ -509,7 +526,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthPluginOptions): voi
     // twice would let them disagree — which is the exact class of bug that hid
     // this defect in production.
     const lazyEnroller = lookUpLazyEnroller();
-    const trace = newTrace(routeUrl, lazyEnroller !== undefined);
+    const trace = createAuthChainTrace(routeUrl, lazyEnroller !== undefined);
 
     const result = await resolveAuthContext(
       req,
