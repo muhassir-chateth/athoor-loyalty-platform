@@ -55,7 +55,14 @@ const BEARER_SCHEME = /^Bearer\s+(.+)$/i;
  * prefixed and unprefixed forms are listed so the allowlist matches regardless
  * of whether the matched route pattern includes the `/v1` mount prefix.
  */
-const DEFAULT_PUBLIC_ROUTES: readonly string[] = [
+/**
+ * Exported so the route-census contract test (src/routeCensus.contract.test.ts)
+ * can assert the PUBLIC SURFACE IS EXACTLY THIS SET. Without that, a route
+ * accidentally added here would widen the unauthenticated surface and the census
+ * could only notice indirectly. Exporting it makes the check direct and the
+ * failure message obvious.
+ */
+export const DEFAULT_PUBLIC_ROUTES: readonly string[] = [
   "/v1/version",
   "/v1/rewards",
   "/version",
