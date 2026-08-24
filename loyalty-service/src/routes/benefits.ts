@@ -45,6 +45,7 @@
  * changes, and a new benefit type needs only a `benefits` row — no code change
  * here, because nothing in this module names a specific benefit.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
@@ -165,14 +166,7 @@ export function registerBenefitRoutes(app: FastifyInstance, opts: BenefitRouteOp
   const resolver = opts.entitlementResolver;
 
   app.get("/benefits", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      // Defensive: the scope auth preHandler rejects first (Req 9.3).
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     try {
       const benefits = await resolver.resolveBenefits(ctx.customerId, ctx.channel);
@@ -187,13 +181,7 @@ export function registerBenefitRoutes(app: FastifyInstance, opts: BenefitRouteOp
   });
 
   app.post("/benefits/:key/request", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const parsed = BENEFIT_KEY_PARAMS.safeParse(req.params);
     if (!parsed.success) {

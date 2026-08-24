@@ -27,6 +27,7 @@
  * Route logic is unit-tested with the in-memory store, so no live Postgres is
  * required during verification.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   InMemoryDeviceTokenStore,
@@ -73,13 +74,7 @@ export function registerDeviceRoutes(app: FastifyInstance, opts: DeviceRouteOpti
   // (customer, token) at the data layer; the idempotency plugin additionally
   // replays a repeated Idempotency-Key.
   app.post("/devices", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const parsed = deviceRegistrationSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -96,13 +91,7 @@ export function registerDeviceRoutes(app: FastifyInstance, opts: DeviceRouteOpti
   // De-register a Device_Token for the resolved customer (Req 19.1). A no-op for
   // an unknown/already-revoked token, so it is safely idempotent.
   app.delete("/devices/:token", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const { token } = req.params as { token: string };
     if (typeof token !== "string" || token.trim() === "") {

@@ -31,6 +31,7 @@
  * Pool/PoolClient at runtime; the route logic is unit-tested against an
  * in-memory fake source, so live DB verification is deferred to deploy time.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { QueryResultRow } from "pg";
 import { computeSpendableBalance } from "../ledger/balance.js";
@@ -261,14 +262,7 @@ export function registerBalanceRoute(app: FastifyInstance, opts: BalanceRouteOpt
   const entitlementResolver = opts.entitlementResolver;
 
   app.get("/balance", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      // Defensive: the auth preHandler should have rejected already (Req 9.3).
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const snapshot = await balanceSource.load(ctx.customerId);
     if (!snapshot) {

@@ -38,6 +38,7 @@
  * unit-tested with an in-memory service, so no live Shopify/Postgres is
  * required during verification.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   DefaultMembershipCredentialService,
@@ -97,14 +98,7 @@ export function registerMembershipCardRoutes(
 
   // Issue the signed credential for the resolved customer (Req 19.5/19.6).
   app.get("/membership-card", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      // Defensive: the auth preHandler should have rejected already (Req 9.3).
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     try {
       return await service.issueCredential(ctx.customerId);

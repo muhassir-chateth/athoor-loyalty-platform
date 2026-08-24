@@ -173,3 +173,83 @@ describe("a scope is immutable once issued", () => {
     expect(scope.customerId).toBe(VALID.customerId);
   });
 });
+
+describe("registerCustomerScopeErrorHandler maps only what it owns", () => {
+  /** A minimal scope with one route per failure mode, plus the shared mapping. */
+  async function harness() {
+    const { default: Fastify } = await import("fastify");
+    const { registerCustomerScopeErrorHandler } = await import("./customerScope.js");
+    const app = Fastify({ logger: false });
+    await app.register(async (scope) => {
+      registerCustomerScopeErrorHandler(scope);
+      scope.get("/needs-identity", async (req) => {
+        const s = requireCustomerScope(req);
+        return { customerId: s.customerId };
+      });
+      scope.get("/genuine-fault", async () => {
+        throw new Error("database exploded");
+      });
+      scope.get("/ok", async () => ({ ok: true }));
+    });
+    await app.ready();
+    return app;
+  }
+
+  it("maps a missing identity to 401 identity_resolution_failed", async () => {
+    const app = await harness();
+    try {
+      const res = await app.inject({ method: "GET", url: "/needs-identity" });
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toMatchObject({ error: "identity_resolution_failed" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does NOT relabel a genuine fault as an authorisation problem", async () => {
+    // The failure this guards against: an error handler that swallows everything
+    // reports real 500s as 401s, and the outage looks like an auth bug for hours.
+    const app = await harness();
+    try {
+      const res = await app.inject({ method: "GET", url: "/genuine-fault" });
+      expect(res.statusCode).toBe(500);
+      expect(JSON.stringify(res.json())).not.toContain("identity_resolution_failed");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("leaves successful responses untouched", async () => {
+    const app = await harness();
+    try {
+      const res = await app.inject({ method: "GET", url: "/ok" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("emits the same body shape the nineteen hand-written guards used to", async () => {
+    // referral.ts had already drifted, omitting `message`. One definition now.
+    const app = await harness();
+    try {
+      const body = (await app.inject({ method: "GET", url: "/needs-identity" })).json();
+      expect(Object.keys(body).sort()).toEqual(["error", "message"]);
+      expect(body.message).toBe("Could not resolve the request to a loyalty customer identity.");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("carries no identifier in the 401 body", async () => {
+    const app = await harness();
+    try {
+      const raw = (await app.inject({ method: "GET", url: "/needs-identity" })).payload;
+      expect(raw).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
+      expect(raw.toLowerCase()).not.toContain("not your");
+    } finally {
+      await app.close();
+    }
+  });
+});

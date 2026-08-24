@@ -35,7 +35,7 @@
  * SAFETY: this module is pure. It reads a property the auth preHandler already
  * attached, issues no SQL, and calls no Shopify endpoint.
  */
-import type { FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AuthCtx } from "./identity.js";
 
 /**
@@ -147,6 +147,39 @@ export function requireCustomerScope(req: FastifyRequest): CustomerScope {
     channel: ctx.channel,
     source: ctx.source,
   }) as CustomerScope;
+}
+
+/**
+ * Registers the ONE mapping from {@link ScopeUnavailableError} to HTTP 401.
+ *
+ * WHY THIS IS A FUNCTION AND NOT AN INLINE HOOK IN THE ROUTER. Once handlers stop
+ * guarding locally and start throwing, every route module DEPENDS on this mapping
+ * being installed. A module registered on a bare Fastify instance without it does
+ * not fail loudly — it returns 500 where it used to return 401, which looks like a
+ * server fault rather than a missing composition step. Exporting the mapping means
+ * the router and any test harness install the SAME one, so the response shape has
+ * a single definition and cannot drift the way the nineteen hand-written copies
+ * did (`referral.ts` had already lost its `message`).
+ *
+ * Fastify encapsulates an error handler to the plugin scope that registers it, so
+ * calling this inside the `/v1` plugin confines it to `/v1`.
+ *
+ * NO STORED DATA CHANGES: the error is raised before any handler body runs, so
+ * nothing has been written when this replies (Req 1.4).
+ *
+ * Anything that is not a scope failure is delegated untouched, so a genuine 500 is
+ * never relabelled as an authorisation problem.
+ */
+export function registerCustomerScopeErrorHandler(app: FastifyInstance): void {
+  app.setErrorHandler((error: unknown, _req, reply) => {
+    if (error instanceof ScopeUnavailableError) {
+      return reply.code(401).send({
+        error: error.code,
+        message: "Could not resolve the request to a loyalty customer identity.",
+      });
+    }
+    return reply.send(error as Error);
+  });
 }
 
 /**

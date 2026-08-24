@@ -32,6 +32,7 @@
  * transaction, which appends exactly one `earn_referral` entry with its matching
  * 12-month lot (Property 17). This module adds no earning logic of its own.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { LedgerRepository, Queryable } from "../ledger/repository.js";
@@ -137,11 +138,7 @@ export function registerReferralRoutes(
 
   // GET /v1/referral — the member's own code and how it has performed. Read-only.
   app.get("/referral", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      // Unreachable: the scope-level auth preHandler rejects first. Defensive.
-      return reply.code(401).send({ error: "identity_resolution_failed" });
-    }
+    const ctx = requireCustomerScope(req);
 
     const { rows } = await db.query<SelfRow>(SELF_SQL, [ctx.customerId]);
     const row = rows[0];
@@ -161,10 +158,7 @@ export function registerReferralRoutes(
   // POST /v1/referral — the friend submits the code they were given. Awards the
   // referrer +150 (Req 2.9) via the existing engine, inside one transaction.
   app.post("/referral", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({ error: "identity_resolution_failed" });
-    }
+    const ctx = requireCustomerScope(req);
 
     const parsed = CLAIM_BODY_SCHEMA.safeParse(req.body);
     if (!parsed.success) {
