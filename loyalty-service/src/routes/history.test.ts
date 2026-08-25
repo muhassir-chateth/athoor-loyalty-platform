@@ -337,7 +337,7 @@ describe("GET /v1/history (Req 6.1–6.7)", () => {
         shop: "myathoorlondon.myshopify.com",
         logged_in_customer_id: SHOPIFY_CUSTOMER_ID,
         path_prefix: "/apps/loyalty",
-        timestamp: "1700000000",
+        timestamp: String(Math.floor(Date.now() / 1000)),
       },
       { page: "1", pageSize: "3" },
     );

@@ -45,6 +45,8 @@ export const AUTH_STOP_POINTS = [
   "app_proxy_verification_unavailable",
   /** The App Proxy signature did not verify; any supplied id was ignored. */
   "app_proxy_signature_invalid",
+  /** Signature verified, but the signed timestamp was outside the replay window. */
+  "app_proxy_request_expired",
   /** Signature verified, but Shopify supplied NO `logged_in_customer_id`. */
   "verified_but_no_customer_id",
   /** Signature verified, but the id was `0` — an anonymous storefront session. */
@@ -117,6 +119,12 @@ export function classifyStopPoint(facts: AuthChainOutcomeFacts): AuthStopPoint {
   }
   if (facts.outcome === "app_proxy_signature_invalid") {
     return "app_proxy_signature_invalid";
+  }
+  // Must be classified explicitly. Without this the expiry would fall through to
+  // the local-row branches and be reported as a missing customer, which would
+  // send a diagnosis after the wrong layer entirely.
+  if (facts.outcome === "app_proxy_request_expired") {
+    return "app_proxy_request_expired";
   }
 
   // Everything below is `identity_resolution_failed`, the ambiguous status this

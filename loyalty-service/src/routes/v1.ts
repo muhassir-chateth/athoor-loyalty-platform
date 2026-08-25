@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { registerCustomerScopeErrorHandler, requireCustomerScope } from "../auth/customerScope.js";
 import { z } from "zod";
 import { API_VERSION } from "../version.js";
 import { REWARD_CATALOG, UnknownRewardError } from "../rewards/catalog.js";
@@ -212,6 +213,36 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
     counters: opts.authChainCounters,
   });
 
+  /**
+   * ONE scope-level mapping for a missing customer identity (task 5.2, Req 1.4/2.7).
+   *
+   * WHY THIS REPLACES NINETEEN COPIES. Every authenticated handler previously
+   * opened with the same defensive block: read `req.authCtx`, and if absent build
+   * a 401 body by hand. Nineteen of them, spread across eight files — nine in
+   * `profile.ts` alone. Each was individually correct and collectively a hazard:
+   * the response shape was duplicated nineteen times (and `referral.ts` had
+   * already drifted, omitting `message`), and a handler added later that simply
+   * forgot the block would read `undefined` and fail in some other way further
+   * down, where the cause would be much harder to see.
+   *
+   * Now the handlers call `requireCustomerScope(req)`, which THROWS when identity
+   * is unresolved, and this single handler owns the response. Forgetting to guard
+   * is no longer possible: there is no unguarded way to obtain a scope, so the
+   * failure mode is a compile error rather than a latent 500.
+   *
+   * Fastify's error handler is encapsulated to the plugin that registers it, so
+   * this applies to `/v1` and nothing else — which is what "scope-level" means
+   * here. `setErrorHandler` rather than an `onError` hook because only the former
+   * may produce the reply; `onError` observes and cannot substitute a response.
+   *
+   * NO STORED DATA CHANGES. `ScopeUnavailableError` is thrown before any handler
+   * body runs, so nothing has been written when it is raised (Req 1.4).
+   *
+   * Anything that is NOT a scope failure is delegated untouched, so this cannot
+   * accidentally swallow a genuine 500 and report it as an auth problem.
+   */
+  registerCustomerScopeErrorHandler(app);
+
   // Idempotency + validation for state-changing requests, scoped to /v1.
   // Its preHandler gate runs after auth so identity is known first.
   registerIdempotency(app, opts.idempotencyStore);
@@ -334,13 +365,7 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
 
       // Identity is normally resolved by the scope auth preHandler; reject
       // defensively if absent so no redemption runs without an identity (Req 9.3).
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
 
       // Validate the body: `{ rewardId, idempotencyKey }` (design.md RedeemBody).
       // An unknown reward id itself is rejected by the engine (Req 3.10); here we

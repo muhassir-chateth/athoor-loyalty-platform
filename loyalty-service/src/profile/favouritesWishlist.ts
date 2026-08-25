@@ -53,8 +53,15 @@ export class InvalidPreferenceInputError extends Error {
  * string and return its canonical decimal form so `"007"` and `"7"` collapse to
  * the same entry (union set semantics). Rejects anything non-numeric, zero,
  * negative, or fractional.
+ *
+ * EXPORTED for the portal repository layer (spec task 5.4), which adds the
+ * single-product wishlist write the storefront reconcile path never had. A
+ * second normaliser there would be two definitions of "a product id" free to
+ * disagree — and the one place they would disagree is leading zeros, which
+ * decide whether two writes collapse to one row. Behaviour is unchanged: this
+ * edit adds the keyword and nothing else.
  */
-function normaliseProductId(productId: string): string {
+export function normaliseProductId(productId: string): string {
   if (typeof productId !== "string" || productId.trim() === "") {
     throw new InvalidPreferenceInputError("productId must be a non-empty string.");
   }

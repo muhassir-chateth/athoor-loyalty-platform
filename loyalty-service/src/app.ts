@@ -1,5 +1,11 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 import type { AppConfig } from "./config.js";
+import {
+  buildRedactingLoggerOptions,
+  maskRequestPath,
+  REQUEST_ID_LOG_LABEL,
+  type LogDestination,
+} from "./observability/logRedaction.js";
 import { registerVersioning } from "./plugins/versioning.js";
 import { webhookRoutes } from "./plugins/webhooks.js";
 import type { WebhookEventStore } from "./webhooks/eventStore.js";
@@ -265,6 +271,18 @@ export interface AppDependencies {
    * `/v1/admin` router.
    */
   adminBenefitRequestService?: BenefitRequestService;
+  /**
+   * OPTIONAL sink for log lines (task 5.7). Production omits it and pino writes
+   * to stdout, which is what the hosting platform collects.
+   *
+   * It exists because logging is DISABLED under `NODE_ENV=test` (see below), and
+   * a privacy gate whose output nothing can read is a gate nobody can verify.
+   * Supplying a destination turns logging on for that one app instance, through
+   * the same redacting options production uses — so a test asserts against the
+   * real serialiser rather than a reimplementation of it. The default is
+   * unchanged, so the existing suite is unaffected.
+   */
+  logDestination?: LogDestination;
 }
 
 /**
@@ -274,9 +292,31 @@ export interface AppDependencies {
  * exercised directly by tests via `app.inject(...)`.
  */
 export function buildApp(config: AppConfig, deps: AppDependencies = {}): FastifyInstance {
+  // THE LOG-FIELD ALLOWLIST (task 5.7, Req 2.8/23.7, design §24.3) is installed
+  // here, on the app's own logger, rather than offered as a helper — so it
+  // governs every `app.log.*` and `req.log.*` call including ones written later,
+  // and there is no unfiltered logger to reach for by mistake.
+  //
+  // It is not only hardening. Fastify's default request log emits `req.url`, and
+  // on this service that URL carries the App Proxy `signature` and
+  // `logged_in_customer_id` on every proxied storefront request — two of the
+  // values §24.3 names as never-loggable. The serialiser projects `req`/`res`
+  // onto `method`/`route`/`statusCode`/`durationMs` and drops the originals.
+  const loggerOptions = buildRedactingLoggerOptions({
+    level: config.logLevel,
+    ...(deps.logDestination ? { destination: deps.logDestination } : {}),
+  });
+
   const app = Fastify({
-    // Quiet logs during tests; configured level otherwise.
-    logger: config.env === "test" ? false : { level: config.logLevel },
+    // Quiet logs during tests unless a test explicitly supplies a destination to
+    // assert on; the configured level otherwise. Either way the options are the
+    // redacting ones, so a test can never observe an unfiltered logger.
+    logger: config.env === "test" && !deps.logDestination ? false : loggerOptions,
+    // §24.3 names the per-request correlation field `requestId`; pino's default
+    // binding is `reqId`. Bindings do not pass through the payload serialiser, so
+    // the name is set here instead. `LogController` is the supported route —
+    // the top-level `requestIdLogLabel` option is deprecated in Fastify 5.
+    logController: new LogController({ requestIdLogLabel: REQUEST_ID_LOG_LABEL }),
     // Trust the HTTPS-terminating proxy/edge in front of the service so
     // request protocol/ip are read from forwarded headers (Requirement 11.11).
     trustProxy: true,
@@ -284,6 +324,41 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
 
   // Version identifier on every response + statelessness guarantees.
   registerVersioning(app);
+
+  // NOT-FOUND HANDLER, replacing Fastify's own for a PRIVACY reason (task 5.8,
+  // Req 2.8, design §24.3).
+  //
+  // Fastify's `basic404` does two things this service cannot do. It logs
+  //
+  //     Route GET:/v1/orders/6012345678901/lines?…&logged_in_customer_id=…&signature=… not found
+  //
+  // and it echoes that same target back in the response body. The log line
+  // carries four of §24.3's never-log rows at once — the full query string, the
+  // App Proxy signature, `logged_in_customer_id`, and an order number in the
+  // path — and it is emitted for EVERY unmatched request, which on a proxied
+  // storefront is every mistyped or stale portal URL.
+  //
+  // The allowlist serialiser could not catch it: the call is
+  // `log.info("<string>")`, so there was no payload to filter and no error whose
+  // text the message could be compared against. Found by the log-capture gate,
+  // which is what that gate is for.
+  //
+  // Both halves are fixed here. The log line carries `method`, the masked
+  // `route` and `statusCode` — enough to see that a 404 happened and roughly
+  // where — and the body names the status without repeating what was asked for.
+  // `maskRequestPath` is the same reduction the serialiser applies to `route`,
+  // shared rather than duplicated so the two cannot drift.
+  app.setNotFoundHandler(async (req, reply) => {
+    req.log.info(
+      { method: req.method, route: maskRequestPath(req.url), statusCode: 404 },
+      "route not found",
+    );
+    return reply.code(404).send({
+      error: "not_found",
+      message: "The requested resource does not exist on this service.",
+      statusCode: 404,
+    });
+  });
 
   // Aggregate auth-chain stop points, shared between the auth middleware that
   // records them and the `/health` route that publishes them. Created here

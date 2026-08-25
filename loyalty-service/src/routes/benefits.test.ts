@@ -30,6 +30,7 @@
  *
  * SAFETY: in-memory only. No Postgres, no Shopify, no network.
  */
+import { registerCustomerScopeErrorHandler } from "../auth/customerScope.js";
 import { describe, expect, it } from "vitest";
 import type { QueryResult, QueryResultRow } from "pg";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -494,6 +495,10 @@ describe("POST /v1/benefits/:key/request (Req 18.5/18.6)", () => {
     db.seedCustomer(CUSTOMER, 5000);
     db.seedBenefit({ key: "perk", min_qualifying_tier: "bronze", active: true });
     const app = Fastify({ logger: false });
+    // The 401 mapping lives at the /v1 scope now (task 5.2), so a harness must
+    // install the same one the router does. Intent is unchanged: no identity
+    // means 401 and no mutation.
+    registerCustomerScopeErrorHandler(app);
     registerBenefitRoutes(app, { entitlementResolver: new DbEntitlementResolver(db) });
     await app.ready();
 

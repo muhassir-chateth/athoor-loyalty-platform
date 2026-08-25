@@ -78,7 +78,7 @@ function signedUrlFor(
     shop: "myathoorlondon.myshopify.com",
     logged_in_customer_id: A_SHOPIFY_ID,
     path_prefix: "/apps/loyalty",
-    timestamp: "1700000000",
+    timestamp: String(Math.floor(Date.now() / 1000)),
     ...(opts.extraSigned ?? {}),
   };
   const withSig = { ...params, signature: computeAppProxySignature(params, APP_PROXY_SECRET) };
@@ -481,7 +481,7 @@ describe("unauthenticated and identity-less requests reach no wishlist at all", 
       shop: "myathoorlondon.myshopify.com",
       logged_in_customer_id: "0",
       path_prefix: "/apps/loyalty",
-      timestamp: "1700000000",
+      timestamp: String(Math.floor(Date.now() / 1000)),
     };
     const withSig = { ...params, signature: computeAppProxySignature(params, APP_PROXY_SECRET) };
     const search = new URLSearchParams();

@@ -89,9 +89,12 @@ function buildHarness(opts: { withSecret?: boolean; withEnroller?: boolean } = {
 
 /** Builds the query string for a VALIDLY signed App Proxy request. */
 function signedQuery(params: QueryParams): string {
-  const withSignature = {
-    ...params,
-    signature: computeAppProxySignature(params, APP_PROXY_SECRET),
+  // NB-13: every App Proxy request Shopify signs carries a `timestamp`, and the
+  // auth layer now enforces a +/-5 minute freshness window and FAILS CLOSED when it
+  // is absent. Defaulting it here keeps fixtures realistic; an explicit timestamp in
+  // `params` still wins, so a staleness test can override it.
+  const withTimestamp = { timestamp: String(Math.floor(Date.now() / 1000)), ...params };
+  const withSignature = { ...withTimestamp, signature: computeAppProxySignature(withTimestamp, APP_PROXY_SECRET),
   };
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(withSignature)) {

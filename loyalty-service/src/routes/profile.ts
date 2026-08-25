@@ -32,6 +32,7 @@
  * deploy time. Route logic is unit-tested with an in-memory source, so no live
  * Shopify or Postgres is required during verification.
  */
+import { requireCustomerScope } from "../auth/customerScope.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   FragranceProfileService,
@@ -233,40 +234,21 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
   // welcome), false thereafter (portal omits the welcome). Off-ledger — never
   // touches the customer's Balance (Req 17.3).
   app.post("/profile/visit", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const { firstVisit } = await portalVisitRecorder.record(ctx.customerId);
     return { firstVisit } satisfies PortalVisitResponse;
   });
 
   app.get("/profile", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      // Defensive: the auth preHandler should have rejected already (Req 9.3).
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     // Only the requesting customer's id is ever passed to the composition (Req 17.10).
     return service.getFragranceProfile(ctx.customerId);
   });
 
   app.get("/profile/journey", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
 
     const milestones = await service.getJourneyTimeline(ctx.customerId);
     // Wrap the array so the versioning plugin can inject the version field.
@@ -274,13 +256,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
   });
 
   app.get("/profile/suggestions", async (req: FastifyRequest, reply: FastifyReply) => {
-    const ctx = req.authCtx;
-    if (!ctx) {
-      return reply.code(401).send({
-        error: "identity_resolution_failed",
-        message: "Could not resolve the request to a loyalty customer identity.",
-      });
-    }
+    const ctx = requireCustomerScope(req);
     // Behind the SAME stable interface as the profile payload's field (A11), so
     // richer logic can replace the engine without changing this contract.
     const profile = await service.getFragranceProfile(ctx.customerId);
@@ -314,13 +290,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
   const preferenceStore = opts.preferenceStore;
   if (preferenceStore) {
     app.get("/profile/favourites", async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
       return { favourites: await preferenceStore.listFavourites(ctx.customerId) };
     });
 
@@ -329,13 +299,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
     // `setFavourite` contract — marking an already-favourited product and
     // unmarking one that is not favourited are both no-ops.
     app.put("/profile/favourites/:id", async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
       const params = z.object({ id: z.string().min(1) }).strip().safeParse(req.params);
       const body = FAVOURITE_BODY_SCHEMA.safeParse(req.body);
       if (!params.success || !body.success) {
@@ -359,13 +323,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
     });
 
     app.get("/profile/wishlist", async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
       return { wishlist: await preferenceStore.getWishlist(ctx.customerId) };
     });
 
@@ -375,13 +333,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
     // localStorage — the server cannot read it, so "on authentication" means
     // "the storefront calls this once the member is authenticated".
     app.post("/profile/wishlist/reconcile", async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
       const parsed = WISHLIST_RECONCILE_SCHEMA.safeParse(req.body);
       if (!parsed.success) {
         return reply.code(400).send({
@@ -412,13 +364,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
   const recentlyViewedRecorder = opts.recentlyViewedRecorder;
   if (recentlyViewedRecorder) {
     app.post("/profile/recently-viewed", async (req: FastifyRequest, reply: FastifyReply) => {
-      const ctx = req.authCtx;
-      if (!ctx) {
-        return reply.code(401).send({
-          error: "identity_resolution_failed",
-          message: "Could not resolve the request to a loyalty customer identity.",
-        });
-      }
+      const ctx = requireCustomerScope(req);
       const parsed = RECENTLY_VIEWED_SCHEMA.safeParse(req.body);
       if (!parsed.success) {
         return reply.code(400).send({
