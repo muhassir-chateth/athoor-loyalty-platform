@@ -98,7 +98,7 @@
           </div>
            <ul class="product-icons top-aligned">          
         {%- if settings.enable_compare -%}
-        <li><dtx-compare><a href="javascript:void(0);" class="add-compare" data-product_handle="{{ card_product.handle }}"></a></dtx-compare>
+        <li><dtx-compare><a href="javascript:void(0);" class="add-compare" data-product_handle="{{ card_product.handle }}" aria-label="{{ 'products.compare.add_to_compare' | t }}"></a></dtx-compare>
           <tooltip class="tooltip">{{ 'products.compare.add_to_compare' | t }}</tooltip>
         </li>
         {%- endif -%}
@@ -184,7 +184,7 @@
         </li>          
         {%- endif -%} 
         {%- if settings.enable_wishlist -%}
-        <li><dtx-wishlist><a href="javascript:void(0);" class="add-wishlist" data-product_handle="{{ card_product.handle }}"> </a></dtx-wishlist>
+        <li><dtx-wishlist><a href="javascript:void(0);" class="add-wishlist" data-product_handle="{{ card_product.handle }}" aria-label="{{ 'products.wishlist.addToWishList' | t }}"> </a></dtx-wishlist>
           <tooltip class="tooltip">{{ 'products.wishlist.addToWishList' | t }}</tooltip>
         </li>        
         {%- endif -%} 
