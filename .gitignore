@@ -144,3 +144,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# M0 migration anchors — these contain REAL customer data (37 of the 40 exported
+# customers carry an email address, plus their loyalty metafield values). The
+# anchor is the migration rollback artefact and must be copied off the machine to
+# secure storage, NEVER committed to the repository.
+docs/ops/m0-anchor-production/
+docs/ops/m0-anchor-*/
+**/m0-metafield-export-*.json
