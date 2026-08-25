@@ -1,0 +1,140 @@
+# Continuous integration for the Loyalty_Service — the build that later gates fail
+# (task 29.0, customer-experience-portal).
+#
+# WHY THIS EXISTS
+#   Task 5 landed real structural guarantees: a branded `CustomerScope` that makes
+#   an unscoped repository call a TYPE ERROR, a scoped repository layer, and a
+#   log-field allowlist. Those guarantees are enforced by `tsc` and `vitest` — and,
+#   until this workflow existed, ONLY when someone remembered to run them locally.
+#   A guarantee that depends on human memory is a convention, not a guarantee.
+#   This workflow converts them into a gate on `main`: the type error that proves
+#   a query cannot escape its customer's scope now blocks a merge instead of
+#   waiting to be noticed.
+#
+#   The repository's only other workflows, `backup.yml` and `keepalive.yml`, run on
+#   `schedule` and `workflow_dispatch` alone. There was therefore no build attached
+#   to a pull request at all, which is why every sub-task of 29 is unverifiable
+#   until this one lands.
+#
+# THIS IS THE SUBSTRATE FOR 29.1–29.12
+#   Sub-tasks 29.1 through 29.12 are each specified as build-failing, and each
+#   EXTENDS THIS WORKFLOW with a further step. This file is the single place a
+#   later gate is added:
+#     29.1  axe-core accessibility gate         29.7  innerHTML / template-literal SQL
+#     29.2  bespoke a11y assertions            29.8  scope-type gate (tsc)
+#     29.3  forbidden-strings gate             29.9  client-storage gate
+#     29.4  direct-origin gate                 29.10 dependency gate
+#     29.5  referral literal gate              29.11 bundle budget gate
+#     29.6  loyalty arithmetic gate            29.12 bundle smoke test
+#   None of them introduces a parallel workflow. A second CI workflow would split
+#   the required-checks list, let a gate go green while its sibling never ran, and
+#   make "did CI pass?" a question with more than one answer.
+#
+# WHAT IT DOES NOT COVER YET
+#   Only `npm run typecheck` and `npm test` — the verification that already exists
+#   in `loyalty-service/package.json`. There is deliberately no accessibility,
+#   forbidden-string, bundle-budget, dependency or theme-asset gate here yet; each
+#   arrives with its own sub-task above, which is also where its devDependency is
+#   pinned. Nothing in `theme/**` is inspected by this workflow.
+#
+# COST — REQUIREMENT 19.1, NEW RECURRING COST = £0/MONTH
+#   This repository is PUBLIC, and GitHub Actions is free and unmetered on public
+#   repositories: standard GitHub-hosted runners for public repos consume no
+#   included-minutes allowance and generate no billable usage, however often this
+#   runs. So the zero-cost constraint holds by the repository's visibility, not by
+#   restraint in the schedule — recorded here so a future reader does not have to
+#   re-derive it, and so the ONE change that would break it is written down:
+#   making this repository private would put every run on the metered allowance.
+#
+# SECURITY — LEAST PRIVILEGE
+#   `permissions: contents: read` and NO secret. Typechecking and unit tests read
+#   source and run in-process; they need no token beyond the read required to
+#   check the code out, and they must never be handed one. `backup.yml` and
+#   `keepalive.yml` set `permissions: {}` while handling PII — the same
+#   least-privilege convention, one rung up because this job actually reads the
+#   repository. A workflow with no write scope cannot push, comment, tag or
+#   release, so a compromised dependency in the test tree cannot alter `main`.
+#
+# FAILURE PHILOSOPHY
+#   `typecheck` and `test` are SEPARATE steps, so a red run names which gate broke
+#   rather than presenting one opaque failure to bisect. Neither step is allowed
+#   `continue-on-error`, and neither is conditional: a gate that cannot fail the
+#   build is not a gate, it is a report nobody reads.
+name: Portal CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Read the repository; hold nothing else. No secret is consumed by this workflow.
+permissions:
+  contents: read
+
+concurrency:
+  # One in-flight run per ref. A rapid push sequence to a branch supersedes its
+  # own earlier runs rather than queueing them, so the answer you read is always
+  # the answer for the newest commit.
+  group: portal-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        # Every `run` step below executes from the backend package, which owns its
+        # own `package.json`, `tsconfig.json` and `package-lock.json`.
+        working-directory: loyalty-service
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Node is pinned to the EXACT version the project runs, not a floating
+      # major. `24.x` would silently move under us on a GitHub image update and
+      # turn an upstream Node change into a mystery CI failure on an unrelated
+      # pull request. Bumping this line is then a deliberate, reviewed change.
+      #
+      # The npm cache is keyed on `loyalty-service/package-lock.json`, so the
+      # cache is invalidated by exactly the file that determines what `npm ci`
+      # installs — and by nothing else.
+      # ---------------------------------------------------------------------
+      - name: Set up Node 24.17.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+          cache: npm
+          cache-dependency-path: loyalty-service/package-lock.json
+
+      # ---------------------------------------------------------------------
+      # `npm ci`, never `npm install`. `npm ci` installs the lockfile exactly and
+      # fails if `package.json` and the lockfile disagree, so what CI verifies is
+      # what the lockfile pins. `npm install` is free to resolve a newer
+      # satisfying version, which would make CI green against a dependency tree
+      # nobody has committed — and would quietly defeat the dependency gate of
+      # 29.10 before it is even written.
+      # ---------------------------------------------------------------------
+      - name: Install dependencies from the lockfile
+        run: npm ci
+
+      # ---------------------------------------------------------------------
+      # GATE 1 — types. This is what makes Task 5's `CustomerScope` load-bearing:
+      # a repository call that has not proved which customer it is scoped to does
+      # not compile. `--noEmit` because CI is asking a question, not producing a
+      # build artefact.
+      # ---------------------------------------------------------------------
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      # ---------------------------------------------------------------------
+      # GATE 2 — behaviour. `vitest run` is single-shot, so it exits rather than
+      # watching and hanging the runner until the job timeout.
+      # ---------------------------------------------------------------------
+      - name: Test (vitest run)
+        run: npm test
