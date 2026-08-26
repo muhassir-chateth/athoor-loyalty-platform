@@ -441,9 +441,24 @@ describe("unresolved handles: excluded from the payload, and the local list stay
   });
 
   it("storage is unchanged after a SUCCESSFUL fully-resolved merge (read-only reconciliation)", async () => {
-    // Deliberate deviation from design §8.4 rule 3, per owner instruction:
-    // reconciliation does not clear storage; that awaits a separate approved
-    // migration. Asserted here so the behaviour cannot drift silently.
+    // This IS design §8.4 rule 3, not a deviation from it and not a deferral:
+    // `localStorage['shopify-wishlist']` is never cleared, and rule 3 names the
+    // fully-resolved `200` explicitly as the path that is still not allowed to
+    // clear it. Reconciliation is read-only with respect to device storage.
+    //
+    // Why: the merge is add-only, so nothing is deleted server-side, whereas
+    // clearing device state is irreversible — preserving customer state is
+    // safer than destructive convergence.
+    //
+    // The accepted cost, recorded so it is not mistaken for an oversight: a
+    // product removed via `PUT /v1/profile/wishlist/:productId {on:false}` is
+    // re-added on the next reconcile, once per page load, for as long as the
+    // handle remains in localStorage. The fix is an explicit-removal tombstone
+    // (task 6 schema, task 9.1 write path) and is out of scope here.
+    //
+    // LOAD-BEARING: this assertion, and the three like it above, are the pin on
+    // rule 3. They must not be weakened, skipped or retitled away. If a future
+    // change makes one fail, the change is wrong until rule 3 itself changes.
     const raw = "all-good-a,all-good-b";
     const captured = await captureClientRequest(raw, { "all-good-a": 1, "all-good-b": 2 });
     const { app } = await serverHarness();

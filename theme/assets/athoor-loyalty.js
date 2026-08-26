@@ -523,16 +523,31 @@
    *    loyalty-service/src/profile/wishlistReconcileContract.ts.
    * 4. localStorage is NEVER mutated — byte-identical before and after.
    *
-   * DELIBERATE DEVIATION FROM design §8.4 RULE 3 ("after a 200 the client clears
-   * localStorage"). Reconciliation is READ-ONLY with respect to browser wishlist
-   * storage, by explicit owner instruction for this task: it does not clear,
-   * migrate, rewrite or normalise-in-place. Rule 3's clear-on-success behaviour
-   * awaits a SEPARATE, APPROVED migration, because clearing is irreversible for
-   * a member's device and the merge is add-only, so not clearing costs a repeat
-   * lookup next session while clearing wrongly costs saved items. §8.4 rule 4
-   * ("never prune on ambiguity") is unaffected and still honoured in full:
-   * `missing` and `environmental` handles are excluded from the payload and left
-   * in storage.
+   * THIS IS design §8.4 RULE 3, NOT A DEVIATION FROM IT. Rule 3 specifies that
+   * `localStorage['shopify-wishlist']` is never cleared — not on a partial merge,
+   * and not on a fully-resolved `200`. Reconciliation is READ-ONLY with respect
+   * to device storage: it does not clear, migrate, rewrite or normalise-in-place.
+   * Nothing here is pending or deferred; preservation is the specified behaviour.
+   *
+   * WHY. The merge is add-only — a union that never deletes server-side — so
+   * keeping the local list costs only a repeated handle lookup. Clearing it is
+   * irreversible on that device and would cost the customer their saved items
+   * outright. Preserving customer state is safer than destructive convergence.
+   *
+   * THE ACCEPTED COST, so it is not lost. An uncleared local list re-merges
+   * removed items. A product the customer removes through
+   * `PUT /v1/profile/wishlist/:productId {on:false}` is RE-ADDED on the next
+   * reconcile, because the device-local list still names it. This function runs
+   * once per PAGE LOAD, not once per session, so that resurrection recurs on
+   * every dashboard load for as long as the handle remains in localStorage. It
+   * is an accepted trade-off, not a solved problem. The real fix is an
+   * explicit-removal tombstone — schema in task 6, the write path in task 9.1 —
+   * and it is deliberately OUT OF SCOPE here. Do not "fix" this by clearing.
+   *
+   * §8.4 rule 4 ("never prune on ambiguity") is honoured in full, and under rule
+   * 3 it now holds universally rather than conditionally: `missing` and
+   * `environmental` handles are excluded from the payload and left in storage,
+   * and there is no fully-resolved case to except.
    */
   function reconcileWishlistOnce() {
     var raw;
@@ -632,8 +647,10 @@
           { deviceLocal: resolvedIds },
           'wl-reconcile'
         ).then(function () {
-          // Success. localStorage is INTENTIONALLY left exactly as it was — see
-          // the deviation note above.
+          // Success, and localStorage is STILL left exactly as it was. This is
+          // the fully-resolved `200` that §8.4 rule 3 names explicitly — the one
+          // path where clearing would look justified. It is not. See the rule 3
+          // note on this function, including the re-merge cost it accepts.
           return undefined;
         }, function (err) {
           // Non-fatal for the customer, but no longer silent for us.
