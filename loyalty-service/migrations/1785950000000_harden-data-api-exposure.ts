@@ -327,6 +327,45 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   `);
 
   // ---------------------------------------------------------------------------
+  // 4b. The SECOND default-ACL grantor: supabase_admin.
+  //
+  // The production probe (2026-08-26) found TWO default-privilege grantors on
+  // `public`, not one:
+  //
+  //     granted_by postgres        -> anon=arwdDxtm, authenticated=arwdDxtm
+  //     granted_by supabase_admin  -> anon=arwdDxtm, authenticated=arwdDxtm
+  //
+  // Step 4 above has no FOR ROLE clause, so it fixes only `postgres` - the role
+  // our migrations run as. That is sufficient for every table a migration
+  // creates, and the earlier version of this file said so and stopped there.
+  //
+  // It is NOT sufficient for a table created through the Supabase DASHBOARD
+  // table editor, which creates as `supabase_admin`. Such a table would inherit
+  // arwdDxtm for anon and be born fully exposed - readable AND truncatable - by
+  // exactly the route this migration exists to close.
+  //
+  // Attempted best-effort and guarded, because altering another role's default
+  // privileges requires membership of it. `postgres` may or may not hold that on
+  // a given Supabase project, and this hardening must not fail closed on a
+  // permission we cannot guarantee: steps 1-4 are the critical fix. If it is
+  // refused, the NOTICE records it, the ensure_rls event trigger still enables
+  // RLS on the new table, and the CI posture gate still fails the build - so the
+  // residual is covered by two further layers rather than by hope.
+  pgm.sql(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon, authenticated';
+        RAISE NOTICE 'rls-hardening: supabase_admin default privileges revoked for anon/authenticated';
+      END IF;
+    EXCEPTION WHEN insufficient_privilege OR OTHERS THEN
+      RAISE NOTICE 'rls-hardening: could NOT alter supabase_admin default privileges (%). A table created via the Supabase dashboard would still be born granted to anon; ensure_rls and the CI posture gate remain the covering layers.', SQLERRM;
+    END $$;
+  `);
+
+  // ---------------------------------------------------------------------------
   // 5. Belt to the braces: an event trigger that enables RLS on any new table.
   //
   // The staging database already carries this exact control, installed by hand
