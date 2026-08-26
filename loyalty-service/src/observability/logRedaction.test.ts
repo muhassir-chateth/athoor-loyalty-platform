@@ -203,6 +203,90 @@ describe("Fastify's request envelope is projected, not passed through", () => {
     expect(out).toEqual({ statusCode: 401, durationMs: 12.346 });
   });
 
+  /**
+   * REGRESSION, pinned. `durationMs` is the module's only COMPUTED numeric field,
+   * and `responseTime * 1000` overflows to Infinity for a finite input above
+   * `Number.MAX_VALUE / 1000`. The original guard tested the input, so pass 1
+   * emitted `durationMs: Infinity` while pass 2 — reaching `redactScalar`, which
+   * drops a non-finite number — removed the key again, breaking the idempotence
+   * the module header promises.
+   *
+   * The values are pinned rather than generated because the `fc.double` property
+   * below only reaches this region on some seeds: measured at 1 failure in 12
+   * focused runs and ~2 in 6 full-suite runs, which reddens CI on roughly a third
+   * of pushes and is not a regression test. `1.797693134862316e+305` is both the
+   * seed -42886764 counterexample and the SMALLEST float64 whose product with
+   * 1000 overflows, so it is the exact boundary the shrinker converges on.
+   */
+  const OVERFLOWING_RESPONSE_TIMES: ReadonlyArray<readonly [string, number]> = [
+    // The shrunk counterexample === the first overflowing float64, i.e. the exact
+    // boundary. Its immediate predecessor is in the surviving list below, so the
+    // pair brackets the overflow to one ulp.
+    ["counterexample / smallest overflowing float64", 1.797693134862316e305],
+    ["Number.MAX_VALUE", Number.MAX_VALUE],
+    ["1e308, comfortably past the boundary", 1e308],
+  ];
+
+  /**
+   * Inputs whose product is still finite: these must STILL be emitted, so the fix
+   * is a guard rather than a blanket cap on large values.
+   *
+   * `1.797693134292316e+305` is here deliberately. It was quoted as the
+   * counterexample in the brief that commissioned this fix, but it does not
+   * overflow (`* 1000` = 1.797693134292316e+308, finite) — the digits differ from
+   * the real counterexample at the 10th significant figure. Pinning only that
+   * value would have produced a test that passed both before and after the fix,
+   * so it is recorded on this side of the boundary instead.
+   */
+  const SURVIVING_RESPONSE_TIMES: ReadonlyArray<readonly [string, number]> = [
+    ["largest finite-product input, one ulp below the boundary", 1.7976931348623156e305],
+    ["Number.MAX_VALUE / 1000", Number.MAX_VALUE / 1000],
+    ["1.797693134292316e+305, misquoted in the brief; does not overflow", 1.797693134292316e305],
+  ];
+
+  it.each(OVERFLOWING_RESPONSE_TIMES)(
+    "never emits a non-finite durationMs when responseTime*1000 overflows (%s)",
+    (_label, responseTime) => {
+      const out = redactLogPayload({ res: { statusCode: 200 }, responseTime });
+      const durationMs = out["durationMs"];
+
+      // Absent or finite — never Infinity.
+      expect(durationMs === undefined || Number.isFinite(durationMs)).toBe(true);
+      expect(durationMs).not.toBe(Infinity);
+      expect(durationMs).not.toBe(-Infinity);
+      // The rest of the projection is unaffected.
+      expect(out["statusCode"]).toBe(200);
+    },
+  );
+
+  it.each(OVERFLOWING_RESPONSE_TIMES)(
+    "stays idempotent across both choke points for an overflowing responseTime (%s)",
+    (_label, responseTime) => {
+      const once = redactLogPayload({ res: { statusCode: 200 }, responseTime });
+      expect(redactLogPayload(once)).toEqual(once);
+      // Triple-applied, because the fixed point is the actual claim.
+      expect(redactLogPayload(redactLogPayload(once))).toEqual(once);
+      expect(JSON.stringify(once)).not.toContain("Infinity");
+    },
+  );
+
+  it.each(SURVIVING_RESPONSE_TIMES)(
+    "still emits a finite durationMs just below the overflow boundary (%s)",
+    (_label, responseTime) => {
+      const once = redactLogPayload({ responseTime });
+      expect(typeof once["durationMs"]).toBe("number");
+      expect(Number.isFinite(once["durationMs"])).toBe(true);
+      expect(redactLogPayload(once)).toEqual(once);
+    },
+  );
+
+  it("keeps a negative overflowing responseTime out of the stream too", () => {
+    const once = redactLogPayload({ responseTime: -Number.MAX_VALUE });
+    expect(once["durationMs"]).not.toBe(-Infinity);
+    expect(once["durationMs"] === undefined || Number.isFinite(once["durationMs"])).toBe(true);
+    expect(redactLogPayload(once)).toEqual(once);
+  });
+
   it("never overwrites a field the caller supplied explicitly", () => {
     const out = redactLogPayload({ route: "/explicit", req: { url: "/derived" } });
     expect(out["route"]).toBe("/explicit");
