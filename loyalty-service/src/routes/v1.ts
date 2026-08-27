@@ -19,6 +19,7 @@ import type { AuthChainCounters } from "../plugins/authChainCounters.js";
 import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerOrdersRoutes, type PortalOrderSource } from "./orders.js";
+import { registerCatalogRoutes, type PortalCatalogSource } from "./catalog.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
@@ -104,6 +105,12 @@ export interface V1RouterOptions {
    * this path writes, and no order data is stored (Req 3.3).
    */
   portalOrderSource?: PortalOrderSource;
+  /**
+   * Loads global catalogue facts for `GET /v1/catalog/products` (N4). Absent,
+   * the route answers `502 upstream_unavailable` rather than reporting every
+   * requested product as deleted.
+   */
+  portalCatalogSource?: PortalCatalogSource;
   /**
    * Per-customer redemption rate-limit configuration for `POST /v1/redeem`
    * (task 6.5, Req 11.12). Defaults to 10 requests / 60s keyed on
@@ -296,6 +303,7 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // balance and history, so the route census covers them from the day they exist;
   // without a wired source they answer `502` rather than an empty page.
   registerOrdersRoutes(app, { orderSource: opts.portalOrderSource });
+  registerCatalogRoutes(app, { catalogSource: opts.portalCatalogSource });
 
   // Authenticated Fragrance_Profile + journey timeline (task 14.5, Req 17.1,
   // 17.8, 17.9, 17.10): purchased fragrances (paid Shopify orders) plus

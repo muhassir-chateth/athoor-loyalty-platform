@@ -106,6 +106,11 @@ export const REJECTED_DOCUMENT_REASONS = [
   "forbidden_root_field",
   "interpolated_document",
   "caller_supplied_customer_variable",
+  // ── the global-catalogue class (task 8.4) ────────────────────────────────
+  "customer_traversal_in_catalogue_query",
+  "non_product_selection",
+  "forbidden_catalogue_root",
+  "caller_supplied_product_ids",
 ] as const;
 
 export type RejectedDocumentReason = (typeof REJECTED_DOCUMENT_REASONS)[number];
@@ -327,6 +332,174 @@ export async function runScopedCustomerQuery<T>(
     throw new PortalResourceNotFoundError(notFoundCode);
   }
   return customer;
+}
+
+/* ========================================================================== *
+ * THE SECOND SECURITY CLASS: GLOBAL CATALOGUE READS (task 8.4)
+ *
+ * N4 `GET /v1/catalog/products?ids=` reads the shop's PRODUCT catalogue. That is
+ * global data: there is no customer to scope it to, so
+ * `assertScopedCustomerQuery` cannot express it — it demands
+ * `customer(id: $customerGid)` as the first field and forbids `nodes(ids:)`
+ * outright.
+ *
+ * The tempting move is to relax the scoped assertion until a catalogue document
+ * fits. That would be the worst available outcome: the scoped gate is the portal's
+ * ONLY structural defence against reading another customer's orders, and widening
+ * it to admit a product read would also admit whatever else happens to satisfy the
+ * widened rule.
+ *
+ * So catalogue documents are a SEPARATE, EQUALLY FAIL-CLOSED class. Where the
+ * scoped gate proves "this query is rooted in the caller's own customer node",
+ * this one proves the INVERSE: "this query cannot reach customer-owned data at
+ * all." Two classes, two assertions, and — enforced by `ownership.gate.test.ts` —
+ * every document in this directory belongs to exactly one of them.
+ *
+ * ── WHY `nodes(ids:)` IS THE DANGER AND ALSO THE ONLY OPTION ─────────────────
+ * Fetching N products by id wants `nodes(ids: $ids)`. The alternative,
+ * `products(query: "id:1 OR id:2")`, has to BUILD that string, and an
+ * interpolated document is refused by both classes for good reason.
+ *
+ * But `nodes(ids:)` is polymorphic: it resolves ANY GID, so
+ * `nodes(ids: ["gid://shopify/Customer/123"]) { ... on Customer { email } }` is a
+ * customer read wearing a catalogue costume. Two things close that:
+ *
+ *   1. LEXICALLY — the only inline fragment permitted is `... on Product`. A
+ *      `... on Customer` or `... on Order` selection is refused here, before any
+ *      request, so the document cannot ASK for a non-product type.
+ *
+ *   2. STRUCTURALLY — {@link runGlobalCatalogueQuery} owns the `$ids` variable and
+ *      builds every GID itself from digits, via {@link buildProductGids}. A caller
+ *      supplies `["1001"]`, never a GID, and the `Product` segment is a literal in
+ *      our template. A caller therefore cannot NAME a customer even if the
+ *      document would have accepted one.
+ *
+ * That mirrors the scoped class exactly: there, the primitive owns `$customerGid`
+ * and templates `Customer` from a derived id; here it owns `$ids` and templates
+ * `Product` from validated digits. Same guarantee, opposite direction.
+ * ========================================================================== */
+
+/** The GraphQL variable a catalogue document must use for its product ids. */
+export const CATALOGUE_IDS_VARIABLE = "ids" as const;
+
+/**
+ * Field/type names that would take a catalogue read into customer-owned or
+ * otherwise private territory. Matched anywhere in the document, not just at the
+ * root: a catalogue query has no legitimate reason to mention any of them, so
+ * "anywhere" costs nothing and catches a nested traversal a root-only check would
+ * miss.
+ */
+const FORBIDDEN_IN_CATALOGUE: readonly { pattern: RegExp; label: string }[] = [
+  { pattern: /\bcustomers?\s*\(/i, label: "customer(/customers(" },
+  { pattern: /\bon\s+Customer\b/, label: "... on Customer" },
+  { pattern: /\borders?\s*\(/i, label: "order(/orders(" },
+  { pattern: /\bon\s+Order\b/, label: "... on Order" },
+  { pattern: /\bdraftOrders?\s*\(/i, label: "draftOrder(" },
+  { pattern: /\bon\s+DraftOrder\b/, label: "... on DraftOrder" },
+  { pattern: /\bcustomerPaymentMethod/i, label: "customerPaymentMethod" },
+  { pattern: /\bstaffMember/i, label: "staffMember" },
+  { pattern: /\bmetafields?\s*\(/i, label: "metafield(" },
+  { pattern: /\bshippingAddress\b/i, label: "shippingAddress" },
+  { pattern: /\bemail\b/i, label: "email" },
+  { pattern: /\bphone\b/i, label: "phone" },
+];
+
+/** Inline fragments a catalogue document may use. Product and nothing else. */
+const PERMITTED_INLINE_FRAGMENT = /\bon\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+
+/** Root fields a catalogue document may open with. */
+const CATALOGUE_ROOT = /\b(nodes\s*\(\s*ids\s*:|products\s*\()/i;
+
+/**
+ * Proves a document reads the global product catalogue and CANNOT reach
+ * customer-owned data, or throws.
+ *
+ * Exported so `ownership.gate.test.ts` runs it over the catalogue class the same
+ * way it runs the scoped assertion over the customer class — the gate and the
+ * runtime share one definition per class rather than drifting apart.
+ *
+ * @throws {UnscopedShopifyQueryError} the document is refused; no request is made
+ */
+export function assertGlobalCatalogueQuery(document: string): void {
+  if (typeof document !== "string" || document.trim() === "") {
+    throw new UnscopedShopifyQueryError("empty_document");
+  }
+  if (document.includes("${")) {
+    throw new UnscopedShopifyQueryError("interpolated_document");
+  }
+  if (/\bmutation\b/i.test(document)) {
+    throw new UnscopedShopifyQueryError("contains_mutation");
+  }
+  if (!/^\s*query\b/i.test(document)) {
+    throw new UnscopedShopifyQueryError("not_a_query");
+  }
+
+  // The inverse property, and the whole point of this class.
+  for (const { pattern } of FORBIDDEN_IN_CATALOGUE) {
+    if (pattern.test(document)) {
+      throw new UnscopedShopifyQueryError("customer_traversal_in_catalogue_query");
+    }
+  }
+
+  // `nodes(ids:)` is polymorphic, so the permitted selection set is closed to
+  // Product. Anything else means the document is asking for another type.
+  for (const match of document.matchAll(PERMITTED_INLINE_FRAGMENT)) {
+    if (match[1] !== "Product") {
+      throw new UnscopedShopifyQueryError("non_product_selection");
+    }
+  }
+
+  const selectionStart = operationSelectionStart(document);
+  if (selectionStart < 0) {
+    throw new UnscopedShopifyQueryError("forbidden_catalogue_root");
+  }
+  const firstField = /[A-Za-z_][A-Za-z0-9_]*/.exec(document.slice(selectionStart + 1));
+  if (firstField?.[0] !== "nodes" && firstField?.[0] !== "products") {
+    throw new UnscopedShopifyQueryError("forbidden_catalogue_root");
+  }
+  if (!CATALOGUE_ROOT.test(document)) {
+    throw new UnscopedShopifyQueryError("forbidden_catalogue_root");
+  }
+}
+
+/** `gid://shopify/Product/<digits>` — the only GID shape the catalogue builds. */
+export function buildProductGids(numericProductIds: readonly string[]): string[] {
+  return numericProductIds.map((id) => {
+    if (!NUMERIC_SHOPIFY_ID.test(id)) {
+      // A non-numeric id would let a caller supply a whole GID and choose the
+      // type. Refused rather than coerced.
+      throw new UnscopedShopifyQueryError("caller_supplied_product_ids");
+    }
+    return `gid://shopify/Product/${id}`;
+  });
+}
+
+/**
+ * Runs a global catalogue query. The primitive owns `$ids` and builds every GID
+ * from digits, so a caller cannot name a non-product resource.
+ *
+ * No customer scope is taken, and that absence is deliberate rather than an
+ * oversight: passing one would imply this data is customer-owned and invite a
+ * future author to filter by it.
+ *
+ * @throws {UnscopedShopifyQueryError} document or variables break the contract — no request is made
+ */
+export async function runGlobalCatalogueQuery<T>(
+  transport: ScopedGraphqlTransport,
+  document: string,
+  numericProductIds: readonly string[],
+  variables: Readonly<Record<string, unknown>> = {},
+): Promise<T> {
+  assertGlobalCatalogueQuery(document);
+
+  if (Object.prototype.hasOwnProperty.call(variables, CATALOGUE_IDS_VARIABLE)) {
+    throw new UnscopedShopifyQueryError("caller_supplied_product_ids");
+  }
+
+  return transport.request<T>(document, {
+    ...variables,
+    [CATALOGUE_IDS_VARIABLE]: buildProductGids(numericProductIds),
+  });
 }
 
 /* ========================================================================== *

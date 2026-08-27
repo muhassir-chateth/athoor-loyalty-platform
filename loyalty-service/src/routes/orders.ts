@@ -58,7 +58,12 @@
  * an empty page, so an un-wired build cannot tell a customer they have never
  * bought anything.
  */
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+  preHandlerAsyncHookHandler,
+} from "fastify";
 import { requireCustomerScope, type CustomerScope } from "../auth/customerScope.js";
 import {
   InvalidOrderReferenceError,
@@ -69,6 +74,7 @@ import {
   readScopedOrdersPage,
   type ScopedOrderReadDeps,
 } from "../portal/repository/orders.js";
+import { readScopedReorderPlan } from "../portal/repository/reorder.js";
 import {
   AdminThrottleExhaustedError,
   ShopifyThrottleError,
@@ -87,7 +93,9 @@ import {
   PORTAL_ORDER_ID_PATTERN,
   type PortalOrderDetail,
   type PortalOrdersResponse,
+  type PortalReorderPlanResponse,
 } from "../portal/types.js";
+import { createRedemptionRateLimiter } from "../plugins/rateLimit.js";
 
 /* ========================================================================== *
  * Request parsing
@@ -185,6 +193,46 @@ export function parseOrdersQuery(query: Record<string, RawQueryValue>): OrdersQu
   return { ok: true, query: { pageSize, ...(cursor !== undefined ? { cursor } : {}) } };
 }
 
+/** Outcome of parsing the N3 body. */
+export type ReorderBodyParseResult =
+  | { ok: true; lineItemIds?: readonly string[] | undefined }
+  | { ok: false; message: string };
+
+/**
+ * Parses the N3 body.
+ *
+ * An ABSENT, `null` or empty body means the WHOLE order (§6.3 N3) — that is the
+ * Reorder case, and it is the common one, so it must not require a body at all.
+ * A present `lineItemIds` must be an array of non-empty strings; anything else is
+ * a broken client and is told so rather than silently treated as "whole order",
+ * which would add items the customer did not ask for.
+ */
+export function parseReorderBody(body: unknown): ReorderBodyParseResult {
+  if (body === undefined || body === null || body === "") {
+    return { ok: true, lineItemIds: undefined };
+  }
+  if (typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, message: "The request body must be a JSON object." };
+  }
+  const raw = (body as { lineItemIds?: unknown }).lineItemIds;
+  if (raw === undefined || raw === null) {
+    return { ok: true, lineItemIds: undefined };
+  }
+  if (!Array.isArray(raw)) {
+    return { ok: false, message: "'lineItemIds' must be an array of line item ids." };
+  }
+  const ids: string[] = [];
+  for (const value of raw) {
+    if (typeof value !== "string" || value.trim() === "") {
+      return { ok: false, message: "Every 'lineItemIds' value must be a non-empty string." };
+    }
+    ids.push(value.trim());
+  }
+  // An EMPTY array is not "the whole order". It is a request to reorder nothing,
+  // and answering it with the whole order would be the opposite of what was asked.
+  return { ok: true, lineItemIds: ids };
+}
+
 /* ========================================================================== *
  * The source
  * ========================================================================== */
@@ -208,6 +256,19 @@ export interface PortalOrderSource {
    * someone else's" identically.
    */
   getOrder(scope: CustomerScope, orderReference: string): Promise<PortalOrderDetail | null>;
+  /**
+   * The reorder plan for one of the scope's orders (N3), or `null` when the
+   * reference names no order reachable by this scope.
+   *
+   * Optional so a source predating task 8.3 still satisfies the interface; the
+   * route answers `502` when it is absent rather than inventing an empty plan,
+   * which would read as "nothing on this order can be bought again".
+   */
+  planReorder?(
+    scope: CustomerScope,
+    orderReference: string,
+    lineItemIds?: readonly string[],
+  ): Promise<PortalReorderPlanResponse | null>;
 }
 
 /** The Shopify-backed source. Read-only: it issues Admin queries and nothing else. */
@@ -223,6 +284,14 @@ export class ShopifyPortalOrderSource implements PortalOrderSource {
 
   getOrder(scope: CustomerScope, orderReference: string): Promise<PortalOrderDetail | null> {
     return readScopedOrderDetail(this.deps, scope, orderReference);
+  }
+
+  planReorder(
+    scope: CustomerScope,
+    orderReference: string,
+    lineItemIds?: readonly string[],
+  ): Promise<PortalReorderPlanResponse | null> {
+    return readScopedReorderPlan(this.deps, scope, orderReference, lineItemIds);
   }
 }
 
@@ -306,6 +375,23 @@ export class CachingPortalOrderSource implements PortalOrderSource {
     const key = `${scope.customerId}\u0000detail\u0000${orderReference}`;
     return this.detailCache.read(key, () => this.inner.getOrder(scope, orderReference));
   }
+
+  /**
+   * DELIBERATELY NOT CACHED. A reorder plan is a statement about what is
+   * purchasable RIGHT NOW; serving a 60 s old answer would offer a variant that
+   * sold out in the meantime, and the failure would surface at `/cart/add.js`
+   * after the customer tapped. Idempotency replay already collapses a genuine
+   * double-submit (a 24 h window on the same key), which is the case a cache here
+   * would otherwise be covering for.
+   */
+  planReorder(
+    scope: CustomerScope,
+    orderReference: string,
+    lineItemIds?: readonly string[],
+  ): Promise<PortalReorderPlanResponse | null> {
+    if (!this.inner.planReorder) throw new PortalOrderSourceUnconfiguredError();
+    return this.inner.planReorder(scope, orderReference, lineItemIds);
+  }
 }
 
 /**
@@ -351,6 +437,10 @@ export class UnconfiguredPortalOrderSource implements PortalOrderSource {
   }
 
   async getOrder(): Promise<PortalOrderDetail | null> {
+    throw new PortalOrderSourceUnconfiguredError();
+  }
+
+  async planReorder(): Promise<PortalReorderPlanResponse | null> {
     throw new PortalOrderSourceUnconfiguredError();
   }
 }
@@ -424,6 +514,13 @@ export class InMemoryPortalOrderSource implements PortalOrderSource {
  * The routes
  * ========================================================================== */
 
+/**
+ * N3's rate limit: 20 requests per hour per customer (design line 3780 —
+ * "each call is an Admin API read of an order plus variant resolution").
+ */
+export const REORDER_RATE_LIMIT_MAX_REQUESTS = 20 as const;
+export const REORDER_RATE_LIMIT_WINDOW_MS = 3_600_000 as const;
+
 /** Options accepted by {@link registerOrdersRoutes}. */
 export interface OrdersRouteOptions {
   /**
@@ -432,6 +529,8 @@ export interface OrdersRouteOptions {
    * class for why orders differ from every other `/v1` read on this point.
    */
   orderSource?: PortalOrderSource;
+  /** Overrides N3's rate limiter. A test injects a fake clock and a shared store. */
+  reorderRateLimiter?: preHandlerAsyncHookHandler;
 }
 
 /** The `502` body, defined once so the two handlers cannot describe it differently. */
@@ -509,6 +608,13 @@ function isUpstreamFailure(err: unknown): boolean {
  */
 export function registerOrdersRoutes(app: FastifyInstance, opts: OrdersRouteOptions = {}): void {
   const orderSource = opts.orderSource ?? new UnconfiguredPortalOrderSource();
+  const reorderRateLimiter =
+    opts.reorderRateLimiter ??
+    createRedemptionRateLimiter({
+      maxRequests: REORDER_RATE_LIMIT_MAX_REQUESTS,
+      windowMs: REORDER_RATE_LIMIT_WINDOW_MS,
+      subject: "reorder",
+    });
 
   // N1 — the paged list (§6.3 N1, Req 6.1/6.2/6.12).
   app.get("/orders", async (req: FastifyRequest, reply: FastifyReply) => {
@@ -572,6 +678,67 @@ export function registerOrdersRoutes(app: FastifyInstance, opts: OrdersRouteOpti
       }
 
       return order;
+    },
+  );
+
+  // N3 — the reorder plan (§6.3 N3, Req 6.6/6.7).
+  //
+  // IDEMPOTENCY IS ALREADY ENFORCED, not re-implemented here: `registerIdempotency`
+  // installs a `/v1`-wide preHandler over every state-changing method, so a POST
+  // without a valid `Idempotency-Key` is refused with `400
+  // invalid_idempotency_key` before this handler runs, and a repeat within the
+  // 24 h window is replayed verbatim. Adding a second mechanism would give two
+  // answers to one question.
+  app.post<{ Params: { orderId: string }; Body: unknown }>(
+    "/orders/:orderId/reorder-plan",
+    { preHandler: [reorderRateLimiter] },
+    async (req, reply: FastifyReply) => {
+      // Identity first, exactly as N2 — a stranger must not learn which order
+      // references are well-formed.
+      const scope = requireCustomerScope(req);
+
+      const orderReference = req.params.orderId;
+      if (!PORTAL_ORDER_ID_PATTERN.test(orderReference)) {
+        return reply.code(400).send({
+          error: "invalid_order_reference",
+          message: "That is not a valid order reference.",
+        });
+      }
+
+      const parsedBody = parseReorderBody(req.body);
+      if (!parsedBody.ok) {
+        return reply.code(400).send({ error: "invalid_request", message: parsedBody.message });
+      }
+
+      let plan: PortalReorderPlanResponse | null;
+      try {
+        if (!orderSource.planReorder) {
+          // A source without N3 support. Refuse rather than answer with an empty
+          // plan, which would state that nothing on this order can be bought again.
+          throw new PortalOrderSourceUnconfiguredError();
+        }
+        plan = await orderSource.planReorder(scope, orderReference, parsedBody.lineItemIds);
+      } catch (err) {
+        if (err instanceof InvalidOrderReferenceError) {
+          return reply.code(400).send({
+            error: "invalid_order_reference",
+            message: "That is not a valid order reference.",
+          });
+        }
+        if (!isUpstreamFailure(err)) throw err;
+        return replyUpstreamUnavailable(req, reply);
+      }
+
+      if (plan === null) {
+        // Same body as N2's miss, for the same reason: a foreign order and a
+        // non-existent one are indistinguishable, so neither is confirmed.
+        return reply.code(404).send({
+          error: "order_not_found",
+          message: "That order is not available on this account.",
+        });
+      }
+
+      return plan;
     },
   );
 }

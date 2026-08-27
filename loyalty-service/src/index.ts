@@ -51,6 +51,10 @@ import { PgCustomerBalanceSource } from "./routes/balance.js";
 import { DbEntitlementResolver } from "./benefits/entitlementResolver.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
 import { CachingPortalOrderSource, ShopifyPortalOrderSource } from "./routes/orders.js";
+import {
+  CachingPortalCatalogSource,
+  ShopifyPortalCatalogSource,
+} from "./routes/catalog.js";
 import { ShopifyGraphqlTransport } from "./shopify/graphqlClient.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
@@ -207,6 +211,23 @@ async function main(): Promise<void> {
       )
     : undefined;
 
+  // N4's catalogue source (task 8.4). Same Admin credential, DIFFERENT security
+  // class: products are global, so this path is validated by
+  // `assertGlobalCatalogueQuery` — which proves the query cannot reach
+  // customer-owned data — rather than by the customer-scoped guard. Undefined
+  // without a token, in which case the route answers `502` rather than reporting
+  // every requested product as deleted.
+  const portalCatalogSource = config.shopify.adminApiToken
+    ? new CachingPortalCatalogSource(
+        new ShopifyPortalCatalogSource({
+          transport: new ShopifyGraphqlTransport(
+            config.shopify.shopDomain,
+            config.shopify.adminApiToken,
+          ),
+        }),
+      )
+    : undefined;
+
   // Build the app up-front so its logger is available for boot-time wiring
   // warnings. Analytics is served from the hourly-refreshed materialized views
   // via the Pg-backed data source (Req 20; the refresh job is registered below).
@@ -247,6 +268,11 @@ async function main(): Promise<void> {
     // `UnconfiguredPortalOrderSource` — NOT an empty page. See the note above
     // where `portalOrderSource` is built for why that distinction matters.
     ...(portalOrderSource ? { portalOrderSource } : {}),
+    // Global catalogue read (task 8.4). Shares the Admin token with the orders
+    // source but NOT its scoping: products are global data, validated by
+    // `assertGlobalCatalogueQuery` instead. Undefined without a token, in which
+    // case the route answers `502` rather than reporting every product deleted.
+    ...(portalCatalogSource ? { portalCatalogSource } : {}),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives
