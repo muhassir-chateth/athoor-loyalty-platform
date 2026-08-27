@@ -65,6 +65,7 @@ import type { Queryable } from "../../ledger/repository.js";
 import {
   getWishlist as engineGetWishlist,
   listFavourites as engineListFavourites,
+  listWishlistRemovals as engineListWishlistRemovals,
   setFavourite as engineSetFavourite,
   normaliseProductId,
 } from "../../profile/favouritesWishlist.js";
@@ -161,6 +162,46 @@ export async function setWishlistItem(
   // whether `"007"` and `"7"` collapse to a single row.
   const normalisedProductId = normaliseProductId(productId);
 
+  // ── THE TOMBSTONE, AND WHY THE ORDER OF THE TWO WRITES IS LOAD-BEARING ─────
+  // These are two statements, not one transaction: `Queryable` is `Pool |
+  // PoolClient`, so this layer cannot assume it holds a client it may BEGIN on.
+  // The order is therefore chosen so that EITHER statement failing alone leaves a
+  // safe state rather than a resurrection.
+  //
+  // REMOVE — tombstone FIRST, then delete the row. If the delete fails, the
+  // customer still sees the product saved and the tombstone is already recorded, so
+  // a reconcile cannot re-add a duplicate and the next attempt completes the
+  // removal. Doing it the other way round would leave a window where the row is
+  // gone and NOTHING records why — and the next reconcile, reading a device-local
+  // list that is never cleared, would put it straight back.
+  //
+  // ADD — clear the tombstone FIRST, then insert the row. If the insert fails,
+  // neither the row nor a suppression exists, so the device-local list is free to
+  // restore exactly what the customer asked for. Inserting first would risk a row
+  // that is present but still suppressed from future merges.
+  // THROUGH THE PRIMITIVE, not through the engine helper. Both statements are
+  // provable shapes — ownership as the leading INSERT column, `WHERE customer_id =
+  // $1` on the DELETE — so `scopedMutate` gives them the same two guarantees every
+  // other statement in this layer has: `$1` bound from the scope, and a driver fault
+  // wrapped as `PortalRepositoryFaultError`. Calling the engine helper directly
+  // would skip the fault wrapping, so an ECONNREFUSED on the tombstone would escape
+  // this layer raw while the identical failure on the row write did not.
+  if (on) {
+    await scopedMutate(executor, scope, {
+      sql: `DELETE FROM customer_wishlist_removals
+             WHERE customer_id = $1
+               AND shopify_product_id = $2`,
+      params: [normalisedProductId],
+    });
+  } else {
+    await scopedMutate(executor, scope, {
+      sql: `INSERT INTO customer_wishlist_removals (customer_id, shopify_product_id)
+                 VALUES ($1, $2)
+            ON CONFLICT (customer_id, shopify_product_id) DO NOTHING`,
+      params: [normalisedProductId],
+    });
+  }
+
   const affected = on
     ? await scopedMutate(executor, scope, {
         sql: `INSERT INTO customer_wishlist (customer_id, shopify_product_id)
@@ -176,6 +217,20 @@ export async function setWishlistItem(
       });
 
   return affected > 0;
+}
+
+/**
+ * The products this customer has explicitly removed (task 9.1, §8.4 rule 3).
+ *
+ * Scope-typed like everything else here, so a caller cannot ask which products
+ * SOMEONE ELSE removed. Exists for the convergence property test and for operator
+ * diagnosis of "why did this product not come back after a reconcile".
+ */
+export async function readWishlistRemovals(
+  executor: Queryable,
+  scope: CustomerScope,
+): Promise<string[]> {
+  return engineListWishlistRemovals(executor, scope.customerId);
 }
 
 /* ========================================================================== *
@@ -236,6 +291,9 @@ export type WishlistCountRejectsAString = Expect<
 >;
 export type WishlistWriteRejectsAString = Expect<
   string extends Parameters<typeof setWishlistItem>[1] ? false : true
+>;
+export type WishlistRemovalsReadRejectsAString = Expect<
+  string extends Parameters<typeof readWishlistRemovals>[1] ? false : true
 >;
 export type FavouritesReadRejectsAString = Expect<
   string extends Parameters<typeof readFavourites>[1] ? false : true

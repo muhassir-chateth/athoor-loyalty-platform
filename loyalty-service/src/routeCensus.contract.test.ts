@@ -98,6 +98,10 @@ const REQUIRED_PRESENT = [
   "/v1/profile/visit",
   "/v1/profile/favourites",
   "/v1/profile/wishlist",
+  // N5 (task 9.1). The wishlist's only removal authority and the only writer of
+  // the explicit-removal tombstone: if it silently stopped registering, removals
+  // would go back to being undone by the next reconcile.
+  "/v1/profile/wishlist/:productId",
   "/v1/profile/wishlist/reconcile",
   "/v1/profile/recently-viewed",
   "/v1/referral",

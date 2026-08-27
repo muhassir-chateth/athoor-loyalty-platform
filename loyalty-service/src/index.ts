@@ -55,6 +55,7 @@ import {
   CachingPortalCatalogSource,
   ShopifyPortalCatalogSource,
 } from "./routes/catalog.js";
+import { PgWishlistWriteStore } from "./routes/wishlist.js";
 import { ShopifyGraphqlTransport } from "./shopify/graphqlClient.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
@@ -273,6 +274,11 @@ async function main(): Promise<void> {
     // `assertGlobalCatalogueQuery` instead. Undefined without a token, in which
     // case the route answers `502` rather than reporting every product deleted.
     ...(portalCatalogSource ? { portalCatalogSource } : {}),
+    // N5's wishlist write authority (task 9.1). Registered unconditionally because
+    // it is the ONLY path that can remove a wishlist item and the only writer of the
+    // explicit-removal tombstone — without it, §8.4 rule 5 stays conditionally false
+    // and a removal is undone by the next reconcile.
+    wishlistStore: new PgWishlistWriteStore(pool),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives

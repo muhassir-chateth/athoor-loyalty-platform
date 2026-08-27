@@ -20,6 +20,7 @@ import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerOrdersRoutes, type PortalOrderSource } from "./orders.js";
 import { registerCatalogRoutes, type PortalCatalogSource } from "./catalog.js";
+import { registerWishlistWriteRoute, type WishlistWriteStore } from "./wishlist.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
@@ -111,6 +112,13 @@ export interface V1RouterOptions {
    * requested product as deleted.
    */
   portalCatalogSource?: PortalCatalogSource;
+  /**
+   * Backs `PUT /v1/profile/wishlist/:productId` (N5, task 9.1) — the wishlist's
+   * single removal authority, and the writer of the explicit-removal tombstone.
+   * Absent → the route is not registered, matching how the other profile writes
+   * gate on their store rather than accepting writes that go nowhere.
+   */
+  wishlistStore?: WishlistWriteStore;
   /**
    * Per-customer redemption rate-limit configuration for `POST /v1/redeem`
    * (task 6.5, Req 11.12). Defaults to 10 requests / 60s keyed on
@@ -304,6 +312,9 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // without a wired source they answer `502` rather than an empty page.
   registerOrdersRoutes(app, { orderSource: opts.portalOrderSource });
   registerCatalogRoutes(app, { catalogSource: opts.portalCatalogSource });
+  registerWishlistWriteRoute(app, {
+    ...(opts.wishlistStore ? { wishlistStore: opts.wishlistStore } : {}),
+  });
 
   // Authenticated Fragrance_Profile + journey timeline (task 14.5, Req 17.1,
   // 17.8, 17.9, 17.10): purchased fragrances (paid Shopify orders) plus

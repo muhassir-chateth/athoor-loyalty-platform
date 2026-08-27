@@ -156,6 +156,18 @@ export const PUBLIC_SCHEMA_INVENTORY: readonly PublicRelation[] = [
     apiAccess: "none",
   },
   {
+    name: "customer_wishlist_removals",
+    kind: "table",
+    createdBy: "1786500000000_create-wishlist-removals.ts",
+    data: "customer_scoped",
+    apiAccess: "none",
+    note:
+      "Task 9.1 explicit-removal tombstone (design §8.4 rule 3). One row per product " +
+      "the customer deleted from their wishlist; it is what stops an uncleared " +
+      "device-local list resurrecting the removal on the next reconcile. Product ids " +
+      "and a timestamp only — no PII beyond the referenced customer.",
+  },
+  {
     name: "customer_recently_viewed",
     kind: "table",
     createdBy: "1784904000000_create-profile-preferences.ts",
