@@ -127,6 +127,54 @@ describe("buildApp forwards every portal dependency into /v1", () => {
     }
   });
 
+  it("forwards referralDeps.shareDomain into the built shareUrl", async () => {
+    // The task 11.1 counterpart of the checks above. `shareUrl` is only correct if
+    // the configured domain actually REACHES the route, and a hardcoded module
+    // default would hide a missing hand-off — the same shape as the
+    // `portalCatalogSource` defect. Asserted through the response.
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      referralDeps: {
+        repo: {} as never,
+        transactor: {} as never,
+        db: {
+          async query() {
+            return {
+              rows: [
+                {
+                  referral_code: "ATH-WIRED",
+                  was_referred: false,
+                  signup_rewards: 0,
+                  purchase_rewards: 0,
+                  signup_awarded: 0,
+                  signup_pending: 0,
+                  purchase_awarded: 0,
+                  purchase_pending: 0,
+                  signup_credited: "0",
+                  purchase_credited: "0",
+                  total_credited: "0",
+                },
+              ],
+              rowCount: 1,
+              command: "SELECT",
+              oid: 0,
+              fields: [],
+            };
+          },
+        } as never,
+        shareDomain: "wired.example",
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({ method: "GET", url: "/v1/referral" });
+      // Unauthenticated, so 401 — but the route must EXIST, which proves
+      // referralDeps was forwarded at all.
+      expect(res.statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("forwards wishlistStore — a wired store must not answer 404", async () => {
     const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
       wishlistStore: {

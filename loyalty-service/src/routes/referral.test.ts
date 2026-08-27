@@ -38,7 +38,14 @@ interface FakeState {
     signup_rewarded: boolean;
     purchase_rewarded: boolean;
   }>;
-  ledger: Array<{ id: string; customer_id: string; entry_type: string; points: number }>;
+  ledger: Array<{
+    id: string;
+    customer_id: string;
+    entry_type: string;
+    points: number;
+    /** Task 11.1: the stage reason, needed to sum credited points per stage. */
+    reason?: string;
+  }>;
   lots: Array<{ customer_id: string; ledger_entry_id: string; points: number; expires_at: Date | null }>;
   hasPaidPurchase: Set<string>;
 }
@@ -74,6 +81,38 @@ class FakeDb implements Queryable {
     const s = this.state;
 
     // GET /v1/referral self lookup.
+    // ── Task 11.1 additive block ────────────────────────────────────────────
+    // Matched BEFORE the SELF_SQL branch: this query also mentions `referrals` and
+    // `ledger_entries`, and a looser matcher below could claim it. Counts are drawn
+    // from the seeded referral rows so the stage view is exercised for real rather
+    // than stubbed to constants.
+    if (text.includes("AS signup_awarded")) {
+      const rows = s.referrals.filter((r) => r.referrer_id === values[0]);
+      const signupAwarded = rows.filter((r) => r.signup_rewarded).length;
+      const purchaseAwarded = rows.filter((r) => r.purchase_rewarded).length;
+      const ledger = s.ledger.filter((e) => e.customer_id === values[0]);
+      const sumFor = (reason: unknown): string =>
+        String(
+          ledger
+            .filter((e) => e.entry_type === "earn_referral" && e.reason === reason)
+            .reduce((sum, e) => sum + Number(e.points), 0),
+        );
+      return ok([
+        {
+          signup_awarded: signupAwarded,
+          signup_pending: rows.length - signupAwarded,
+          purchase_awarded: purchaseAwarded,
+          purchase_pending: rows.filter((r) => r.signup_rewarded && !r.purchase_rewarded).length,
+          signup_credited: sumFor(values[1]),
+          purchase_credited: sumFor(values[2]),
+          total_credited: String(
+            ledger
+              .filter((e) => e.entry_type === "earn_referral")
+              .reduce((sum, e) => sum + Number(e.points), 0),
+          ),
+        },
+      ]);
+    }
     if (text.includes("FROM customers c") && text.includes("referral_code")) {
       const id = values[0] as string;
       const code = [...s.codes.entries()].find(([, cid]) => cid === id)?.[0] ?? null;
@@ -145,6 +184,7 @@ class FakeDb implements Queryable {
         customer_id: values[0] as string,
         entry_type: values[1] as string,
         points: values[2] as number,
+        reason: values[3] as string,
       };
       s.ledger.push(row);
       return ok([
