@@ -416,6 +416,80 @@ describe("buildApp forwards every portal dependency into /v1", () => {
     }
   });
 
+  it("forwards privacyDeps — the export readers AND the db reach N14/N15 (task 15)", async () => {
+    // Both halves, because they are separate hand-offs: the export needs
+    // `exportReaders`, the erasure request needs `db`, and forwarding one while
+    // dropping the other is exactly the half-wiring this test class exists for.
+    let inserts = 0;
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      tokenVerifier: new FakeTokenVerifier({ [BEARER]: SHOPIFY_ID }),
+      customerResolver: new InMemoryCustomerResolver({ [SHOPIFY_ID]: CUSTOMER_UUID }),
+      privacyDeps: {
+        db: {
+          async query(sql: string) {
+            if (sql.trim().startsWith("INSERT INTO customer_erasure_requests")) {
+              inserts += 1;
+              const rows = [
+                {
+                  id: "abcdabcd-1111-4111-8111-111111111111",
+                  requested_at: "2026-08-27T12:00:00.000Z",
+                  status: "received",
+                  completed_at: null,
+                  source: "portal",
+                },
+              ];
+              return { rows, rowCount: 1, command: "INSERT", oid: 0, fields: [] };
+            }
+            return { rows: [], rowCount: 0, command: "SELECT", oid: 0, fields: [] };
+          },
+        } as never,
+        exportReaders: {
+          identity: async () => ({ firstName: "WIRED-EXPORT" }),
+          addresses: async () => [],
+          consent: async () => null,
+          balance: async () => null,
+          ledger: async () => null,
+          redemptions: async () => null,
+          referral: async () => null,
+          wishlist: async () => [],
+          favourites: async () => [],
+          recentlyViewed: async () => [],
+          preferences: async () => null,
+          birthday: async () => null,
+          portalVisits: async () => null,
+          erasureRequests: async () => [],
+        },
+        clock: { now: () => new Date("2026-08-27T12:34:56.000Z") },
+      },
+    });
+    try {
+      await app.ready();
+      const exported = await app.inject({
+        method: "GET",
+        url: "/v1/profile/export",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      // A 502 here would mean `exportReaders` never arrived at the route.
+      expect(exported.statusCode).toBe(200);
+      expect(exported.headers["content-disposition"]).toContain("attachment");
+      expect((exported.json() as { data: { identity: unknown } }).data.identity).toEqual({
+        firstName: "WIRED-EXPORT",
+      });
+
+      const requested = await app.inject({
+        method: "POST",
+        url: "/v1/profile/erasure-request",
+        headers: { authorization: `Bearer ${BEARER}`, "idempotency-key": "app-test-erasure-1" },
+        payload: {},
+      });
+      expect(requested.statusCode).toBe(200);
+      expect((requested.json() as { reference: string }).reference).toMatch(/^ERASE-/);
+      expect(inserts).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("forwards wishlistStore — a wired store must not answer 404", async () => {
     const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
       wishlistStore: {

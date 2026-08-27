@@ -107,6 +107,9 @@ const REQUIRED_PRESENT = [
   "/v1/profile/identity",
   "/v1/profile/addresses",
   "/v1/profile/consent",
+  // N14/N15 (tasks 15.1, 15.2). Registered unconditionally.
+  "/v1/profile/export",
+  "/v1/profile/erasure-request",
   "/v1/profile/wishlist",
   // N5 (task 9.1). The wishlist's only removal authority and the only writer of
   // the explicit-removal tombstone: if it silently stopped registering, removals

@@ -27,6 +27,7 @@ import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerPreferencesRoutes, type PreferencesRouteOptions } from "./preferences.js";
 import { registerIdentityRoutes, type IdentityRouteOptions } from "./identity.js";
 import { registerAddressRoutes, type AddressRouteOptions } from "./addresses.js";
+import { registerPrivacyRoutes, type PrivacyRouteOptions } from "./privacy.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
 import { registerBenefitRoutes } from "./benefits.js";
@@ -215,6 +216,13 @@ export interface V1RouterOptions {
    */
   addressDeps?: AddressRouteOptions;
   /**
+   * Backs `GET /v1/profile/export` (N14) and `POST /v1/profile/erasure-request`
+   * (N15), tasks 15.1/15.2. Absent does NOT unregister the routes — they register
+   * unconditionally and answer `502`. For an erasure endpoint a `404` would read as
+   * "this account cannot be erased", and it would shrink the route census.
+   */
+  privacyDeps?: PrivacyRouteOptions;
+  /**
    * Backs `POST /v1/profile/recently-viewed` (task 31, Req 17.5). Production
    * wires the existing `RecentlyViewedStore`, which owns sampling and retention.
    */
@@ -394,6 +402,11 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // writes a local table and no migration accompanies them.
   registerIdentityRoutes(app, opts.identityDeps ?? {});
   registerAddressRoutes(app, opts.addressDeps ?? {});
+
+  // N14/N15 (tasks 15.1, 15.2). The export composes scope-typed readers; the
+  // erasure route RECORDS INTENT AND DELETES NOTHING — the destructive procedure is
+  // operator-run and is deliberately not reachable from any route.
+  registerPrivacyRoutes(app, opts.privacyDeps ?? {});
 
   // Mobile readiness (task 19.1, Req 19.1/19.7): additive device-token
   // registration/de-registration under /v1 (POST /v1/devices,
