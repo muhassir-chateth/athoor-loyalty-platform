@@ -321,6 +321,7 @@
       "purchase": "Purchase"
     },
     "compare": {
+      "add_to_compare": "Add to compare",
       "no_records": "Nothing found to compare!",
       "addToCompareList": "Add To Compare List",
       "viewMyCompareList": "View My Compare List",

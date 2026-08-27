@@ -84,6 +84,83 @@
   var TIER_CLASSES = { bronze: 'tier-bronze', silver: 'tier-silver', gold: 'tier-gold', royal_vip: 'tier-royal' };
   var TIER_BADGE_CLASSES = ['tier-bronze', 'tier-silver', 'tier-gold', 'tier-royal'];
 
+  // ── Wishlist reconciliation state and constants ───────────────────────
+  //
+  // WHY THESE LIVE HERE AND NOT NEXT TO THE CODE THAT USES THEM. `var` is
+  // hoisted, but its ASSIGNMENT only happens when execution reaches the
+  // declaration. reconcileWishlistOnce() is called a few lines below, so
+  // anything it reads during that call must already be assigned — a declaration
+  // further down the file would be hoisted-but-undefined at call time. Every
+  // declaration in this block is here for that one reason.
+
+  /**
+   * handle → in-flight or settled resolution promise. Coalesces duplicate
+   * lookups for the same handle within a single page load, so the worker pool
+   * below never issues two requests for one handle.
+   *
+   * @type {Object.<string, Promise<{outcome:'resolved',id:string}|{outcome:'missing'}|{outcome:'environmental'}>>}
+   */
+  var _handleCache = {};
+
+  /** Longest handle we will accept; Shopify handles are far shorter. */
+  var WISHLIST_HANDLE_MAX_LENGTH = 255;
+
+  /**
+   * MIRRORS `WISHLIST_RECONCILE_MAX_ITEMS` in
+   * loyalty-service/src/profile/wishlistReconcileContract.ts — deliberately the
+   * SAME IDENTIFIER on both sides of the boundary so `grep -r
+   * WISHLIST_RECONCILE_MAX_ITEMS` finds the pair, and changing one without the
+   * other is visible rather than silent.
+   *
+   * WHY THE CLIENT MUST ENFORCE THIS TOO. The server schema is
+   * `.max(WISHLIST_RECONCILE_MAX_ITEMS)` on the whole array, and it rejects the
+   * REQUEST, not the overflow: a member with 501 resolvable handles previously
+   * had all 501 resolved, sent in one body, refused `400 invalid_request`, and
+   * merged NOTHING — permanently, on every single load. Capping client-side
+   * turns a total failure into an almost-complete merge.
+   *
+   * RESIDUAL, STATED HONESTLY: the slice is stable (first-occurrence order from
+   * the normaliser), so a member above the cap merges the same first
+   * WISHLIST_RECONCILE_MAX_ITEMS items every load and the tail beyond the cap
+   * never merges. That is a bounded, documented shortfall of (n - cap) items
+   * instead of losing all n. Rotating the window would merge the tail
+   * eventually but makes each load's payload non-deterministic; that trade is
+   * the owner's to make, not this fix's.
+   */
+  var WISHLIST_RECONCILE_MAX_ITEMS = 500;
+
+  /**
+   * How many `/products/{handle}.js` lookups may be in flight at once.
+   *
+   * Unbounded `Promise.all(handles.map(...))` opened one request PER HANDLE, so
+   * a 40-item wishlist fired 40 simultaneous storefront requests while the
+   * dashboard was still painting — each with its own 3s abort timer, all
+   * competing with /v1/balance, /v1/history, /v1/referral, /v1/profile/visit and
+   * the page's own images for the same connection budget. That is an LCP
+   * problem, not an untidiness problem.
+   *
+   * 5 is chosen to sit just under the ~6-connections-per-host ceiling browsers
+   * apply to HTTP/1.1, leaving one slot for the dashboard's own reads. On
+   * HTTP/2, where there is no such ceiling, it still bounds how much bandwidth
+   * reconciliation can take from the paint.
+   */
+  var WISHLIST_RESOLUTION_CONCURRENCY = 5;
+
+  /**
+   * The reconciliation diagnostic taxonomy. Stable identifiers only — see
+   * reportWishlistDiag below for the privacy rules that govern their payloads.
+   */
+  var WISHLIST_DIAG = {
+    LOCAL_MALFORMED: 'wishlist_local_malformed',
+    LOCAL_TRUNCATED: 'wishlist_local_truncated',
+    RESOLUTION_INCOMPLETE: 'wishlist_resolution_incomplete',
+    RESOLUTION_FAILED: 'wishlist_resolution_failed',
+    AUTH_FAILED: 'wishlist_auth_failed',
+    VALIDATION_REJECTED: 'wishlist_validation_rejected',
+    API_FAILED: 'wishlist_reconcile_api_failed',
+    NETWORK_FAILED: 'wishlist_network_failed'
+  };
+
   // Kick off reads independently: a failure of one never blocks the others, and
   // any failure just leaves that section's server-rendered values in place.
   loadBalance();
@@ -91,6 +168,512 @@
   loadReferral();
   initReferralClaim();
   markVisit();
+  reconcileWishlistOnce(); // task 43 — translate device-local handles → IDs, then sync
+
+  /* --------------------------------------------------------------------- */
+
+  // ── Wishlist handle resolution + reconciliation (task 43) ──────────────
+  //
+  // The device-local `shopify-wishlist` localStorage entry stores product
+  // HANDLES (e.g. "athoor-oud").  POST /v1/profile/wishlist/reconcile expects
+  // numeric product ids (BIGINT column), so plain handles produce 400.
+  //
+  // Resolution is done client-side via GET /products/{handle}.js.  Observed
+  // storefront responses (docs/ops/wishlist-handle-resolution-evidence.md):
+  //
+  //   resolved     — 200, text/javascript, JSON body with numeric `id`, no redirect
+  //   missing      — 404, no redirect, empty body (archived/draft === nonexistent)
+  //   environmental— redirected (password gate), HTML body, 5xx/429, timeout, etc.
+  //
+  // NEVER PRUNE localStorage.  Unresolved handles stay byte-identically in
+  // storage and are simply excluded from the reconcile payload.  The cost is a
+  // repeat lookup next session; the alternative is irreversible loss of member
+  // data on ambiguous evidence (archived ≡ 404, not deletion).
+  //
+  // In-memory cache + in-flight coalescing prevent duplicate requests for the
+  // same handle within a single page load.
+
+  /**
+   * Classifies a single handle fetch into one of three outcomes.
+   * Uses `redirect: "follow"` so the password gate arrives as a 200 with
+   * `response.redirected === true`.
+   *
+   * @param {string} handle
+   * @returns {Promise<{outcome:'resolved',id:string}|{outcome:'missing'}|{outcome:'environmental'}>}
+   */
+  function resolveHandle(handle) {
+    if (_handleCache[handle]) return _handleCache[handle];
+
+    var p = _doResolveHandle(handle);
+    _handleCache[handle] = p;
+    return p;
+  }
+
+  function _doResolveHandle(handle) {
+    if (typeof window.fetch !== 'function') {
+      return Promise.resolve({ outcome: 'environmental' });
+    }
+
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = controller
+      ? setTimeout(function () { controller.abort(); }, timeoutMs)
+      : null;
+
+    var opts = {
+      method: 'GET',
+      credentials: 'same-origin',
+      redirect: 'follow',
+      headers: { Accept: 'application/javascript, application/json, */*' }
+    };
+    if (controller) opts.signal = controller.signal;
+
+    // The abort timer is cleared ONLY once the outcome is fully settled, which
+    // includes reading the body — see clearAfterSettled below. Clearing it as
+    // soon as the response headers arrived (what this used to do) left a 200
+    // whose body then stalled with no timeout at all, which is precisely the
+    // case the timer exists for.
+    function clearAfterSettled(outcome) {
+      if (timer) clearTimeout(timer);
+      return outcome;
+    }
+
+    return window.fetch('/products/' + encodeURIComponent(handle) + '.js', opts).then(
+      function (res) {
+        // Password gate: redirected to /password — environmental, not missing.
+        if (res.redirected && /\/password(\?.*)?$/.test(res.url)) {
+          return { outcome: 'environmental' };
+        }
+
+        // Any other redirect is also environmental (unexpected proxy, etc.).
+        if (res.redirected) {
+          return { outcome: 'environmental' };
+        }
+
+        // Genuine 404: no redirect, confirmed missing/archived/draft.
+        if (res.status === 404) {
+          return { outcome: 'missing' };
+        }
+
+        // Transient or server error: environmental, do not prune.
+        if (res.status >= 400) {
+          return { outcome: 'environmental' };
+        }
+
+        // 200: try to parse JSON and extract numeric `id`.
+        var ct = res.headers && res.headers.get ? res.headers.get('content-type') : '';
+        // text/javascript is the observed content-type for /products/{handle}.js
+        if (ct && ct.indexOf('text/html') !== -1) {
+          // Soft-404 or password page that didn't set redirected flag.
+          return { outcome: 'environmental' };
+        }
+
+        return res.text().then(function (body) {
+          if (!body || !body.trim()) {
+            // Empty body on a 200 is unexpected — treat as environmental.
+            return { outcome: 'environmental' };
+          }
+          try {
+            var data = JSON.parse(body);
+            // The ternary already collapses `undefined` to `null`, so `null` is
+            // the single absent-value sentinel to test for below.
+            var rawId = data && (data.id !== undefined ? data.id : null);
+            // Must be a positive finite integer.
+            if (rawId !== null) {
+              var numId = Number(rawId);
+              if (Number.isFinite(numId) && numId > 0 && Math.floor(numId) === numId) {
+                return { outcome: 'resolved', id: String(numId) };
+              }
+            }
+            // JSON body but no valid id — soft-404 or unexpected shape.
+            return { outcome: 'environmental' };
+          } catch (e) {
+            return { outcome: 'environmental' };
+          }
+        }, function () {
+          // Body read failed or was aborted mid-stream — environmental.
+          return { outcome: 'environmental' };
+        });
+      },
+      function () {
+        // Timeout (AbortError), network failure — environmental.
+        return { outcome: 'environmental' };
+      }
+    ).then(clearAfterSettled);
+  }
+
+  /**
+   * Resolves `handles` through resolveHandle with at most `limit` requests in
+   * flight, and returns the outcomes IN THE SAME ORDER as the input — a bounded
+   * drop-in for the `Promise.all(handles.map(...))` this replaces.
+   *
+   * Two properties the callers and the committed suites depend on:
+   *
+   *   - ORDER OF RESULTS is input order, because each worker writes to
+   *     `results[index]` rather than pushing as it finishes;
+   *   - ORDER OF REQUESTS is also input order, because every worker draws from
+   *     one shared ascending cursor, so handle N is always requested before
+   *     handle N+1 regardless of which worker picks it up.
+   *
+   * Coalescing is untouched: workers call resolveHandle, so a repeated handle
+   * still hits `_handleCache` instead of the network. resolveHandle never
+   * rejects, but a rejection is absorbed as `environmental` anyway so one bad
+   * lookup can never fail the whole batch (the old `Promise.all` would have).
+   *
+   * @param {string[]} handles
+   * @param {number} limit Maximum concurrent lookups.
+   * @returns {Promise<Array<{outcome:string,id?:string}>>}
+   */
+  function resolveHandlesPooled(handles, limit) {
+    var results = new Array(handles.length);
+    var cursor = 0;
+    var workers = Math.min(limit, handles.length);
+    if (workers <= 0) return Promise.resolve(results);
+
+    function pump() {
+      if (cursor >= handles.length) return null; // Queue drained.
+      var index = cursor++; // Claim this slot before yielding.
+      return resolveHandle(handles[index]).then(
+        function (outcome) {
+          results[index] = outcome;
+          return pump();
+        },
+        function () {
+          results[index] = { outcome: 'environmental' };
+          return pump();
+        }
+      );
+    }
+
+    var running = [];
+    for (var i = 0; i < workers; i++) running.push(pump());
+    return Promise.all(running).then(function () { return results; });
+  }
+
+  // ── Device-local wishlist storage format (defect W1) ───────────────────
+  //
+  // W1 was that this function called JSON.parse on `shopify-wishlist`. EVERY
+  // production writer stores a COMMA-DELIMITED string of handles:
+  //   assets/dt_wishlist.js `setWishlist`      → array.join(',')
+  //   templates/page.wishlist.liquid           → same
+  //   snippets/athoor-wishlist-drawer.liquid   → same
+  // so JSON.parse threw on the very first real value, the catch returned, and
+  // the reconcile request was NEVER ISSUED. `customer_wishlist` therefore
+  // received nothing in production, while Req 7.1 makes it the single source of
+  // truth.
+  //
+  // The fix is not "swap JSON.parse for split(',')" — a single hard-coded
+  // format is what created the defect. This normaliser accepts every value the
+  // key can legitimately hold and canonicalises it, and it NEVER throws.
+
+  /**
+   * Canonicalises the raw `shopify-wishlist` value into an array of handles.
+   *
+   * Accepts, in order of precedence:
+   *   - a JSON array of strings — retained for BACKWARD COMPATIBILITY only (see
+   *     the note below on whether we genuinely need it);
+   *   - a comma-delimited string of handles — what all three production writers
+   *     actually store;
+   *   - `null` / `undefined` / `''` / whitespace-only → `[]`;
+   *   - anything else, including malformed JSON-like input such as `'[oops'`,
+   *     a JSON object, or a JSON array of non-strings → best-effort, never a throw.
+   *
+   * Guarantees: trimmed entries, no empty entries, DEDUPLICATED, and a stable
+   * deterministic order (first occurrence wins). Order matters because the
+   * reconcile payload and the resolution requests are asserted in tests.
+   *
+   * DO WE GENUINELY NEED THE JSON BRANCH? Not for any writer that exists today —
+   * all three write CSV, so on the current codebase the JSON branch is dead for
+   * production values. It is kept for two concrete reasons rather than caution:
+   * (1) the previous version of THIS function wrote nothing but read JSON, so a
+   * developer or QA session that hand-seeded a JSON array while debugging can
+   * still have left one in a real browser's localStorage; (2) reconciliation is
+   * add-only and one-shot per load, so accepting both costs one `charAt` test
+   * and cannot corrupt anything, whereas rejecting a JSON array would silently
+   * discard a member's saved items — the exact failure mode W1 already caused
+   * once. It is cheap insurance against an unrecoverable loss, not speculation
+   * about a future writer.
+   *
+   * @param {*} raw
+   * @returns {string[]}
+   */
+  function normaliseDeviceWishlist(raw) {
+    if (typeof raw !== 'string') return [];
+
+    var trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    /** @type {string[]} */
+    var candidates = null;
+
+    // Only attempt JSON when the value actually looks like a JSON array. A CSV
+    // handle list never starts with '[', so this cannot misroute real data, and
+    // a malformed '[oops' falls through to the CSV branch instead of throwing.
+    if (trimmed.charAt(0) === '[') {
+      try {
+        var parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) candidates = parsed;
+      } catch (e) {
+        candidates = null; // Malformed JSON — fall through, never throw.
+      }
+    }
+
+    // The production format, and the fallback for anything unparseable.
+    if (candidates === null) candidates = trimmed.split(',');
+
+    var seen = {};
+    var handles = [];
+    for (var i = 0; i < candidates.length; i++) {
+      var entry = candidates[i];
+      // A JSON array may legitimately contain non-strings; skip them rather than
+      // coercing `null` into the string "null" and requesting /products/null.js.
+      if (typeof entry !== 'string' && typeof entry !== 'number') continue;
+      var handle = String(entry).trim();
+      if (!handle) continue; // Empty segment from ",,a" or a trailing comma.
+      if (handle.length > WISHLIST_HANDLE_MAX_LENGTH) continue;
+      if (Object.prototype.hasOwnProperty.call(seen, handle)) continue; // Deduplicate.
+      seen[handle] = true;
+      handles.push(handle);
+    }
+    return handles;
+  }
+
+  // ── Reconciliation diagnostics (privacy-safe) ──────────────────────────
+  //
+  // W2's second half was `.catch(noop)`: the 400 the server returned was
+  // swallowed, so a permanently broken merge looked identical to a working one.
+  // Failures are still SILENT FOR THE CUSTOMER — the dashboard degrades
+  // gracefully and shows nothing about wishlist syncing — but they are no longer
+  // invisible to us.
+  //
+  // Console only, no beacon (design §24.5). Stable identifiers and COUNTS only:
+  // never a handle, a title, a product id, a code, a token, a signature, a query
+  // string or a payload (design §24.3 never-log list). A handle is a customer's
+  // saved-product signal and is treated as customer data.
+
+  /**
+   * Emits one diagnostic line. `counts` may carry only non-identifying integers.
+   *
+   * SEVERITY IS PART OF THE SIGNAL. `warn` is reserved for outcomes that are
+   * genuinely abnormal or inconclusive and may need someone to look. Routine,
+   * expected outcomes go to `debug`, which browsers hide behind the Verbose
+   * level. Reporting an ordinary discontinued product at `warn` on every
+   * customer page load is how the lines that DO matter get ignored.
+   *
+   * The privacy filter is applied identically at every level: stable machine
+   * identifiers and finite numbers only — never a handle, title, product id or
+   * raw storage value (design §24.3).
+   *
+   * @param {string} code One of WISHLIST_DIAG.
+   * @param {Object.<string, number>} [counts]
+   * @param {'warn'|'debug'} [level] Defaults to 'warn'.
+   */
+  function reportWishlistDiag(code, counts, level) {
+    try {
+      var line = { code: code, section: 'wishlist_reconcile' };
+      if (counts) {
+        for (var key in counts) {
+          if (!Object.prototype.hasOwnProperty.call(counts, key)) continue;
+          // Integers only — a stray string here is how PII leaks into logs.
+          if (typeof counts[key] === 'number' && isFinite(counts[key])) {
+            line[key] = counts[key];
+          }
+        }
+      }
+      if (!window.console) return;
+      // Fall back to warn only if the requested level is genuinely unavailable,
+      // so a diagnostic is never lost — just occasionally louder than intended.
+      var method = level === 'debug' && typeof window.console.debug === 'function'
+        ? 'debug'
+        : 'warn';
+      if (typeof window.console[method] === 'function') {
+        window.console[method]('[athoor-loyalty]', line);
+      }
+    } catch (e) {
+      // Diagnostics must never break the dashboard.
+    }
+  }
+
+  /**
+   * Classifies a rejected reconcile POST into the diagnostic taxonomy.
+   * `postJson` attaches `status` on a non-OK response, and rejects with a bare
+   * Error (no `status`) for a timeout / network failure.
+   *
+   * @param {*} err
+   * @returns {string}
+   */
+  function classifyReconcileFailure(err) {
+    var status = err && typeof err.status === 'number' ? err.status : 0;
+    if (!status) return WISHLIST_DIAG.NETWORK_FAILED; // AbortError, TypeError, fetch unavailable.
+    if (status === 400 || status === 422) return WISHLIST_DIAG.VALIDATION_REJECTED;
+    if (status === 401 || status === 403) return WISHLIST_DIAG.AUTH_FAILED;
+    return WISHLIST_DIAG.API_FAILED;
+  }
+
+  /**
+   * Called once per authenticated dashboard load.
+   *
+   * 1. Reads `shopify-wishlist` from localStorage and normalises it (W1 fix).
+   * 2. Resolves each handle via /products/{handle}.js, at most
+   *    WISHLIST_RESOLUTION_CONCURRENCY requests in flight, so reconciliation
+   *    cannot saturate the connection budget during dashboard paint.
+   * 3. Sends the resolved numeric IDs as `{ deviceLocal }` — the contract the
+   *    server actually accepts (W2 fix) — capped at
+   *    WISHLIST_RECONCILE_MAX_ITEMS so the request cannot exceed the server's
+   *    own array bound and be refused wholesale; see
+   *    loyalty-service/src/profile/wishlistReconcileContract.ts.
+   * 4. localStorage is NEVER mutated — byte-identical before and after.
+   *
+   * THIS IS design §8.4 RULE 3, NOT A DEVIATION FROM IT. Rule 3 specifies that
+   * `localStorage['shopify-wishlist']` is never cleared — not on a partial merge,
+   * and not on a fully-resolved `200`. Reconciliation is READ-ONLY with respect
+   * to device storage: it does not clear, migrate, rewrite or normalise-in-place.
+   * Nothing here is pending or deferred; preservation is the specified behaviour.
+   *
+   * WHY. The merge is add-only — a union that never deletes server-side — so
+   * keeping the local list costs only a repeated handle lookup. Clearing it is
+   * irreversible on that device and would cost the customer their saved items
+   * outright. Preserving customer state is safer than destructive convergence.
+   *
+   * THE ACCEPTED COST, so it is not lost. An uncleared local list re-merges
+   * removed items. A product the customer removes through
+   * `PUT /v1/profile/wishlist/:productId {on:false}` is RE-ADDED on the next
+   * reconcile, because the device-local list still names it. This function runs
+   * once per PAGE LOAD, not once per session, so that resurrection recurs on
+   * every dashboard load for as long as the handle remains in localStorage. It
+   * is an accepted trade-off, not a solved problem. The real fix is an
+   * explicit-removal tombstone — schema in task 6, the write path in task 9.1 —
+   * and it is deliberately OUT OF SCOPE here. Do not "fix" this by clearing.
+   *
+   * §8.4 rule 4 ("never prune on ambiguity") is honoured in full, and under rule
+   * 3 it now holds universally rather than conditionally: `missing` and
+   * `environmental` handles are excluded from the payload and left in storage,
+   * and there is no fully-resolved case to except.
+   */
+  function reconcileWishlistOnce() {
+    var raw;
+    try {
+      raw = localStorage.getItem('shopify-wishlist');
+    } catch (e) {
+      return; // localStorage unavailable — nothing to do.
+    }
+    if (raw === null || raw === undefined) return; // Key absent — nothing to reconcile.
+
+    /** @type {string[]} */
+    var handles = normaliseDeviceWishlist(raw);
+
+    if (!handles.length) {
+      // Distinguish "empty list" (normal) from "there was something there and we
+      // could not make sense of any of it" (a real signal that a writer changed
+      // format). Counts only — never the value itself.
+      // `raw` is necessarily a string here: localStorage.getItem returns
+      // `string | null` and the null case already returned above.
+      if (raw.trim()) {
+        reportWishlistDiag(WISHLIST_DIAG.LOCAL_MALFORMED, { rawLength: raw.length });
+      }
+      return;
+    }
+
+    // Resolve through a bounded pool — NOT one request per handle — then fire a
+    // single reconcile request.
+    resolveHandlesPooled(handles, WISHLIST_RESOLUTION_CONCURRENCY)
+      .then(function (results) {
+        var resolvedIds = [];
+        var missingCount = 0;
+        var environmentalCount = 0;
+        for (var i = 0; i < results.length; i++) {
+          if (results[i].outcome === 'resolved') {
+            resolvedIds.push(results[i].id);
+          } else if (results[i].outcome === 'missing') {
+            missingCount++;
+          } else {
+            environmentalCount++;
+          }
+        }
+
+        // Any handle we could not translate is reported by COUNT — but the two
+        // reasons are NOT equally interesting, and conflating them was actively
+        // harmful.
+        //
+        //   environmental — the evidence was INCONCLUSIVE (password gate, 5xx,
+        //     429, timeout, unreadable body). Something may be wrong with the
+        //     storefront or the network, and the handles are excluded from the
+        //     merge but kept in localStorage (§8.4 rule 4). Worth a `warn`.
+        //
+        //   missing — a confirmed 404. A discontinued, archived or draft product
+        //     in a wishlist is the ORDINARY STEADY STATE of a long-lived list,
+        //     not a fault. Warning about it on every customer page load buried
+        //     the environmental signal in noise, which is the opposite of what
+        //     the taxonomy is for. It is recorded, at `debug`.
+        //
+        // Both are still reported, with the same count fields, so nothing became
+        // invisible — only quieter.
+        if (environmentalCount) {
+          reportWishlistDiag(WISHLIST_DIAG.RESOLUTION_FAILED, {
+            requested: results.length,
+            resolved: resolvedIds.length,
+            missing: missingCount,
+            environmental: environmentalCount
+          });
+        } else if (missingCount) {
+          reportWishlistDiag(WISHLIST_DIAG.RESOLUTION_INCOMPLETE, {
+            requested: results.length,
+            resolved: resolvedIds.length,
+            missing: missingCount,
+            environmental: 0
+          }, 'debug');
+        }
+
+        if (!resolvedIds.length) return; // Nothing resolved — skip the POST entirely.
+
+        // Enforce the server's array bound CLIENT-SIDE. Over the cap the schema
+        // refuses the whole request, so without this a member above the cap
+        // merged nothing at all, on every load, forever. See
+        // WISHLIST_RECONCILE_MAX_ITEMS for the residual tail behaviour.
+        if (resolvedIds.length > WISHLIST_RECONCILE_MAX_ITEMS) {
+          reportWishlistDiag(WISHLIST_DIAG.LOCAL_TRUNCATED, {
+            resolved: resolvedIds.length,
+            cap: WISHLIST_RECONCILE_MAX_ITEMS,
+            dropped: resolvedIds.length - WISHLIST_RECONCILE_MAX_ITEMS
+          });
+          resolvedIds = resolvedIds.slice(0, WISHLIST_RECONCILE_MAX_ITEMS);
+        }
+
+        // EXACTLY ONE POST per authenticated page load, carrying the canonical
+        // `deviceLocal` field. Duplicate handles were already collapsed by the
+        // normaliser, and the service dedupes again on its side, so a retry is
+        // idempotent and cannot create duplicate rows.
+        return postJson(
+          proxyBase + '/v1/profile/wishlist/reconcile',
+          { deviceLocal: resolvedIds },
+          'wl-reconcile'
+        ).then(function () {
+          // Success, and localStorage is STILL left exactly as it was. This is
+          // the fully-resolved `200` that §8.4 rule 3 names explicitly — the one
+          // path where clearing would look justified. It is not. See the rule 3
+          // note on this function, including the re-merge cost it accepts.
+          return undefined;
+        }, function (err) {
+          // Non-fatal for the customer, but no longer silent for us.
+          reportWishlistDiag(classifyReconcileFailure(err), { sent: resolvedIds.length });
+        });
+      })
+      .catch(function () {
+        // Defensive: the resolution phase itself failed as a whole.
+        reportWishlistDiag(WISHLIST_DIAG.NETWORK_FAILED);
+      });
+  }
+
+  // Test-only surface. Does nothing unless a harness has already installed the
+  // hook object on `window` BEFORE this script runs, so in production this is a
+  // single property read with no observable effect. It exists so the wishlist
+  // normaliser can be unit-tested directly against the SHIPPED implementation
+  // rather than against a second copy that could drift from it — a second copy
+  // of a parser is how W1 stayed invisible.
+  if (window.__athoorLoyaltyTestHooks) {
+    window.__athoorLoyaltyTestHooks.normaliseDeviceWishlist = normaliseDeviceWishlist;
+    window.__athoorLoyaltyTestHooks.classifyReconcileFailure = classifyReconcileFailure;
+    window.__athoorLoyaltyTestHooks.WISHLIST_DIAG = WISHLIST_DIAG;
+  }
 
   /* --------------------------------------------------------------------- */
 

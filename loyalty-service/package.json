@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down",
+    "migrate:down": "npm run build && node scripts/migration/migrate-down-guard.mjs && node-pg-migrate down",
+    "migrate:down:check": "npm run build && node scripts/migration/migrate-down-guard.mjs",
     "cutover:m0": "node scripts/migration/m0-export.mjs",
     "cutover:m1": "node scripts/migration/m1-backfill.mjs",
     "cutover:rollback": "node scripts/migration/metafield-rollback.mjs"

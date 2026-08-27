@@ -310,7 +310,20 @@ function deriveFromEnvelope(source: Record<string, unknown>): Record<string, unk
 
   const responseTime = source["responseTime"];
   if (typeof responseTime === "number" && Number.isFinite(responseTime)) {
-    derived["durationMs"] = Math.round(responseTime * 1000) / 1000;
+    // The second guard is on the RESULT, and the input check above is NOT
+    // sufficient on its own — which is exactly why the first version of this line
+    // carried only the input check. `responseTime * 1000` overflows to Infinity
+    // for any finite input above `Number.MAX_VALUE / 1000`; the smallest such
+    // input is 1.797693134862316e+305, which is what the idempotence property
+    // shrank to. Emitting Infinity would break the idempotence this module's
+    // header promises: `redactScalar` drops a non-finite number, so the second
+    // application at the other choke point would REMOVE a key the first one
+    // added. Dropping the field is the correct outcome regardless — 1e305 ms is
+    // not a duration, and nothing is a better log value than Infinity.
+    const rounded = Math.round(responseTime * 1000) / 1000;
+    if (Number.isFinite(rounded)) {
+      derived["durationMs"] = rounded;
+    }
   }
 
   // An error's code is the operationally useful half of §24.4's "Backend errors
