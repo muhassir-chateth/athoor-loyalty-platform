@@ -42,6 +42,21 @@
  * `window` and nothing else — asserted by the smoke test, not asserted here.
  */
 import { PORTAL_BUILD_VERSION } from "./version.js";
+import * as copy from "./ui/copy.js";
+import * as draft from "./state/draft.js";
+import * as focus from "./ui/focus.js";
+import * as requestCache from "./state/requestCache.js";
+import * as rows from "./render/rows.js";
+import * as sheet from "./ui/sheet.js";
+import * as states from "./render/states.js";
+import {
+  assertive,
+  global as announceGlobal,
+  loadingOnce,
+  polite,
+} from "./ui/announce.js";
+import { currentSessionRef, proxyFetch } from "./transport/proxyClient.js";
+import { degradeSection, installErrorBoundary } from "./sections/register.js";
 
 /** Marks a root as booted so a second `boot()` call is a no-op for it. */
 const BOOTED_ATTRIBUTE = "data-portal-booted";
@@ -109,17 +124,99 @@ function boot(): void {
     } catch {
       // The exception itself is deliberately not read. It may carry an upstream
       // message, and design E.1 rule 2 keeps upstream text out of anything that
-      // can reach a customer or a log. Task 18.7 owns what is reported.
+      // can reach a customer or a log.
+      //
+      // TASK 18.7 HAS NOW LANDED, so this does two things rather than one. The
+      // attribute records the mechanical fact for the smoke test; `degradeSection`
+      // renders the designed `section_render_failed` state, so a root whose boot
+      // threw shows the degraded presentation instead of a server-rendered
+      // skeleton that will never be replaced.
       root.setAttribute(BOOTED_ATTRIBUTE, BOOT_FAILED);
+      degradeSection(root);
     }
   }
 }
+
+// The window-level half of the boundary (§16.10). Installed before any section
+// boots, so a throw inside a handler bound during boot is already contained.
+installErrorBoundary();
 
 const runtime: AthoorPortalRuntime = {
   version: PORTAL_BUILD_VERSION,
   register,
   boot,
   registered: () => order.slice(),
+
+  // 18.1 — the only `fetch` in the portal.
+  request: proxyFetch,
+  sessionRef: currentSessionRef(),
+
+  // 18.2 — page state. Both memory-only; neither touches client storage.
+  cache: {
+    read: requestCache.read,
+    invalidateBalance: requestCache.invalidateBalance,
+    clear: requestCache.clear,
+    size: requestCache.size,
+  },
+  draft: {
+    get: draft.get,
+    set: draft.set,
+    clear: draft.clear,
+    has: draft.has,
+  },
+
+  // 18.3 — the eight designed states and the row renderers.
+  states: {
+    set: states.set,
+    current: states.current,
+    degrade: states.degrade,
+    states: states.STATES,
+  },
+  rows: {
+    orderRow: rows.orderRow,
+    wishlistRow: rows.wishlistRow,
+    activityRow: rows.activityRow,
+    rewardCard: rows.rewardCard,
+    stageRow: rows.stageRow,
+    list: rows.list,
+  },
+
+  // 18.4 — announcements and focus.
+  announce: {
+    polite,
+    global: announceGlobal,
+    assertive,
+    loadingOnce,
+  },
+  focus: {
+    toSheetHeading: focus.toSheetHeading,
+    restore: focus.restore,
+    toFirstInvalid: focus.toFirstInvalid,
+    toSectionHeading: focus.toSectionHeading,
+  },
+
+  // 18.5 — the one sheet.
+  sheet: {
+    open: sheet.open,
+    close: sheet.close,
+    isOpen: sheet.isOpen,
+  },
+
+  // 18.6 — every customer-facing string.
+  copy: {
+    activityDescription: copy.activityDescription,
+    signedPoints: copy.signedPoints,
+    referralStage: copy.referralStage,
+    fulfilment: copy.fulfilment,
+    availability: copy.availability,
+    redemptionStatus: copy.redemptionStatus,
+    birthdayEligibility: copy.birthdayEligibility,
+    provenance: copy.provenance,
+    insight: copy.insight,
+    error: copy.error,
+    fieldError: copy.fieldError,
+    state: copy.state,
+  },
 };
 
 // Idempotent. A template that includes the core tag twice must not replace a
