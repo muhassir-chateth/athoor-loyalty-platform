@@ -167,19 +167,111 @@ export function requireCustomerScope(req: FastifyRequest): CustomerScope {
  * NO STORED DATA CHANGES: the error is raised before any handler body runs, so
  * nothing has been written when this replies (Req 1.4).
  *
- * Anything that is not a scope failure is delegated untouched, so a genuine 500 is
- * never relabelled as an authorisation problem.
+ * A scope failure is the FIRST branch and the only one that produces a 401, so a
+ * genuine fault is never relabelled as an authorisation problem. The two branches
+ * after it exist because "delegate everything else to Fastify" turned out not to be
+ * neutral: the framework's default renderer puts `err.message` in the body, which
+ * Requirement 2.7 and design E.1 rule 2 forbid. Every error therefore leaves this
+ * scope in the portal envelope — `{ error, message }` with an identifier from the
+ * E.2 taxonomy — and no exception text reaches a customer.
  */
 export function registerCustomerScopeErrorHandler(app: FastifyInstance): void {
-  app.setErrorHandler((error: unknown, _req, reply) => {
+  app.setErrorHandler((error: unknown, req, reply) => {
     if (error instanceof ScopeUnavailableError) {
       return reply.code(401).send({
         error: error.code,
         message: "Could not resolve the request to a loyalty customer identity.",
       });
     }
-    return reply.send(error as Error);
+
+    // A body that could not be read AS DECLARED -> 400 invalid_request.
+    //
+    // Fastify raises these before any handler runs, so they never reached a route's
+    // own zod schema and were previously answered by the framework's default
+    // renderer. Task 16.5 found four reachable triggers, all on live portal routes:
+    // `content-type: application/json` with an empty body (the common shape of a
+    // bodyless `POST /v1/profile/visit` from a client that sets the header
+    // globally), malformed JSON, an unsupported media type (a form-encoded or
+    // multipart write, and the no-content-type case), and a body over the limit.
+    // It also covers the `__proto__`/`constructor` payloads `secure-json-parse`
+    // refuses, which is why a prototype-pollution attempt is a clean 400.
+    //
+    // All four are ONE fact from the customer's side — the request was not
+    // readable — so all four map to the single identifier design E.2 binds to 400.
+    // Task 16.6 requires exactly this for the form-encoded case. Keeping 415 or 413
+    // would need identifiers E.2 does not define, and E.1 rule 5 makes an
+    // undefined identifier render as the neutral state, which is strictly worse
+    // than the accurate `invalid_request` a client already handles.
+    if (isUnreadableRequestError(error)) {
+      return reply.code(400).send({
+        error: "invalid_request",
+        message: "The request could not be read.",
+      });
+    }
+
+    // Anything unmapped -> 500 internal_error, with the exception EXCLUDED.
+    //
+    // WHAT THIS REPLACES, AND WHY IT MATTERS. `reply.send(error)` serialised the
+    // exception with Fastify's default renderer, which puts `err.message` in the
+    // body verbatim. Task 16.5 demonstrated the consequence with a realistic
+    // Postgres failure: the customer received the SQL statement, the table name
+    // and an absolute server path from the stack — a direct breach of
+    // Requirement 2.7 and of design E.1 rule 2 ("Postgres error text, and
+    // `err.message` are never placed in a response body"), reachable from every
+    // portal endpoint whose dependency throws.
+    //
+    // E.2 defines this row precisely: `internal_error`, 500, "anything unmapped",
+    // and "the exception never reaches the body". Routes map their own typed
+    // errors and `throw` only what they do not recognise, so nothing that has a
+    // designed response is affected by this branch.
+    //
+    // The exception is not lost — it is LOGGED through the sanctioned `err`
+    // reshaping in `observability/logRedaction.ts`, which keeps the class name,
+    // a safe-identifier `code` and stack FRAMES while dropping `message` and the
+    // `pg` fields that name the schema. So an operator can still see what broke;
+    // only the customer cannot.
+    //
+    // The reference is returned as `x-request-id` (design §22.9, §24.2) so support
+    // can find the request in the log stream from what the customer quotes.
+    req.log.error({ err: error }, "unhandled request error");
+    return reply
+      .code(500)
+      .header(REQUEST_REFERENCE_HEADER, req.id)
+      .send({
+        error: "internal_error",
+        message: "The request could not be completed.",
+      });
   });
+}
+
+/**
+ * The response header carrying the request reference (design §22.9, §24.2).
+ *
+ * Set on the 500 path, which is the class E.2 requires to carry a reference.
+ * §24.2 also describes returning it on every response; that is a broader
+ * observability change and is deliberately not made here.
+ */
+export const REQUEST_REFERENCE_HEADER = "x-request-id";
+
+/**
+ * True for a request whose body could not be read as its `content-type` declared.
+ *
+ * Matched on Fastify's `FST_ERR_CTP_*` prefix — the framework's own closed
+ * vocabulary for content-type-parser failures — rather than on a hand-listed set
+ * of five codes, so a parser error added by a future Fastify release is answered
+ * with the portal envelope instead of escaping in the framework's.
+ *
+ * `error.validation` is included as depth: schema rejections are answered inside
+ * the routes today (with `fields`), so this is unreachable from them, but if one
+ * ever escapes, a 400 is the truthful answer and a 500 would not be.
+ */
+function isUnreadableRequestError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { code?: unknown; validation?: unknown };
+  if (typeof candidate.code === "string" && candidate.code.startsWith("FST_ERR_CTP_")) {
+    return true;
+  }
+  return candidate.validation !== undefined;
 }
 
 /**

@@ -232,11 +232,18 @@ export function createRedemptionRateLimiter(
       const retryAfterSeconds = Math.max(1, Math.ceil(decision.retryAfterMs / 1000));
       reply.header("retry-after", String(retryAfterSeconds));
       reply.code(429).send({
+        // NO LIMITER INTERNALS IN THE BODY (design E.2's `rate_limit_exceeded` row,
+        // found by task 16.5). This message used to read "at most 1 are permitted
+        // per 3600-second window", which published the configured ceiling and the
+        // window length — the two numbers an attacker needs in order to pace
+        // requests so as never to trip the limit again.
+        //
+        // Nothing useful is lost. `retryAfterSeconds` and the `retry-after` header
+        // carry the wait MACHINE-READABLY, which is what the client's countdown
+        // renders from (E.1 rule 3), and `subject` still names the affected area as
+        // §22.9 requires. The prose is a fallback, not the rendered sentence.
         error: RATE_LIMIT_EXCEEDED_ERROR,
-        message:
-          `Too many ${subject} requests: at most ${maxRequests} are permitted per ` +
-          `${Math.round(windowMs / 1000)}-second window. Please retry in ` +
-          `${retryAfterSeconds}s.`,
+        message: `Too many ${subject} requests. Please try again shortly.`,
         retryAfterSeconds,
       });
       return reply;
