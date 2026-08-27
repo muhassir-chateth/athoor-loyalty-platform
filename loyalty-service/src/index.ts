@@ -450,6 +450,12 @@ async function main(): Promise<void> {
       repo: ledgerRepo,
       transactor,
       db: pool,
+      // `shareUrl` is built server-side from THIS domain (task 11.1, Req 10.11/
+      // 10.13), so the link format is not a literal in a theme asset. Threaded from
+      // config rather than left to the module default: a dependency constructed but
+      // not forwarded is exactly the defect that left `portalCatalogSource`
+      // answering 502 in production until task 9.1.
+      shareDomain: config.shopify.shopDomain,
       // A rewarded claim credits the REFERRER +150, so their display cache must
       // be refreshed after the commit (task 35, Req 13.5a). Same Admin-gated
       // lazy getter as the other consumers, so a non-Shopify boot still works.
