@@ -449,6 +449,13 @@ const PARAM_VALUES: Record<string, string> = {
   ":customerId": LOCAL_CUSTOMER_ID,
   ":id": "9999195275603",
   ":key": "perk",
+  // The BAIT order number, not a placeholder. `GET /v1/orders/:orderId` accepts
+  // `^\d{1,20}$` only, so the fallback `"x"` would be rejected as a malformed
+  // reference and the handler's real paths — including the `502` it logs when
+  // Shopify is unreachable — would go untested while appearing covered. Using the
+  // bait also makes this gate assert what §24.3 actually forbids on this route:
+  // an order number must never reach a log line.
+  ":orderId": BAIT.orderNumber,
 };
 
 function concretise(url: string): string {

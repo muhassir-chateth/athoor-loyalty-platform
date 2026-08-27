@@ -69,6 +69,12 @@ import {
   type ThrottleRetryOptions,
 } from "../migration/shopifyMigrationSupport.js";
 import { DEFAULT_BACKOFF, type BackoffParams, type Sleeper } from "./adminGateway.js";
+import {
+  CoalescingTtlCache,
+  DEFAULT_SHOPIFY_READ_MAX_ENTRIES,
+  DEFAULT_SHOPIFY_READ_TIMEOUT_MS,
+  DEFAULT_SHOPIFY_READ_TTL_MS,
+} from "./coalescingCache.js";
 import type { PurchasedFragrance, ShopifyFragranceSource } from "../profile/fragranceProfile.js";
 import type { Queryable } from "../ledger/repository.js";
 
@@ -409,96 +415,76 @@ export interface CachingPurchaseHistoryOptions {
  * Wraps a {@link ShopifyFragranceSource} with a short TTL cache, a hard timeout,
  * and degradation to empty on failure.
  *
+ * ── THE MECHANISM IS NOW SHARED, NOT LOCAL (task 8.1, design §7.6) ───────────
+ * The TTL, the hard timeout, the in-flight coalescing and the never-cache-a-
+ * failure rule used to live in this class. Design §7.6 requires the Orders read
+ * to use the SAME shape, so the mechanism moved to
+ * {@link CoalescingTtlCache} and both consumers now share one definition of it
+ * rather than holding two copies that agree today and drift later.
+ *
+ * WHAT STAYED HERE IS THE POLICY, WHICH IS NOT SHARED. The cache REJECTS on
+ * failure; this class catches that and returns an empty list, because Req 17.9
+ * requires the profile to render with empty categories rather than fail. The
+ * Orders read does the opposite and maps the same rejection to
+ * `502 upstream_unavailable`, because an empty orders list would read to a
+ * customer as "you have never bought anything". Same mechanism, opposite policy
+ * — which is exactly why the policy could not move into the cache.
+ *
  * A FAILURE IS NEVER CACHED: only a successful read is stored, so a transient
- * Shopify error does not pin an empty purchase history for the whole TTL.
+ * Shopify error does not pin an empty purchase history for the whole TTL. The
+ * in-flight promise is shared, so one failed read produces one degradation
+ * report rather than one per consumer.
+ *
+ * WHY THE COALESCING MATTERS HERE SPECIFICALLY. The profile composition asks for
+ * purchases TWICE per request — once for the `purchasedFragrances` field and once
+ * as the suggestion engine's purchase history — and it asks CONCURRENTLY, so a
+ * value cache alone is always cold for both and doubles the Shopify calls per
+ * profile view.
  */
 export class CachingPurchaseHistorySource implements ShopifyFragranceSource {
-  private readonly ttlMs: number;
-  private readonly timeoutMs: number;
-  private readonly maxEntries: number;
-  private readonly now: () => number;
   private readonly onDegraded?: (err: unknown, customerId: string) => void;
-  private readonly cache = new Map<string, { at: number; value: readonly PurchasedFragrance[] }>();
-  /**
-   * Reads currently in flight, keyed by customer.
-   *
-   * The profile composition asks for purchases TWICE per request — once for the
-   * `purchasedFragrances` field and once as the suggestion engine's purchase
-   * history — and it asks CONCURRENTLY, so a value cache alone is always cold for
-   * both and doubles the Shopify calls per profile view. Coalescing on the
-   * in-flight promise makes one request produce one Shopify read.
-   */
-  private readonly inFlight = new Map<string, Promise<readonly PurchasedFragrance[]>>();
+  private readonly cache: CoalescingTtlCache<readonly PurchasedFragrance[]>;
 
   constructor(
     private readonly inner: ShopifyFragranceSource,
     options: CachingPurchaseHistoryOptions = {},
   ) {
-    this.ttlMs = options.ttlMs ?? 60_000;
-    this.timeoutMs = options.timeoutMs ?? 2_500;
-    this.maxEntries = options.maxEntries ?? 500;
-    this.now = options.now ?? (() => Date.now());
+    this.cache = new CoalescingTtlCache<readonly PurchasedFragrance[]>({
+      ttlMs: options.ttlMs ?? DEFAULT_SHOPIFY_READ_TTL_MS,
+      timeoutMs: options.timeoutMs ?? DEFAULT_SHOPIFY_READ_TIMEOUT_MS,
+      maxEntries: options.maxEntries ?? DEFAULT_SHOPIFY_READ_MAX_ENTRIES,
+      // The label reproduces the shipped timeout wording exactly, so what the
+      // degradation reporter observes is unchanged by the extraction.
+      // The MESSAGE is preserved verbatim (`purchase-history read exceeded Nms`),
+      // so a reader of the degradation log line sees the same wording as before.
+      // The error TYPE did change: a plain `Error` became
+      // `ShopifyReadTimeoutError`, so pino's serialiser emits a different
+      // `err.type` and an extra `code`. That is an improvement, not an accident —
+      // the orders route maps a timeout by TYPE rather than by matching message
+      // text — but it is a change, and worth saying so rather than claiming the
+      // extraction was invisible.
+      label: "purchase-history read",
+      // Reported from INSIDE the shared read, not from the catch below. Two
+      // concurrent profile reads share one in-flight promise, so a caller-side
+      // report would fire twice for one upstream failure and the log would
+      // suggest Shopify failed twice. The hook fires once per read.
+      onFailure: (err, customerId) => this.onDegraded?.(err, customerId),
+      ...(options.now ? { now: options.now } : {}),
+    });
     if (options.onDegraded) this.onDegraded = options.onDegraded;
   }
 
   async getPurchasedFragrances(customerId: string): Promise<readonly PurchasedFragrance[]> {
-    const nowMs = this.now();
-    const hit = this.cache.get(customerId);
-    if (hit && nowMs - hit.at < this.ttlMs) {
-      return hit.value;
-    }
-
-    // A concurrent asker joins the read already in flight instead of starting a
-    // second one. A rejection is shared too, so one failed read produces one
-    // degradation report rather than one per consumer.
-    const existing = this.inFlight.get(customerId);
-    if (existing) {
-      return existing;
-    }
-
-    const read = this.readWithTimeout(customerId, nowMs).finally(() => {
-      // Cleared on settle either way: a FAILURE is never cached, so the next
-      // request retries rather than being pinned to an empty history.
-      this.inFlight.delete(customerId);
-    });
-    this.inFlight.set(customerId, read);
-    return read;
-  }
-
-  private async readWithTimeout(
-    customerId: string,
-    nowMs: number,
-  ): Promise<readonly PurchasedFragrance[]> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const value = await Promise.race([
+      return await this.cache.read(customerId, () =>
         this.inner.getPurchasedFragrances(customerId),
-        new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`purchase-history read exceeded ${this.timeoutMs}ms`)),
-            this.timeoutMs,
-          );
-        }),
-      ]);
-      this.cache.set(customerId, { at: nowMs, value });
-      this.evictIfNeeded();
-      return value;
-    } catch (err) {
-      // Degrade, do not fail: the profile still renders (Req 17.9). Reported so
-      // the consequence — suggestions may include an already-purchased product
-      // this time — is visible.
-      this.onDegraded?.(err, customerId);
+      );
+    } catch {
+      // Degrade, do not fail: the profile still renders (Req 17.9). The
+      // consequence — suggestions may include an already-purchased product this
+      // time — was already reported by `onFailure` above, so it is not silent
+      // and it is not double-counted.
       return [];
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-  }
-
-  private evictIfNeeded(): void {
-    while (this.cache.size > this.maxEntries) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest === undefined) break;
-      this.cache.delete(oldest);
     }
   }
 }

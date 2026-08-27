@@ -18,6 +18,7 @@ import { registerAuth, type LazyEnrollerSource } from "../plugins/auth.js";
 import type { AuthChainCounters } from "../plugins/authChainCounters.js";
 import { registerBalanceRoute, type CustomerBalanceSource } from "./balance.js";
 import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
+import { registerOrdersRoutes, type PortalOrderSource } from "./orders.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
@@ -94,6 +95,15 @@ export interface V1RouterOptions {
    * endpoint then returns an empty page until a real source is wired.
    */
   historySource?: LedgerHistorySource;
+  /**
+   * Loads the customer's orders from Shopify for `GET /v1/orders` and
+   * `GET /v1/orders/:orderId` (task 8.1/8.2, design §6.3 N1/N2). When ABSENT the
+   * orders routes fall back to `UnconfiguredPortalOrderSource`, which answers
+   * `502 upstream_unavailable` rather than an empty page — an empty orders list
+   * would tell a customer they have never bought anything. Read-only — nothing on
+   * this path writes, and no order data is stored (Req 3.3).
+   */
+  portalOrderSource?: PortalOrderSource;
   /**
    * Per-customer redemption rate-limit configuration for `POST /v1/redeem`
    * (task 6.5, Req 11.12). Defaults to 10 requests / 60s keyed on
@@ -275,6 +285,17 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   // entries typed earned/spent/expired with reason, ISO date, and order
   // reference, most-recent-first, with total count and a next-page indicator.
   registerHistoryRoute(app, { historySource: opts.historySource });
+
+  // Orders (task 8.1/8.2, Req 6.1–6.5/6.8/6.9/6.12): the customer's own purchase
+  // history read LIVE from Shopify, which is authoritative — no order copy exists
+  // in Postgres (Req 3.3, §7.1). `GET /v1/orders` is cursor-paged and caps a
+  // larger request at 20 rather than rejecting it (Req 6.12);
+  // `GET /v1/orders/:orderId` is traversed THROUGH the customer node, so a
+  // foreign order is unreachable rather than rejected and maps to `404` with no
+  // order attribute in the body (§4.5 rows 6/7). Registered unconditionally, like
+  // balance and history, so the route census covers them from the day they exist;
+  // without a wired source they answer `502` rather than an empty page.
+  registerOrdersRoutes(app, { orderSource: opts.portalOrderSource });
 
   // Authenticated Fragrance_Profile + journey timeline (task 14.5, Req 17.1,
   // 17.8, 17.9, 17.10): purchased fragrances (paid Shopify orders) plus
