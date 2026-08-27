@@ -31,11 +31,37 @@
 #   make "did CI pass?" a question with more than one answer.
 #
 # WHAT IT DOES NOT COVER YET
-#   Only `npm run typecheck` and `npm test` — the verification that already exists
-#   in `loyalty-service/package.json`. There is deliberately no accessibility,
-#   forbidden-string, bundle-budget, dependency or theme-asset gate here yet; each
-#   arrives with its own sub-task above, which is also where its devDependency is
-#   pinned. Nothing in `theme/**` is inspected by this workflow.
+#   `npm run typecheck`, `npm run typecheck:portal`, `npm run build:portal:check`
+#   and `npm test` — the verification that exists in `loyalty-service/package.json`.
+#   There is deliberately no accessibility, forbidden-string, bundle-budget or
+#   dependency gate here yet; each arrives with its own sub-task above, which is
+#   also where its devDependency is pinned.
+#
+# WHAT TASK 7.1 ADDED, AND WHY IT BELONGED HERE RATHER THAN IN 29.x
+#   Two steps, both closing a gap the task itself opened.
+#
+#   `typecheck:portal` — `loyalty-service/tsconfig.json` declares
+#   `include: ["src/**/*.ts"]` and `rootDir: "src"`, so `theme-src/portal/**` was
+#   outside every typecheck this workflow ran. Adding browser TypeScript without
+#   adding its checker would have meant a `tsc --noEmit` that silently covered
+#   none of it — the same shape of gap that let W1/W2 ship green. It runs against
+#   `theme-src/tsconfig.json`, whose `lib` floor of ES2019 is what makes the
+#   "no polyfills" promise of design §16.7 a compile error rather than a comment.
+#
+#   `build:portal:check` — the portal's theme assets are COMMITTED, because
+#   design §25.5 approves a diff of specific files and then pushes those files, so
+#   a build between approval and push would break the guarantee that the approved
+#   bytes and the pushed bytes are the same object. That guarantee is only as good
+#   as the artefacts being current. This step rebuilds and compares bytes, so a
+#   source edit that was never rebuilt fails here instead of shipping stale bytes.
+#   It is not the budget gate — that is 29.11, and it is not written yet.
+#
+#   A NOTE ON DETERMINISM. `build:portal:check` assumes esbuild produces identical
+#   bytes for identical input, which is why design §16.7's exact version pin is
+#   load-bearing beyond supply-chain hygiene. Verified deterministic across
+#   repeated local runs on macOS; if this step ever fails on a Linux runner while
+#   passing locally with no source change, cross-platform output divergence is the
+#   first hypothesis to test, not a stale artefact.
 #
 # COST — REQUIREMENT 19.1, NEW RECURRING COST = £0/MONTH
 #   This repository is PUBLIC, and GitHub Actions is free and unmetered on public
@@ -129,11 +155,30 @@ jobs:
       # not compile. `--noEmit` because CI is asking a question, not producing a
       # build artefact.
       # ---------------------------------------------------------------------
-      - name: Typecheck (tsc --noEmit)
+      - name: Typecheck the service (tsc --noEmit)
         run: npm run typecheck
 
       # ---------------------------------------------------------------------
-      # GATE 2 — behaviour. `vitest run` is single-shot, so it exits rather than
+      # GATE 2 — types, browser side. A separate step from GATE 1 because it is a
+      # separate program with a different `lib` floor and no `@types/node`: the
+      # service targets Node 24 at ES2023, the portal targets a browser at ES2019.
+      # One combined step would report a single failure for two different runtimes.
+      # ---------------------------------------------------------------------
+      - name: Typecheck the portal source (tsc --noEmit)
+        run: npm run typecheck:portal
+
+      # ---------------------------------------------------------------------
+      # GATE 3 — the committed theme assets match the committed source. See the
+      # header note for why the artefacts are committed and what this protects.
+      # Runs before the tests because the bundle smoke test reads these same files
+      # from disk: if they are stale, this step names the cause precisely, where
+      # the smoke test would report a puzzling assertion failure instead.
+      # ---------------------------------------------------------------------
+      - name: Portal artefacts are current (esbuild rebuild and byte compare)
+        run: npm run build:portal:check
+
+      # ---------------------------------------------------------------------
+      # GATE 4 — behaviour. `vitest run` is single-shot, so it exits rather than
       # watching and hanging the runner until the job timeout.
       # ---------------------------------------------------------------------
       - name: Test (vitest run)

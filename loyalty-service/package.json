@@ -11,6 +11,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:portal": "tsc -p ../theme-src/tsconfig.json",
+    "build:portal": "node scripts/build/portal-assets.mjs",
+    "build:portal:check": "node scripts/build/portal-assets.mjs --check",
     "start": "node dist/index.js",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "test": "vitest run",
@@ -33,6 +36,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "fast-check": "^3.23.2",
     "jsdom": "26.1.0",
     "node-pg-migrate": "^7.9.0",

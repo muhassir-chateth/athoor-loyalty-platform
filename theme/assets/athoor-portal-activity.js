@@ -1,0 +1,1 @@
+"use strict";(()=>{function e(t,n){let o=window.AthoorPortal;if(!o){typeof console!="undefined"&&typeof console.warn=="function"&&console.warn("[athoor-portal] core bundle absent; section not booted:",t);return}o.register(t,n),o.boot()}e("activity",()=>{});})();
