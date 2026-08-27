@@ -22,6 +22,7 @@ import { registerOrdersRoutes, type PortalOrderSource } from "./orders.js";
 import { registerCatalogRoutes, type PortalCatalogSource } from "./catalog.js";
 import { registerWishlistWriteRoute, type WishlistWriteStore } from "./wishlist.js";
 import { registerRedemptionsRoute, type PortalRedemptionSource } from "./redemptions.js";
+import { registerBirthdayRoutes, type BirthdayRouteOptions } from "./birthday.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
@@ -126,6 +127,16 @@ export interface V1RouterOptions {
    * customer this service holds no redemptions for.
    */
   redemptionSource?: PortalRedemptionSource;
+  /**
+   * Backs `GET`/`PUT /v1/profile/birthday` (N10/N11, task 12.2).
+   *
+   * Absent does NOT unregister the routes — they register unconditionally and fall
+   * back to a refusing executor, so an un-wired build answers `500` rather than
+   * `404`. A `404` would read to a client as "this account has no birthday feature"
+   * instead of "this build is misconfigured", and it would also quietly shrink the
+   * unauthenticated route census that sweeps every `/v1` path.
+   */
+  birthdayDeps?: BirthdayRouteOptions;
   /**
    * Per-customer redemption rate-limit configuration for `POST /v1/redeem`
    * (task 6.5, Req 11.12). Defaults to 10 requests / 60s keyed on
@@ -325,6 +336,7 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   registerRedemptionsRoute(app, {
     ...(opts.redemptionSource ? { redemptionSource: opts.redemptionSource } : {}),
   });
+  registerBirthdayRoutes(app, opts.birthdayDeps ?? {});
 
   // Authenticated Fragrance_Profile + journey timeline (task 14.5, Req 17.1,
   // 17.8, 17.9, 17.10): purchased fragrances (paid Shopify orders) plus
