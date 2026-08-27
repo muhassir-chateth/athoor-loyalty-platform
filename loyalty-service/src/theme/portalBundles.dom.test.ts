@@ -146,14 +146,79 @@ describe("the core bundle", () => {
 
     expect(runtime).toBeDefined();
     // Sorted so the assertion is order-independent, and exhaustive so a member
-    // added without a task behind it fails here. Tasks 18.1–18.6 extend this
-    // list as transport, cache, announcer, sheet and copy land.
+    // added without a task behind it fails here. Tasks 18.1–18.6 have now landed
+    // and each added exactly one member; the four task-7.1 members are unchanged.
     expect(Object.keys(runtime ?? {}).sort()).toEqual([
+      "announce",
       "boot",
+      "cache",
+      "copy",
+      "draft",
+      "focus",
       "register",
       "registered",
+      "request",
+      "rows",
+      "sessionRef",
+      "sheet",
+      "states",
       "version",
     ]);
+  });
+
+  it("still defines exactly ONE global after task 18's modules were added", () => {
+    // The whole reason §16.7 bounds the bundles to "no global beyond a single
+    // namespaced entry". Nine new members is nine chances to have leaked a
+    // module-scoped helper onto `window`.
+    const before = new Set(Object.getOwnPropertyNames(globalThis));
+    loadBundle(readAsset(CORE_ASSET));
+    const added = Object.getOwnPropertyNames(globalThis).filter((name) => !before.has(name));
+    expect(added).toEqual(["AthoorPortal"]);
+  });
+
+  it("the transport is the portal's ONLY fetch boundary (Req 1.6)", () => {
+    // Core owns the one `fetch`; no section bundle may contain another, because a
+    // second call site is a second place the relative base path, the missing
+    // credential and the idempotency header could each be got wrong.
+    const core = readAsset(CORE_ASSET);
+    expect(core, "core lost its fetch").toContain("fetch(");
+
+    for (const section of SECTIONS) {
+      const source = readAsset(section.asset);
+      expect(source, `${section.asset} contains its own fetch`).not.toContain("fetch(");
+      expect(source, `${section.asset} uses XMLHttpRequest`).not.toContain("XMLHttpRequest");
+      expect(source, `${section.asset} uses sendBeacon`).not.toContain("sendBeacon");
+      expect(source, `${section.asset} opens an EventSource`).not.toContain("EventSource");
+    }
+  });
+
+  it("no bundle writes to client storage (Req 1.8)", () => {
+    // The draft store and the request cache are both memory-only by design; this
+    // is the assertion that keeps them that way after a future edit.
+    for (const asset of [CORE_ASSET, ...SECTIONS.map((section) => section.asset)]) {
+      const source = readAsset(asset);
+      expect(source, `${asset} writes localStorage`).not.toContain("localStorage");
+      expect(source, `${asset} writes sessionStorage`).not.toContain("sessionStorage");
+      expect(source, `${asset} writes document.cookie`).not.toContain("document.cookie");
+      expect(source, `${asset} uses indexedDB`).not.toContain("indexedDB");
+    }
+  });
+
+  it("the core bundle never names the Render origin (Req 1.7)", () => {
+    const core = readAsset(CORE_ASSET);
+    expect(core).not.toContain("onrender.com");
+    expect(core).not.toMatch(/https?:\/\/[a-z0-9-]+\.onrender/i);
+    // The App Proxy base is relative, and that is the whole authentication story.
+    expect(core).toContain("/apps/loyalty/v1");
+  });
+
+  it("no bundle carries a secret-shaped literal", () => {
+    for (const asset of [CORE_ASSET, ...SECTIONS.map((section) => section.asset)]) {
+      const source = readAsset(asset);
+      expect(source, `${asset} carries a Shopify token`).not.toMatch(/shp(at|ua|ss|ca)_[A-Za-z0-9]/);
+      expect(source, `${asset} carries a connection string`).not.toMatch(/postgres(ql)?:\/\//i);
+      expect(source, `${asset} carries a private key`).not.toContain("BEGIN PRIVATE KEY");
+    }
   });
 
   it("is idempotent, so a doubly-included tag cannot discard registrations", () => {
