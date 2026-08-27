@@ -30,6 +30,7 @@ import type {
 import type { CustomerBalanceSource } from "./routes/balance.js";
 import type { EntitlementResolver } from "./benefits/entitlementResolver.js";
 import type { LedgerHistorySource } from "./routes/history.js";
+import type { PortalOrderSource } from "./routes/orders.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
@@ -169,6 +170,17 @@ export interface AppDependencies {
    * router (which already accepts `historySource`).
    */
   historySource?: LedgerHistorySource;
+  /**
+   * Loads the customer's orders for `GET /v1/orders` and
+   * `GET /v1/orders/:orderId` (task 8.1/8.2, design §6.3 N1/N2). Production wires
+   * a caching, Shopify-backed source (index.ts). When omitted the routes answer
+   * `502 upstream_unavailable` rather than an empty page, because an empty orders
+   * list is a false statement about a customer's own purchases rather than a
+   * fail-closed one. READ-ONLY, and nothing is persisted — Shopify is
+   * authoritative for orders and no copy exists in Postgres (Req 3.3, §7.1).
+   * Forwarded into the `/v1` router.
+   */
+  portalOrderSource?: PortalOrderSource;
   /**
    * Dependencies for the spec-defined `POST /v1/redeem` handler (Req 3.2–3.11):
    * the append-only ledger repository, the atomic transactor, and the
@@ -531,6 +543,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     balanceSource: deps.balanceSource,
     entitlementResolver: deps.entitlementResolver,
     historySource: deps.historySource,
+    portalOrderSource: deps.portalOrderSource,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
     portalVisitRecorder: deps.portalVisitRecorder,

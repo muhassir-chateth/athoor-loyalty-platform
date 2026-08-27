@@ -81,6 +81,11 @@ const ADMIN_PREFIX = "/v1/admin/";
 const REQUIRED_PRESENT = [
   "/v1/balance",
   "/v1/history",
+  // Orders (task 8.1/8.2). Registered unconditionally, like balance and history,
+  // so a wiring change that dropped them would silently remove the two endpoints
+  // that read a customer's own purchase history from Shopify.
+  "/v1/orders",
+  "/v1/orders/:orderId",
   "/v1/redeem",
   "/v1/profile",
   "/v1/profile/visit",
@@ -107,6 +112,11 @@ const PARAM_VALUES: Record<string, string> = {
   ":customerId": LOCAL_CUSTOMER_ID,
   ":id": "9999195275603",
   ":key": "perk",
+  // A WELL-FORMED order reference (`^\d{1,20}$`), not a placeholder. With a
+  // malformed value the census would still see 401 — but only because the id
+  // never passed validation, which proves nothing about the route's auth. A
+  // valid reference means the 401 must come from the auth layer itself.
+  ":orderId": "6543210987",
 };
 
 function concretise(url: string): string {
@@ -162,6 +172,10 @@ function buildCensusApp(log: Log): FastifyInstance {
     idempotencyStore: t("idempotencyStore"),
     balanceSource: t("balanceSource"),
     historySource: t("historySource"),
+    // A tripwire rather than the routes' default in-memory source, so an
+    // unauthorised orders request that somehow reached the handler NAMES the
+    // method it touched instead of quietly returning an empty page.
+    portalOrderSource: t("portalOrderSource"),
     entitlementResolver: t("entitlementResolver"),
     fragranceProfileDataSource: t("fragranceProfileDataSource"),
     portalVisitRecorder: t("portalVisitRecorder"),

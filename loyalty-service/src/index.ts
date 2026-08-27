@@ -50,6 +50,8 @@ import { assignReferralCode, awardReferralFirstPurchase } from "./referral/refer
 import { PgCustomerBalanceSource } from "./routes/balance.js";
 import { DbEntitlementResolver } from "./benefits/entitlementResolver.js";
 import { PgLedgerHistorySource } from "./routes/history.js";
+import { CachingPortalOrderSource, ShopifyPortalOrderSource } from "./routes/orders.js";
+import { ShopifyGraphqlTransport } from "./shopify/graphqlClient.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
 import { RecentlyViewedStore } from "./profile/recentlyViewed.js";
@@ -173,6 +175,37 @@ async function main(): Promise<void> {
         },
       )
     : undefined;
+  // Portal orders (task 8.1/8.2, Req 6.1–6.5/6.12). Shopify is authoritative and
+  // nothing is copied into Postgres (Req 3.3, §7.1), so this is the ONLY thing
+  // that makes `GET /v1/orders` and `GET /v1/orders/:orderId` return real data.
+  //
+  // Read-only: the source issues two Admin GraphQL QUERIES, both rooted at
+  // `customer(id:)` with the GID derived from the verified scope, and the document
+  // guard in `portal/repository/shopifyScope.ts` refuses any document containing a
+  // mutation — so this wiring cannot grow a write.
+  //
+  // Wrapped in the §7.6 caching shape (60 s TTL, 2.5 s hard timeout, in-flight
+  // coalescing, failures never cached) — the SAME mechanism the purchase-history
+  // source above uses, shared via `shopify/coalescingCache.ts` rather than copied.
+  // Unlike purchase history it does NOT degrade to empty: an empty orders list
+  // would read as "you have never bought anything", so a failure surfaces as
+  // `502 upstream_unavailable` and the client shows its Orders degraded state.
+  //
+  // Without an Admin token the source is left unwired and the endpoints answer
+  // `502 upstream_unavailable` via `UnconfiguredPortalOrderSource`. NOT an empty
+  // page: this service cannot reach the store, and saying "you have no orders"
+  // instead would be the one falsehood §6.3 N1's dedicated 502 exists to avoid.
+  const portalOrderSource = config.shopify.adminApiToken
+    ? new CachingPortalOrderSource(
+        new ShopifyPortalOrderSource({
+          transport: new ShopifyGraphqlTransport(
+            config.shopify.shopDomain,
+            config.shopify.adminApiToken,
+          ),
+          lookup: new PgShopifyCustomerIdLookup(pool),
+        }),
+      )
+    : undefined;
 
   // Build the app up-front so its logger is available for boot-time wiring
   // warnings. Analytics is served from the hourly-refreshed materialized views
@@ -209,6 +242,11 @@ async function main(): Promise<void> {
     },
     balanceSource: new PgCustomerBalanceSource(pool),
     historySource: new PgLedgerHistorySource(pool),
+    // Orders read live from Shopify (task 8.1/8.2). Undefined without an Admin
+    // token, in which case the routes answer `502 upstream_unavailable` via
+    // `UnconfiguredPortalOrderSource` — NOT an empty page. See the note above
+    // where `portalOrderSource` is built for why that distinction matters.
+    ...(portalOrderSource ? { portalOrderSource } : {}),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives
