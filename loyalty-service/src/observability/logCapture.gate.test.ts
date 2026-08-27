@@ -74,7 +74,6 @@ import { InMemoryIdempotencyStore } from "../idempotency/store.js";
 import {
   AUTH_CHAIN_TRACE_LOG_KEYS,
   emittableLogKeys,
-  REDACTED_ERROR_MESSAGE,
 } from "./logRedaction.js";
 
 const APP_PROXY_SECRET = "app-proxy-shared-secret";
@@ -794,7 +793,30 @@ describe("log capture over every /v1 endpoint", () => {
     expect(
       errorLines.some((r) => (r["err"] as Record<string, unknown> | undefined)?.["type"] === "Error"),
     ).toBe(true);
-    expect(errorLines.some((r) => r["msg"] === REDACTED_ERROR_MESSAGE)).toBe(true);
+    // THE EXCEPTION'S MESSAGE IS NOT THE LOG MESSAGE — asserted directly rather
+    // than via the redaction marker.
+    //
+    // Until task 16.5 the `/v1` error handler delegated unmapped errors to Fastify,
+    // which logged them with `msg = err.message` and relied on the redaction layer
+    // to overwrite it with `REDACTED_ERROR_MESSAGE`. The handler now logs
+    // deliberately, with a safe constant for `msg` and the reshaped `err` carrying
+    // the diagnosis, so the message is safe BY CONSTRUCTION rather than by
+    // redaction and there is no longer a redacted marker to find. The property the
+    // assertion existed to protect is unchanged, so it is stated as itself: no error
+    // line borrows the exception's message, and nothing from that message — which
+    // holds the bait email and the constraint name — reaches the stream.
+    expect(
+      errorLines.some((r) => String(r["msg"] ?? "").includes("duplicate key value")),
+      "an error line used the exception's own message as its log message",
+    ).toBe(false);
+    expect(
+      records.some((r) => JSON.stringify(r).includes("customers_email_key")),
+      "the constraint name from the exception's message reached the log stream",
+    ).toBe(false);
+    expect(
+      errorLines.every((r) => typeof r["msg"] === "string" && String(r["msg"]).length > 0),
+      "an error line was written with no message at all",
+    ).toBe(true);
     expect(errorLines.some((r) => typeof (r["err"] as Record<string, unknown>)["stack"] === "string")).toBe(
       true,
     );
