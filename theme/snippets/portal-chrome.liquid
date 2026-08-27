@@ -1,0 +1,120 @@
+{%- comment -%}
+  snippets/portal-chrome.liquid — the portal's entry point and its only gate
+  (spec tasks 19.1 and 19.3, design §25.2, §17.3, §17.4).
+
+  Requirements 4.12, 17.3, 17.4, 17.8, 17.10, 22.1, 22.2, 22.3, 22.10, 25.6, 25.9.
+
+  ── THE FLAG IS EVALUATED HERE, ONCE ──────────────────────────────────────────
+  §25.2 requires the flag to be read server-side BEFORE any portal markup exists,
+  so that with it off the response is byte-identical to today's. That is only
+  checkable if there is one place it happens. Every page template renders this
+  snippet and nothing else, so the ten templates cannot drift into ten different
+  gate conditions.
+
+  A `{% render %}`d snippet has an isolated scope and cannot hand a variable back
+  to its caller, which is exactly why the gate lives in the snippet rather than in
+  the templates: there is no way to compute `portal_on` in one place and consume it
+  in ten without `{% include %}`, which Shopify has deprecated.
+
+  ── THE THREE BRANCHES, IN ORDER ──────────────────────────────────────────────
+    1. flag off      -> the page's own admin-authored content, and nothing else.
+                        No portal markup, no stylesheet, no script tag.
+    2. no customer   -> `portal-signin-invitation` only (task 19.2). An anonymous
+                        visitor gets no shell, no data hooks and no portal script.
+    3. signed in     -> the chrome, the navigation, and the requested section.
+
+  Branch 1 renders `page.content` rather than nothing because these are real
+  Shopify pages: whatever the merchant typed in the admin is the honest "not
+  available yet" state, and it leaks nothing about the portal's existence.
+
+  ── WHY THERE IS NO SECOND `<main>` AND NO SECOND SKIP LINK ───────────────────
+  Task 19.1 asks for "one `<main>` ... and a skip link as the first focusable
+  element". The theme already provides both: `layout/theme.liquid:350` renders
+  `<main id="MainContent" role="main">` around `content_for_layout`, and line 325
+  renders the skip link that targets it. Because this snippet renders INSIDE that
+  `<main>`, adding another would put two `main` landmarks on the page — a WCAG 1.3.1
+  failure — and a second skip link would add a focus stop that duplicates the
+  first. So the requirement is met by the theme's elements, unchanged.
+
+  What the theme does NOT provide is a way past the account navigation: a keyboard
+  user who follows the site skip link lands before the rail and must traverse eight
+  entries to reach the content. The portal therefore adds ONE internal skip link as
+  the first focusable element within itself. That is additive, and it is the actual
+  barrier §20.2 is about.
+
+  ── ASSETS ARE INCLUDED PER PAGE, NOT IN THE LAYOUT ───────────────────────────
+  The stylesheet and the two scripts are emitted here, inside the flag. §25.6
+  requires the `<head>` asset list of every other page to be unchanged, and the
+  cheapest way to guarantee that is never to touch `layout/theme.liquid` at all —
+  which also means an anonymous visitor and a flag-off visitor download none of it.
+  `templates/page.wishlist.liquid` sets the same precedent in this theme.
+
+  PARAMETERS
+    section_name  the `data-portal-section` value, e.g. `orders`
+    page_title    the visible page title
+    nav_key       which navigation entry is current; defaults to `section_name`
+{%- endcomment -%}
+
+{%- liquid
+  assign portal_on = false
+  if settings.portal_enabled
+    assign portal_on = true
+  elsif settings.portal_allowlist != blank and customer
+    assign needle = ',' | append: customer.id | append: ','
+    assign hay = ',' | append: settings.portal_allowlist | append: ','
+    assign hay = hay | replace: ' ', ''
+    if hay contains needle
+      assign portal_on = true
+    endif
+  endif
+
+  assign nav_current = nav_key | default: section_name
+-%}
+
+{%- if portal_on -%}
+  {%- if customer -%}
+    {{ 'athoor-portal.css' | asset_url | stylesheet_tag }}
+
+    <div class="athoor-portal" data-portal-root>
+      {%- comment -%}
+        The first focusable element inside the portal. Skips the rail, not the page.
+      {%- endcomment -%}
+      <a class="athoor-portal__skip" href="#AthoorPortalContent">Skip to {{ page_title | default: 'account' | downcase }}</a>
+
+      {%- comment -%}
+        ONE global live region for cross-section confirmations (§20.6). It is
+        server-rendered because a region injected at announcement time is not
+        reliably announced.
+      {%- endcomment -%}
+      <p class="athoor-portal__live" data-portal-live-global role="status" aria-live="polite"></p>
+
+      <header class="athoor-portal__header">
+        <p class="athoor-portal__wordmark">MY ATHOOR</p>
+        <h1 class="athoor-portal__title">{{ page_title | default: 'Your account' }}</h1>
+      </header>
+
+      <div class="athoor-portal__body">
+        {% render 'portal-nav', current: nav_current %}
+
+        <div class="athoor-portal__content" id="AthoorPortalContent" tabindex="-1">
+          {{ content }}
+        </div>
+      </div>
+
+      <footer class="athoor-portal__footer">
+        <a class="athoor-portal__footer-link" href="{{ routes.account_logout_url }}">Sign out</a>
+      </footer>
+
+      {% render 'portal-more-sheet', current: nav_current %}
+    </div>
+
+    <script src="{{ 'athoor-portal-core.js' | asset_url }}" defer="defer"></script>
+    {%- if section_name != blank -%}
+      <script src="{{ 'athoor-portal-' | append: section_name | append: '.js' | asset_url }}" defer="defer"></script>
+    {%- endif -%}
+  {%- else -%}
+    {% render 'portal-signin-invitation' %}
+  {%- endif -%}
+{%- else -%}
+  {{ page.content }}
+{%- endif -%}

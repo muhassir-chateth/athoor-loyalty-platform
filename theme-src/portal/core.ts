@@ -56,6 +56,7 @@ import {
   polite,
 } from "./ui/announce.js";
 import { currentSessionRef, proxyFetch } from "./transport/proxyClient.js";
+import { bindChrome } from "./ui/chrome.js";
 import { degradeSection, installErrorBoundary } from "./sections/register.js";
 
 /** Marks a root as booted so a second `boot()` call is a no-op for it. */
@@ -88,6 +89,20 @@ function register(name: string, boot: AthoorPortalSectionBoot): void {
 }
 
 function boot(): void {
+  // THE CHROME FIRST, and independently of any section. Task 19.1 makes the
+  // navigation the one thing that must work even when a section's bundle is absent
+  // or throws, because on a phone the bottom bar is the only way to leave the page.
+  // Binding it inside the per-section loop below would tie it to a section booting.
+  const portalRoot = document.querySelector<HTMLElement>("[data-portal-root]");
+  if (portalRoot) {
+    try {
+      bindChrome(portalRoot);
+    } catch {
+      // The exception is deliberately not read (design E.1 rule 2). The links
+      // remain in the DOM, so navigation still works without the sheet.
+    }
+  }
+
   const roots = document.querySelectorAll<HTMLElement>(SECTION_SELECTOR);
 
   for (let i = 0; i < roots.length; i += 1) {

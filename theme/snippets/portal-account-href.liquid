@@ -1,0 +1,52 @@
+{%- comment -%}
+  snippets/portal-account-href.liquid — where the header's account link should go
+  (spec task 19.3, design §25.2, §25.3).
+
+  Requirements 22.1, 22.2, 22.3.
+
+  ── WHY THIS EXISTS AT ALL ────────────────────────────────────────────────────
+  §25.3's coexistence table lists exactly one change to a live layout file: "one
+  flag-gated link change to point the account icon at the portal (Branch B)". The
+  account icon is in `sections/header.liquid`, not `layout/theme.liquid` as that row
+  says — the design predates the header being split into its own section. The change
+  is made where the link actually is.
+
+  ── WHY A SNIPPET AND NOT SIX LINES OF LIQUID IN THE HEADER ───────────────────
+  §25.2 requires the flag to be evaluated in ONE server-side place. `{% render %}`
+  is scope-isolated, so a snippet cannot hand a boolean back to its caller — but its
+  OUTPUT can be captured, which is enough:
+
+      {%- capture portal_href -%}{% render 'portal-account-href' %}{%- endcapture -%}
+
+  So the gate condition is written once, here and in `portal-chrome`, rather than
+  copied into the header where it could drift from the one the pages use. A drifted
+  copy is the specific failure this avoids: an account icon pointing at the portal
+  while the portal pages themselves still render `page.content`.
+
+  ── OUTPUT CONTRACT ───────────────────────────────────────────────────────────
+  Emits `/pages/my-athoor` when the portal is on AND a customer is signed in.
+  Emits NOTHING otherwise — including for an anonymous visitor with the flag on,
+  because sending a stranger to a page that will only invite them to sign in is
+  worse than sending them to the sign-in route the theme already uses.
+
+  The caller keeps its own `else` branches, so with the flag off the rendered href is
+  byte-identical to today's. That is the property the tests assert in both
+  directions.
+{%- endcomment -%}
+{%- liquid
+  assign portal_on = false
+  if settings.portal_enabled
+    assign portal_on = true
+  elsif settings.portal_allowlist != blank and customer
+    assign needle = ',' | append: customer.id | append: ','
+    assign hay = ',' | append: settings.portal_allowlist | append: ','
+    assign hay = hay | replace: ' ', ''
+    if hay contains needle
+      assign portal_on = true
+    endif
+  endif
+
+  if portal_on and customer
+    echo '/pages/my-athoor'
+  endif
+-%}

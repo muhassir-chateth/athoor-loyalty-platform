@@ -1,0 +1,71 @@
+{%- comment -%}
+  snippets/portal-more-sheet.liquid — the mobile overflow sheet (spec task 19.1,
+  design §17.4, §19.8).
+
+  Requirements 17.3, 17.4, 17.9, 25.4, 25.8.
+
+  ── WHY A `<dialog>` ──────────────────────────────────────────────────────────
+  §17.4: "The **More** sheet is a `<dialog>` (§19.8), so it inherits a focus trap,
+  `Esc` and a backdrop rather than reimplementing them." `ui/sheet.ts` (task 18.5)
+  drives it, so the behaviour is the same one the redemption and address sheets get.
+
+  ── IT DEGRADES TO A VISIBLE LIST ─────────────────────────────────────────────
+  A `<dialog>` without `open` is hidden by the user agent, which would strand a
+  phone customer whose bundle failed to execute — the four demoted entries would be
+  unreachable, and the bottom bar exists precisely so navigation survives a script
+  failure (task 19.1).
+
+  So the four hrefs are ALSO rendered in the bottom bar's overflow items, which CSS
+  hides only when the viewport is wide enough to show all eight. The sheet is a
+  convenience on top of markup that already works, not the only route. That is why
+  the same four links appear twice in the DOM: one copy is the fallback.
+
+  The duplicate is scoped and labelled, so a screen reader user does not meet eight
+  identical links — the sheet is `aria-modal` and inert until opened, so only one
+  copy is in the accessibility tree at a time.
+
+  ── THE DISMISS CONTROL IS NOT OPTIONAL (Requirement 25.8) ────────────────────
+  `data-portal-sheet-dismiss` is what `ui/sheet.ts` binds. Backdrop-only dismissal
+  is undiscoverable on touch and impossible with a keyboard, and `Esc` alone is not
+  an affordance because nothing on screen says it exists.
+
+  PARAMETERS
+    current  the `nav_key` of the page being rendered
+{%- endcomment -%}
+
+<dialog class="athoor-portal__sheet" id="AthoorPortalMore" aria-labelledby="AthoorPortalMoreTitle">
+  <div class="athoor-portal__sheet-inner">
+    <h2 class="athoor-portal__sheet-title" id="AthoorPortalMoreTitle" data-portal-sheet-heading>More</h2>
+
+    <ul class="athoor-portal__sheet-list" role="list">
+      {%- assign overflow_items = 'referrals,fragrance,profile,settings' | split: ',' -%}
+      {%- for item in overflow_items -%}
+        {%- liquid
+          case item
+            when 'referrals'
+              assign label = 'Referrals'
+              assign href = '/pages/my-athoor-referrals'
+            when 'fragrance'
+              assign label = 'Fragrance profile'
+              assign href = '/pages/my-athoor-fragrance'
+            when 'profile'
+              assign label = 'Profile'
+              assign href = '/pages/my-athoor-profile'
+            when 'settings'
+              assign label = 'Settings'
+              assign href = '/pages/my-athoor-settings'
+          endcase
+        -%}
+        <li class="athoor-portal__sheet-item">
+          <a
+            class="athoor-portal__sheet-link"
+            href="{{ href }}"
+            {% if item == current %}aria-current="page"{% endif %}
+          >{{ label }}</a>
+        </li>
+      {%- endfor -%}
+    </ul>
+
+    <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Close</button>
+  </div>
+</dialog>

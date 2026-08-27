@@ -1,0 +1,136 @@
+{%- comment -%}
+  snippets/portal-section.liquid — one section's root, templates, skeleton and live
+  region (spec task 19.4, design §16.2, §18.8, §21.6).
+
+  Requirements 15.1, 16.1, 6.3.
+
+  ── WHY ONE SNIPPET FOR TEN SECTIONS ──────────────────────────────────────────
+  Every section needs the same five things, and each of them is a contract with the
+  task-18 primitives:
+
+    `data-portal-section`        the boot scan's selector (core.ts)
+    `data-portal-live`           the region `ui/announce.ts` finds; it MUST be
+                                 server-rendered, because a region injected at
+                                 announcement time is not reliably announced (§20.6)
+    `data-portal-state-message`  where `render/states.ts` writes the state's prose
+    `data-portal-reference`      where §22.9's shortened request reference goes
+    `data-portal-retry`          the control `render/states.ts` binds and unbinds
+
+  Ten copies of that scaffold would be ten chances for one attribute to be
+  misspelled, and a misspelled `data-portal-live` fails silently — the section works
+  and only a screen reader user notices. One snippet, one vocabulary.
+
+  ── THE SKELETON CARRIES FINAL GEOMETRY (Requirement 16.1, §21.6) ─────────────
+  `data-state="loading"` is set here, in the markup, so the first paint is the
+  designed loading state rather than an empty box that jumps when data arrives. The
+  skeleton rows reserve the same height as real rows, which is what keeps CLS at 0 —
+  the measured desktop layout shift of 0.1044 on the current account page is the
+  defect this pattern exists to avoid repeating.
+
+  ── ROW TEMPLATES ARE MARKUP, NOT STRINGS ─────────────────────────────────────
+  `render/rows.ts` clones a `<template>` and fills `[data-slot]` with
+  `textContent`. The markup therefore lives here, in Liquid, where it is reviewable
+  and where a product title can never become an element (§5.3 records that the
+  current wishlist builds rows with `innerHTML`; NB-14).
+
+  A section whose own task has not landed yet gets the scaffold and no row
+  template. That is deliberate: an empty `<template>` that pretends to be a row
+  shape would be worse than its absence, because `rows.ts` would clone it and
+  render blank rows rather than failing loudly.
+
+  PARAMETERS
+    name        the `data-portal-section` value
+    empty_text  optional override for the empty state's prose
+{%- endcomment -%}
+
+<section
+  class="athoor-portal__section"
+  data-portal-section="{{ name }}"
+  data-state="loading"
+  aria-busy="true"
+>
+  {%- comment -%} The section-scoped polite region (§20.6). {%- endcomment -%}
+  <p class="athoor-portal__live" data-portal-live aria-live="polite"></p>
+
+  <div class="athoor-portal__state">
+    <p class="athoor-portal__state-message" data-portal-state-message>Preparing your account</p>
+    <p class="athoor-portal__state-reference" data-portal-reference hidden></p>
+    <button class="athoor-portal__retry" type="button" data-portal-retry hidden>Try again</button>
+  </div>
+
+  {%- comment -%}
+    The skeleton. Three rows is enough to read as a list without implying a count,
+    and each reserves a real row's height so nothing shifts when data replaces it.
+  {%- endcomment -%}
+  <div class="athoor-portal__skeleton" data-portal-skeleton aria-hidden="true">
+    <div class="athoor-portal__skeleton-row"></div>
+    <div class="athoor-portal__skeleton-row"></div>
+    <div class="athoor-portal__skeleton-row"></div>
+  </div>
+
+  {%- comment -%} Where the section's own module writes its rendered content. {%- endcomment -%}
+  <div class="athoor-portal__section-body" data-portal-body></div>
+
+  {%- case name -%}
+    {%- when 'orders' -%}
+      <template data-portal-row="order">
+        <li class="athoor-portal__row">
+          <a class="athoor-portal__row-link" data-slot="link" href="#"></a>
+          <span class="athoor-portal__row-number" data-slot="number"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+          <span class="athoor-portal__row-meta" data-slot="items"></span>
+          <span class="athoor-portal__row-total" data-slot="total"></span>
+          <span class="athoor-portal__row-status" data-slot="status"></span>
+        </li>
+      </template>
+
+    {%- when 'wishlist' -%}
+      <template data-portal-row="wishlist">
+        <li class="athoor-portal__grid-item">
+          {%- comment -%}
+            The one card-shaped element §18.5 permits in a row: the image needs a
+            defined box for its reserved aspect ratio, and it carries no border.
+          {%- endcomment -%}
+          <span class="athoor-portal__image-box">
+            <img class="athoor-portal__image" data-slot="image" alt="" loading="lazy" decoding="async" width="300" height="300">
+          </span>
+          <span class="athoor-portal__item-title" data-slot="title"></span>
+          <span class="athoor-portal__item-price" data-slot="price"></span>
+          <span class="athoor-portal__item-availability" data-slot="availability"></span>
+          <button class="athoor-portal__item-remove" type="button" data-slot="remove"></button>
+        </li>
+      </template>
+
+    {%- when 'activity' -%}
+      <template data-portal-row="activity">
+        <li class="athoor-portal__row">
+          <span class="athoor-portal__row-description" data-slot="description"></span>
+          <span class="athoor-portal__row-points" data-slot="points"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+        </li>
+      </template>
+
+    {%- when 'rewards' -%}
+      <template data-portal-row="reward">
+        {%- comment -%}
+          A card, and one of only three §18.5 permits: a reward is a discrete offer
+          with a price and an action, so it needs a boundary to be a unit.
+        {%- endcomment -%}
+        <li class="athoor-portal__card">
+          <span class="athoor-portal__card-value" data-slot="value"></span>
+          <span class="athoor-portal__card-cost" data-slot="cost"></span>
+          <button class="athoor-portal__card-action" type="button" data-slot="redeem"></button>
+        </li>
+      </template>
+
+    {%- when 'referrals' -%}
+      <template data-portal-row="stage">
+        <li class="athoor-portal__row">
+          <span class="athoor-portal__eyebrow" data-slot="name"></span>
+          <span class="athoor-portal__row-description" data-slot="qualification"></span>
+          <span class="athoor-portal__row-status" data-slot="state"></span>
+          <span class="athoor-portal__row-points" data-slot="points"></span>
+        </li>
+      </template>
+  {%- endcase -%}
+</section>

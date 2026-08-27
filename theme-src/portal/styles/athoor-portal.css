@@ -1,6 +1,12 @@
-/*! Athoor London Customer Experience Portal — generated from theme-src/portal/styles/**.
- *  DO NOT EDIT IN THE SHOPIFY ASSET EDITOR: edit the source and run
- *  `npm run build:portal` in loyalty-service/. Budget: <=20 KB compressed. */
+/*
+ * PROVENANCE BANNER MOVED. It now leads `base.css`, which is the first `@import`
+ * below, because esbuild hoists imported rules ABOVE the entry file's own leading
+ * comment — so a banner here ended up in the middle of the built asset, where it
+ * cannot do the job it exists for. `theme/assets/` is editable in the Shopify
+ * admin, and a generated file whose "do not edit" notice is buried is a file
+ * someone edits in place. Found by the built-artefact test, not by reading this
+ * file. The comment is `/*!` so minification preserves it.
+ */
 
 /*
  * theme/assets/athoor-portal.css — the portal's ONE stylesheet (spec task 7.1,
@@ -54,7 +60,14 @@
  * build-failing; `scripts/build/portal-assets.mjs` reports the measurement today.
  */
 
-/* Per-section partials, alphabetical by section name. Empty until the owning
+/* 1. The shared layer (task 19.5): tokens, typography, spacing, colour, layout,
+ * navigation, the eight designed states, the sheet and the reduced-motion block.
+ * FIRST, because `@import` is flattened in place and this file's order is the
+ * cascade's specificity tie-breaker — every section partial below must be able to
+ * override the shared layer, not the other way round. */
+@import "./base.css";
+
+/* 2. Per-section partials, alphabetical by section name. Empty until the owning
  * section task fills them — see the note above. */
 @import "./sections/activity.css";
 @import "./sections/fragrance.css";
