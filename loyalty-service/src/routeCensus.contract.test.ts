@@ -86,6 +86,13 @@ const REQUIRED_PRESENT = [
   // that read a customer's own purchase history from Shopify.
   "/v1/orders",
   "/v1/orders/:orderId",
+  // N3/N4 (task 8.3/8.4). Both register unconditionally too. The reorder plan is
+  // the portal's only state-changing POST that reads an order, and the catalogue
+  // route is the only /v1 endpoint backed by a Shopify Admin token that is NOT
+  // customer-scoped — if either silently stopped registering, the 401 census would
+  // shrink rather than fail, which is the failure this list exists to prevent.
+  "/v1/orders/:orderId/reorder-plan",
+  "/v1/catalog/products",
   "/v1/redeem",
   "/v1/profile",
   "/v1/profile/visit",

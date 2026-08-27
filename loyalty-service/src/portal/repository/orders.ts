@@ -204,9 +204,9 @@ export class InvalidOrderReferenceError extends PortalRepositoryError {
 export class UnreadableUpstreamValueError extends PortalRepositoryError {
   readonly code = "unreadable_upstream_value" as const;
   /** Which kind of field could not be read. An identifier, never a value. */
-  readonly field: "money" | "order_id";
+  readonly field: "money" | "order_id" | "product_id";
 
-  constructor(field: "money" | "order_id") {
+  constructor(field: "money" | "order_id" | "product_id") {
     super("Shopify returned a value that could not be interpreted.");
     this.name = "UnreadableUpstreamValueError";
     this.field = field;

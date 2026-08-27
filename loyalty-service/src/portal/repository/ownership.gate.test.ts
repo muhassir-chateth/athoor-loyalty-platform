@@ -30,7 +30,11 @@
  *   5. Every `scope.customerId` unwrap is accounted for structurally.
  *   6. No exported signature takes a bare `customerId: string`.
  *   7. This directory emits no logs (it holds SQL and bound parameters).
- *   8. Every GraphQL document here passes {@link assertScopedCustomerQuery}.
+ *   8. Every GraphQL document here belongs to exactly ONE security class and
+ *      passes that class's guard: {@link assertScopedCustomerQuery} for a
+ *      customer-rooted read, {@link assertGlobalCatalogueQuery} for a global
+ *      catalogue read. Membership is declared per FILE, never sniffed from
+ *      content, so an edit cannot downgrade a document to the weaker gate.
  *
  * THE VACUOUS-PASS PROBLEM, AND HOW IT IS HANDLED
  * ----------------------------------------------
@@ -50,7 +54,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DELEGATION_TARGETS } from "./customerOwned.js";
-import { assertScopedCustomerQuery } from "./shopifyScope.js";
+import { assertGlobalCatalogueQuery, assertScopedCustomerQuery } from "./shopifyScope.js";
 import { UnscopedStatementError, validateScopedStatement } from "./scopedQuery.js";
 
 const REPOSITORY_DIR = dirname(fileURLToPath(import.meta.url));
@@ -460,25 +464,98 @@ describe("the repository layer emits no logs (design §24.3)", () => {
 });
 
 /* ========================================================================== *
- * 8 — every GraphQL document traverses from the customer node
+ * 8 — every GraphQL document belongs to exactly one security class
  * ========================================================================== */
 
-describe("every GraphQL document is customer-rooted (design §4.3 Rule 2)", () => {
-  it("validates each document with the runtime document guard", () => {
+/**
+ * THE TWO SECURITY CLASSES, AND WHY MEMBERSHIP IS DECLARED PER FILE.
+ *
+ * Most documents here are customer-rooted and must satisfy
+ * `assertScopedCustomerQuery`. The N4 catalogue read (task 8.4) cannot be —
+ * products are global data with no customer to scope to — so it satisfies
+ * `assertGlobalCatalogueQuery`, which proves the inverse property: the query
+ * cannot reach customer-owned data.
+ *
+ * MEMBERSHIP IS BY FILENAME, NEVER BY CONTENT. If the class were inferred from
+ * what a document contains, deleting a `customer(id:)` traversal would silently
+ * move that document to the weaker gate — an edit that REMOVES a safety property
+ * would also remove the check for it. Declaring the class per file means a
+ * customer read cannot become a catalogue read by being edited; it can only be
+ * moved deliberately, in a diff a reviewer sees.
+ */
+const GLOBAL_CATALOGUE_FILES: readonly string[] = ["catalog.ts"];
+
+describe("every GraphQL document belongs to exactly one security class", () => {
+  it("validates each document with the guard for its declared class", () => {
     for (const name of repositorySourceFiles()) {
+      const isCatalogue = GLOBAL_CATALOGUE_FILES.includes(name);
       for (const document of graphqlLiterals(readRepositoryFile(name))) {
-        expect(
-          () => assertScopedCustomerQuery(document),
-          `${name} contains a document that does not traverse from customer(id:):\n${document}`,
-        ).not.toThrow();
+        if (isCatalogue) {
+          expect(
+            () => assertGlobalCatalogueQuery(document),
+            `${name} is declared a GLOBAL CATALOGUE file but contains a document that could reach customer-owned data`,
+          ).not.toThrow();
+        } else {
+          expect(
+            () => assertScopedCustomerQuery(document),
+            `${name} contains a document that does not traverse from customer(id:)`,
+          ).not.toThrow();
+        }
       }
     }
   });
 
-  it("would catch a by-order-id document if one were added", () => {
-    // This directory holds no document yet — the first is task 8.2's N2 read. A
-    // gate over an empty set proves nothing, so the guard is exercised against
-    // the exact form that would be added, and rejected.
+  it("holds the two classes apart: neither guard accepts the other's documents", () => {
+    // If either guard accepted both kinds, having two would be theatre.
+    for (const name of repositorySourceFiles()) {
+      const isCatalogue = GLOBAL_CATALOGUE_FILES.includes(name);
+      for (const document of graphqlLiterals(readRepositoryFile(name))) {
+        if (isCatalogue) {
+          expect(
+            () => assertScopedCustomerQuery(document),
+            `${name}'s catalogue document also satisfies the SCOPED guard, so the two classes are not distinct`,
+          ).toThrow();
+        } else {
+          expect(
+            () => assertGlobalCatalogueQuery(document),
+            `${name}'s customer document also satisfies the CATALOGUE guard, so that guard is not proving "no customer data reachable"`,
+          ).toThrow();
+        }
+      }
+    }
+  });
+
+  it("refuses a customer, order or private traversal smuggled into a catalogue query", () => {
+    // The negative cases a future author would actually write. Each must be
+    // refused BEFORE any request is made.
+    const smuggled: readonly (readonly [string, string])[] = [
+      ["a Customer inline fragment", 'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Customer { id } } }'],
+      ["an Order inline fragment", 'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Order { id } } }'],
+      ["a DraftOrder inline fragment", 'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on DraftOrder { id } } }'],
+      [
+        "a customer root field beside the catalogue read",
+        'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id } } customer(id: "x") { id } }',
+      ],
+      [
+        "an orders connection nested under a product",
+        'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id orders(first: 1) { nodes { id } } } } }',
+      ],
+      ["an email selection", 'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id email } } }'],
+      [
+        "a shippingAddress selection",
+        'query q($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id shippingAddress { city } } } }',
+      ],
+      ["a customers( listing", 'query q($ids: [ID!]!) { customers(first: 10) { nodes { id } } }'],
+      ["a mutation in catalogue clothing", 'mutation m($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id } } }'],
+      ["an interpolated document", 'query q($ids: [ID!]!) { nodes(ids: ${x}) { ... on Product { id } } }'],
+      ["a non-catalogue root", 'query q($ids: [ID!]!) { shop { name } }'],
+    ];
+    for (const [why, document] of smuggled) {
+      expect(() => assertGlobalCatalogueQuery(document), why).toThrow();
+    }
+  });
+
+  it("would catch a by-order-id document if one were added to a scoped file", () => {
     expect(() =>
       assertScopedCustomerQuery(`query portalOrderDetail($id: ID!) {
         order(id: $id) { id name totalPriceSet { shopMoney { amount } } }

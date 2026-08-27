@@ -164,6 +164,17 @@ export interface RedemptionRateLimiterOptions {
    * limiter can fail closed rather than count an unkeyable request.
    */
   keyFor?: (req: FastifyRequest) => string | null;
+  /**
+   * The noun used in the `429` message, e.g. `"reorder"`. Defaults to
+   * `"redemption"`.
+   *
+   * Exists because this factory is deliberately reusable (see the header) and
+   * task 8.3 attaches it to `POST /v1/orders/:orderId/reorder-plan`. Without it a
+   * reorder request would be refused with "Too many redemption requests", which
+   * is a false statement about what the customer did. The `error` CODE is
+   * unchanged — the client renders from that, per design E.1.
+   */
+  subject?: string;
 }
 
 /** Default key extractor: the local customer id resolved by the auth layer. */
@@ -198,6 +209,7 @@ export function createRedemptionRateLimiter(
   const clock = opts.clock ?? systemClock;
   const store = opts.store ?? new InMemorySlidingWindowStore(maxRequests, windowMs);
   const keyFor = opts.keyFor ?? defaultKeyFor;
+  const subject = opts.subject ?? "redemption";
 
   return async function redemptionRateLimit(
     req: FastifyRequest,
@@ -222,7 +234,7 @@ export function createRedemptionRateLimiter(
       reply.code(429).send({
         error: RATE_LIMIT_EXCEEDED_ERROR,
         message:
-          `Too many redemption requests: at most ${maxRequests} are permitted per ` +
+          `Too many ${subject} requests: at most ${maxRequests} are permitted per ` +
           `${Math.round(windowMs / 1000)}-second window. Please retry in ` +
           `${retryAfterSeconds}s.`,
         retryAfterSeconds,
