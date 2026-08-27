@@ -47,6 +47,69 @@ import { toBenefitView, type BenefitView } from "./benefits.js";
  * never reports below it (Req 7.3/7.7). `lifetimeSpendGBP` drives tier
  * derivation and progress (Req 7.1/7.5).
  */
+/**
+ * The 60-day window §9.4 specifies for `expiringSoon`.
+ *
+ * Reported back to the client in the response rather than assumed by it, so the
+ * copy ("150 points expire in the next 60 days") is rendered from a value the
+ * server owns. A client that hardcoded 60 would silently disagree the day this
+ * changes.
+ */
+export const EXPIRING_SOON_WINDOW_DAYS = 60;
+
+/**
+ * Points expiring inside {@link EXPIRING_SOON_WINDOW_DAYS} (Req 8.13, §9.4).
+ *
+ * OMITTED ENTIRELY when nothing expires in the window — never `{ points: 0 }`.
+ * §9.4 calls for the same "absent rather than empty" convention the metafield
+ * writer already uses for `tier_progress_gbp`, precisely so the UI can tell
+ * "nothing expiring" from "unknown" (Req 4.11). A zero-valued object would
+ * collapse that distinction and invite a "0 points expiring soon" banner.
+ */
+export interface ExpiringSoonSummary {
+  /** Sum of `remaining_points` over lots expiring inside the window. */
+  readonly points: number;
+  /** ISO-8601 instant of the EARLIEST such expiry — the date the copy leads with. */
+  readonly earliestExpiryAt: string;
+  /** The window this was computed over. See {@link EXPIRING_SOON_WINDOW_DAYS}. */
+  readonly windowDays: number;
+}
+
+/**
+ * Per-reward eligibility, computed where the balance lives (Req 8.3, 8.6, §9.1).
+ *
+ * ── WHY THE SERVER DECIDES THIS ─────────────────────────────────────────────
+ * §9.1 lists `spendableBalance >= reward.cost` as the LAST threshold comparison
+ * still performed on the client, and removes it. `GET /v1/rewards` is public and
+ * cannot know a balance, so the portal reads the catalogue from `/v1/balance`'s
+ * `availableRewards` and is handed the verdict rather than computing it. Two
+ * clients comparing independently is two chances to disagree with the engine
+ * about what is affordable.
+ *
+ * `additionalPointsRequired` is `0` — not omitted — when the reward IS
+ * redeemable. The field is a quantity, and a quantity that exists is clearer than
+ * one whose absence the client must interpret; §9.1's table renders it as text
+ * only in the not-yet-redeemable state anyway.
+ */
+export interface RewardEligibility {
+  /** True iff the spendable balance covers this reward's cost. */
+  readonly redeemable: boolean;
+  /** Points still needed; `0` when {@link redeemable} is true. Never negative. */
+  readonly additionalPointsRequired: number;
+}
+
+/**
+ * A catalogue reward carried on the balance response, with its eligibility.
+ *
+ * ADDITIVE BY CONSTRUCTION: it INTERSECTS the shipped {@link Reward} rather than
+ * replacing it, so every existing field keeps its name, type and meaning, and
+ * anything typed against `readonly Reward[]` still compiles. `Reward.valueGBP`
+ * stays a `number` — Req 20.6 forbids changing a shipped field's shape, and the
+ * decimal-string representation belongs to the NEW N16 contract only. The two
+ * representations coexist deliberately; `portal/types.ts` records why at length.
+ */
+export type AvailableReward = Reward & RewardEligibility;
+
 export interface CustomerBalanceRow {
   /** Cumulative lifetime spend in GBP (drives tier + progress). */
   lifetimeSpendGBP: number;
@@ -61,6 +124,15 @@ export interface CustomerBalanceRow {
 export interface CustomerBalanceSnapshot extends CustomerBalanceRow {
   /** `SUM(point_lots.remaining_points)` over non-expired lots (Req 1.3). */
   spendableBalance: number;
+  /**
+   * Points expiring inside the window, or `undefined` when none are (Req 8.13).
+   *
+   * OPTIONAL so every existing {@link CustomerBalanceSource} — including the
+   * in-memory one every route test uses — still satisfies the interface without
+   * being touched. A required field here would have made task 10.1 a change to
+   * shipped test fixtures rather than an addition.
+   */
+  expiringSoon?: ExpiringSoonSummary | undefined;
 }
 
 /**
@@ -104,8 +176,19 @@ export interface BalanceSummary {
    * top tier — indicating no higher tier exists (Req 7.5, 7.6).
    */
   progressToNextTierGBP: number | null;
-  /** The redeemable rewards catalog (Req 8.5). */
-  availableRewards: readonly Reward[];
+  /**
+   * The rewards catalogue WITH per-reward eligibility (Req 8.5, 8.3, 8.6).
+   *
+   * The declared element type is narrowed from `Reward` to {@link AvailableReward},
+   * which is an intersection of it — so this is additive at the wire level and
+   * assignable at the type level. Nothing is removed or renamed (Req 20.6).
+   */
+  availableRewards: readonly AvailableReward[];
+  /**
+   * Points expiring inside {@link EXPIRING_SOON_WINDOW_DAYS} (Req 8.13, §9.4).
+   * ABSENT — not zero-valued — when nothing expires in the window.
+   */
+  expiringSoon?: ExpiringSoonSummary;
   /**
    * The Benefits the customer's current tier qualifies for (Req 18.2, task 30).
    * ADDITIVE and OPTIONAL: present only when an entitlement resolver is wired,
@@ -114,6 +197,28 @@ export interface BalanceSummary {
    * reports — never recomputed here.
    */
   benefits?: readonly BenefitView[];
+}
+
+/**
+ * Attaches eligibility to one catalogue reward (pure).
+ *
+ * THE ENGINE'S ARITHMETIC IS NOT TOUCHED. This reads the ALREADY-COMPUTED
+ * `spendableBalance` — the projection `computeSpendableBalance` produced — and
+ * compares it to the reward's own cost. It does not re-derive a balance, does not
+ * consult `point_lots`, and does not decide what a redemption would cost. It
+ * states a comparison the client would otherwise make (§9.1) and nothing else.
+ *
+ * `additionalPointsRequired` is clamped at zero rather than allowed to go
+ * negative: a redeemable reward requires no additional points, and a negative
+ * "points required" is a number no client should have to interpret.
+ */
+export function withEligibility(reward: Reward, spendableBalance: number): AvailableReward {
+  const redeemable = spendableBalance >= reward.cost;
+  return {
+    ...reward,
+    redeemable,
+    additionalPointsRequired: redeemable ? 0 : reward.cost - spendableBalance,
+  };
 }
 
 /**
@@ -141,8 +246,14 @@ export function buildBalanceSummary(
     nextTier: tier.nextTier,
     nextTierThresholdGBP: tier.nextTierThresholdGBP,
     progressToNextTierGBP: tier.progressToNextTierGBP,
-    availableRewards: REWARD_CATALOG,
+    availableRewards: REWARD_CATALOG.map((reward) =>
+      withEligibility(reward, snapshot.spendableBalance),
+    ),
   };
+  // ABSENT rather than zero-valued when nothing expires in the window (§9.4).
+  if (snapshot.expiringSoon !== undefined) {
+    summary.expiringSoon = snapshot.expiringSoon;
+  }
   // Omitted entirely (not `[]`) when no resolver is wired, so the body is
   // byte-identical to the pre-task-30 response on such a build.
   if (benefits !== undefined) {
@@ -157,6 +268,39 @@ const SELECT_CUSTOMER_BALANCE_ROW_SQL = `
   WHERE id = $1
   LIMIT 1
 `;
+
+/**
+ * The §9.4 window query: points expiring inside `$2` days, and the earliest such
+ * expiry.
+ *
+ * ── WHY THIS IS ONE INDEXED QUERY AND NOT A NEW ENDPOINT ────────────────────
+ * `point_lots` already carries `expires_at`, and `idx_lots_expiry` already indexes
+ * `expires_at WHERE remaining_points > 0` — the exact predicate below. §9.4 notes
+ * that this makes the 60-day window an additive field on a response the portal
+ * already fetches rather than a second round trip.
+ *
+ * `expires_at > $3` excludes lots that have ALREADY expired. Those points are not
+ * "expiring soon", they are gone, and `computeSpendableBalance` has already
+ * excluded them from the balance — including them here would tell a customer that
+ * points they no longer have are about to leave.
+ *
+ * OWNERSHIP: `customer_id = $1`, bound from the resolved identity.
+ */
+const SELECT_EXPIRING_SOON_SQL = `
+  SELECT coalesce(sum(remaining_points), 0)::text AS points,
+         min(expires_at)                          AS earliest_expiry_at
+    FROM point_lots
+   WHERE customer_id = $1
+     AND remaining_points > 0
+     AND expires_at IS NOT NULL
+     AND expires_at >  $3
+     AND expires_at <= $3::timestamptz + ($2 || ' days')::interval
+`;
+
+interface ExpiringSoonDbRow extends QueryResultRow {
+  points: string | null;
+  earliest_expiry_at: Date | string | null;
+}
 
 interface CustomerBalanceDbRow extends QueryResultRow {
   lifetime_spend_gbp: string | number;
@@ -182,7 +326,40 @@ function parseSpendColumn(value: string | number | null): number {
  * — an in-memory source stands in so no live Postgres is required.
  */
 export class PgCustomerBalanceSource implements CustomerBalanceSource {
-  constructor(private readonly db: Queryable) {}
+  constructor(
+    private readonly db: Queryable,
+    private readonly windowDays: number = EXPIRING_SOON_WINDOW_DAYS,
+  ) {}
+
+  /**
+   * Points expiring inside the window, or `null` when none are.
+   *
+   * Returns `null` for a zero sum AND for a missing earliest date — both mean
+   * "nothing expiring", and a summary with points but no date, or a date but no
+   * points, is not a state the client has copy for.
+   */
+  private async loadExpiringSoon(
+    customerId: string,
+    asOf: Date,
+  ): Promise<ExpiringSoonSummary | null> {
+    const result = await this.db.query<ExpiringSoonDbRow>(SELECT_EXPIRING_SOON_SQL, [
+      customerId,
+      String(this.windowDays),
+      asOf,
+    ]);
+    const row = result.rows[0];
+    if (!row) return null;
+    // `sum()` over BIGINT is BIGINT, which the driver returns as a string; cast in
+    // SQL so the conversion is explicit rather than driver-dependent.
+    const points = Number.parseInt(row.points ?? "0", 10);
+    if (!Number.isFinite(points) || points <= 0) return null;
+    const earliest = row.earliest_expiry_at;
+    if (earliest === null || earliest === undefined) return null;
+    const earliestExpiryAt =
+      earliest instanceof Date ? earliest.toISOString() : new Date(earliest).toISOString();
+    if (Number.isNaN(Date.parse(earliestExpiryAt))) return null;
+    return { points, earliestExpiryAt, windowDays: this.windowDays };
+  }
 
   async load(customerId: string, asOf: Date = new Date()): Promise<CustomerBalanceSnapshot | null> {
     const result = await this.db.query<CustomerBalanceDbRow>(SELECT_CUSTOMER_BALANCE_ROW_SQL, [
@@ -193,10 +370,14 @@ export class PgCustomerBalanceSource implements CustomerBalanceSource {
       return null;
     }
     const spendableBalance = await computeSpendableBalance(customerId, this.db, asOf);
+    const expiringSoon = await this.loadExpiringSoon(customerId, asOf);
     return {
       lifetimeSpendGBP: parseSpendColumn(row.lifetime_spend_gbp),
       tier: row.tier,
       spendableBalance,
+      // `undefined` when nothing expires in the window, so the summary omits the
+      // field entirely rather than reporting zero (§9.4).
+      ...(expiringSoon ? { expiringSoon } : {}),
     };
   }
 }

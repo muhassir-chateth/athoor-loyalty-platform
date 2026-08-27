@@ -436,3 +436,157 @@ describe("Property 5 (Idempotent redeem) — Requirement 3.7", () => {
     );
   });
 });
+
+// Feature: customer-experience-portal, Property 4: Redemption is idempotent and never double-debits
+/* ========================================================================== *
+ * PROPERTY 4 — spec task 10.3. Validates Requirements 8.7, 8.9.
+ *
+ * EXTENDS this file rather than starting a new one, which is what task 10.3 asks
+ * for: the fakes above are the harness the shipped redemption properties already
+ * trust, and a second private copy of a serializing transactor would be a second
+ * definition of how the engine behaves under contention — free to disagree with
+ * this one, and the disagreement would look like a passing suite.
+ *
+ * THE ENGINE IS NOT MODIFIED. The enforcement point stays exactly where it is:
+ * the `redemptions (customer_id, idempotency_key)` UNIQUE constraint, whose
+ * violation the fake raises as SQLSTATE 23505 and which `redeem()` already
+ * translates into a replay. These properties assert that guarantee from the
+ * outside across dimensions the existing Property 5 does not generate: retry
+ * COUNT, the POINT in the lifecycle at which a caller gives up, and the full
+ * catalogue of reward ids.
+ * ========================================================================== */
+
+describe("Property 4: redemption is idempotent and never double-debits", () => {
+  it("any retry count, sequential or concurrent, debits exactly once", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        rewardIdArb,
+        fc.integer({ min: 1, max: 9 }),
+        fc.boolean(),
+        fc.integer({ min: 0, max: 400 }),
+        async (rewardId, retries, concurrent, headroom) => {
+          const reward = REWARDS[rewardId];
+          const fake = makeDb([singleLot(reward.cost + headroom)]);
+          const deps = makeDeps(fake);
+          const attempt = () => redeem(CUSTOMER, rewardId, "same-key", deps);
+
+          if (concurrent) {
+            await Promise.all(Array.from({ length: retries }, attempt));
+          } else {
+            for (let i = 0; i < retries; i += 1) await attempt();
+          }
+
+          // THE SPEND SUM EQUALS THE NEGATIVE OF points_spent, once.
+          const spends = fake.ledger.filter((e) => e.entry_type === "spend");
+          const spendTotal = spends.reduce((sum, e) => sum + e.points, 0);
+          expect(fake.redemptions).toHaveLength(1);
+          expect(spendTotal).toBe(-fake.redemptions[0]!.points_spent);
+          expect(spends).toHaveLength(1);
+
+          // EXACTLY ONE discount code is ever requested, however many retries.
+          expect(deps.enqueuer.jobs).toEqual([{ redemptionId: fake.redemptions[0]!.id }]);
+
+          // The balance moved by exactly the reward's cost and no more.
+          const remaining = fake.lots.reduce((sum, l) => sum + l.remaining_points, 0);
+          expect(remaining).toBe(headroom);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it("a caller abandoning at ANY point in the lifecycle still leaves one debit", async () => {
+    // Models the real failure §9.3 cares about: a network timeout. The customer's
+    // browser gives up, but the server-side transaction may already have committed.
+    // Whether the caller ever saw the response must not change what the ledger holds,
+    // and the retry with the SAME key must not debit again.
+    await fc.assert(
+      fc.asyncProperty(
+        rewardIdArb,
+        fc.integer({ min: 1, max: 4 }),
+        async (rewardId, abandonedAttempts) => {
+          const reward = REWARDS[rewardId];
+          const fake = makeDb([singleLot(reward.cost * 3)]);
+          const deps = makeDeps(fake);
+
+          // Each "abandoned" attempt is issued and its result discarded — exactly
+          // what a timed-out client leaves behind on the server.
+          for (let i = 0; i < abandonedAttempts; i += 1) {
+            await redeem(CUSTOMER, rewardId, "timeout-key", deps).catch(() => undefined);
+          }
+          // The eventual retry the customer's client actually reads.
+          const final = await redeem(CUSTOMER, rewardId, "timeout-key", deps);
+
+          expect(fake.redemptions).toHaveLength(1);
+          expect(final.redemption.id).toBe(fake.redemptions[0]!.id);
+          const spends = fake.ledger.filter((e) => e.entry_type === "spend");
+          expect(spends).toHaveLength(1);
+          expect(spends[0]!.points).toBe(-reward.cost);
+          expect(deps.enqueuer.jobs).toHaveLength(1);
+        },
+      ),
+      { numRuns: 150 },
+    );
+  });
+
+  it("a FAILED redemption leaves the spendable balance untouched", async () => {
+    // An insufficient balance must cost nothing: no spend, no redemption row, no
+    // code job, and the lots exactly as they were.
+    await fc.assert(
+      fc.asyncProperty(
+        rewardIdArb,
+        fc.integer({ min: 1, max: 40 }),
+        fc.integer({ min: 1, max: 5 }),
+        async (rewardId, shortfall, attempts) => {
+          const reward = REWARDS[rewardId];
+          const available = Math.max(0, reward.cost - shortfall);
+          const fake = makeDb([singleLot(available)]);
+          const deps = makeDeps(fake);
+
+          for (let i = 0; i < attempts; i += 1) {
+            await redeem(CUSTOMER, rewardId, `short-${i}`, deps).catch(() => undefined);
+          }
+
+          const remaining = fake.lots.reduce((sum, l) => sum + l.remaining_points, 0);
+          expect(remaining).toBe(available);
+          expect(fake.ledger.filter((e) => e.entry_type === "spend")).toEqual([]);
+          expect(deps.enqueuer.jobs).toEqual([]);
+        },
+      ),
+      { numRuns: 150 },
+    );
+  });
+
+  it("distinct keys debit independently — idempotency is per key, not per customer", async () => {
+    // The counterpart to the property above: idempotency must not become a global
+    // "one redemption per customer" lock, which would silently refuse a second
+    // legitimate redemption.
+    await fc.assert(
+      fc.asyncProperty(
+        rewardIdArb,
+        fc.integer({ min: 2, max: 5 }),
+        async (rewardId, distinctKeys) => {
+          const reward = REWARDS[rewardId];
+          const fake = makeDb([singleLot(reward.cost * distinctKeys)]);
+          const deps = makeDeps(fake);
+
+          await Promise.all(
+            Array.from({ length: distinctKeys }, (_v, i) =>
+              redeem(CUSTOMER, rewardId, `key-${i}`, deps),
+            ),
+          );
+
+          expect(fake.redemptions).toHaveLength(distinctKeys);
+          const spends = fake.ledger.filter((e) => e.entry_type === "spend");
+          expect(spends).toHaveLength(distinctKeys);
+          const spendTotal = spends.reduce((sum, e) => sum + e.points, 0);
+          const debited = fake.redemptions.reduce((sum, r) => sum + r.points_spent, 0);
+          expect(spendTotal).toBe(-debited);
+          expect(deps.enqueuer.jobs).toHaveLength(distinctKeys);
+          expect(fake.lots.reduce((sum, l) => sum + l.remaining_points, 0)).toBe(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
