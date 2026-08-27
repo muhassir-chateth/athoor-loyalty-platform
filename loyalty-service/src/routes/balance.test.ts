@@ -50,8 +50,17 @@ describe("buildBalanceSummary (Req 7.5/7.6/8.5)", () => {
       nextTierThresholdGBP: 750,
       progressToNextTierGBP: 300,
     });
-    // Available rewards are exactly the four-entry catalog (Req 8.5).
-    expect(summary.availableRewards).toEqual(REWARD_CATALOG);
+    // Available rewards are still exactly the four-entry catalogue (Req 8.5), now
+    // each carrying its ADDITIVE eligibility (task 10.1, Req 8.3/8.6). Every
+    // shipped field keeps its name and value — asserted by comparing the catalogue
+    // subset explicitly rather than by loosening the check.
+    expect(summary.availableRewards).toHaveLength(REWARD_CATALOG.length);
+    for (const [i, reward] of REWARD_CATALOG.entries()) {
+      expect(summary.availableRewards[i]).toMatchObject(reward);
+    }
+    // `valueGBP` stays a NUMBER here. Req 20.6 forbids reshaping a shipped field;
+    // the decimal-string form belongs to the new N16 contract only.
+    expect(typeof summary.availableRewards[0]?.valueGBP).toBe("number");
   });
 
   it("reports a top-tier indicator (null progress) for Royal_VIP (Req 7.6)", () => {
@@ -173,7 +182,13 @@ describe("GET /v1/balance (Req 7.5/7.6/8.5, 9.2/9.3)", () => {
       nextTierThresholdGBP: 750,
       progressToNextTierGBP: 300,
     });
-    expect(body.availableRewards).toEqual(REWARD_CATALOG);
+    expect(body.availableRewards).toHaveLength(REWARD_CATALOG.length);
+    for (const [i, reward] of REWARD_CATALOG.entries()) {
+      expect(body.availableRewards[i]).toMatchObject(reward);
+      // Eligibility is present on the wire and server-decided (§9.1).
+      expect(body.availableRewards[i]).toHaveProperty("redeemable");
+      expect(body.availableRewards[i]).toHaveProperty("additionalPointsRequired");
+    }
   });
 
   it("returns identical data via App Proxy and Customer Account API identity (Req 8.5, 9.2)", async () => {

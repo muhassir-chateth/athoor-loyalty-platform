@@ -56,6 +56,7 @@ import {
   ShopifyPortalCatalogSource,
 } from "./routes/catalog.js";
 import { PgWishlistWriteStore } from "./routes/wishlist.js";
+import { PgPortalRedemptionSource } from "./routes/redemptions.js";
 import { ShopifyGraphqlTransport } from "./shopify/graphqlClient.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
@@ -279,6 +280,8 @@ async function main(): Promise<void> {
     // explicit-removal tombstone — without it, §8.4 rule 5 stays conditionally false
     // and a removal is undone by the next reconcile.
     wishlistStore: new PgWishlistWriteStore(pool),
+    // N16 (task 10.2). Read-only over `redemptions` LEFT JOIN `discount_codes`.
+    redemptionSource: new PgPortalRedemptionSource(pool),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives

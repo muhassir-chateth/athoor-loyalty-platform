@@ -317,3 +317,91 @@ describe("PgBossDiscountCodeEnqueuer (GAP 2 adapter)", () => {
     );
   });
 });
+
+/* ========================================================================== *
+ * TASK 10.4 — the auth → idempotency → rate-limit composition order
+ *
+ * APPENDED to this suite rather than given its own file, because the proof needs a
+ * redemption that genuinely SUCCEEDS, and `buildRedeemApp` above already owns the
+ * only fake in the codebase that produces one. A second copy of that fake would be
+ * a second definition of a successful redemption, free to drift from the one the
+ * shipped tests rely on — and the drift would look like a passing suite.
+ * ========================================================================== */
+
+describe("composition order: idempotency resolves before the route limiter (Req 8.9/8.11)", () => {
+  it("replays the original 200 for a succeeded key even once the limiter is exhausted", async () => {
+    // THE SCENARIO THIS PROTECTS. A redemption succeeds; the customer's network
+    // drops before the response arrives; their client retries with the SAME key.
+    // Meanwhile the limiter's window has been spent. The retry MUST return the
+    // original success — otherwise the customer is told a redemption they already
+    // own, and have already been debited for, was rate limited.
+    //
+    // `registerIdempotency` installs a SCOPE-level preHandler on `/v1`, and the
+    // limiter is attached as a ROUTE-level preHandler. Fastify runs scope hooks
+    // before route hooks, so the stored result short-circuits the request before the
+    // limiter is ever consulted. This test is what stops that order inverting.
+    const db = new FakeRedeemDb({ spendable: 500 });
+    const { app } = buildRedeemApp({ db, redeemRateLimit: { maxRequests: 1, windowMs: 60_000 } });
+    try {
+      await app.ready();
+      const headers = {
+        authorization: `Bearer ${BEARER_TOKEN}`,
+        "idempotency-key": "replay-under-exhaustion",
+        "content-type": "application/json",
+      };
+
+      const first = await app.inject({
+        method: "POST",
+        url: "/v1/redeem",
+        headers,
+        payload: { rewardId: "reward_5", idempotencyKey: "engine-key" },
+      });
+      expect(first.statusCode).toBe(200);
+
+      // The single limiter slot is now spent: a DIFFERENT key is refused.
+      const limited = await app.inject({
+        method: "POST",
+        url: "/v1/redeem",
+        headers: { ...headers, "idempotency-key": "a-different-key" },
+        payload: { rewardId: "reward_5", idempotencyKey: "a-different-engine-key" },
+      });
+      expect(limited.statusCode).toBe(429);
+      expect(limited.json().error).toBe("rate_limit_exceeded");
+
+      // The SAME key still replays the original success.
+      const replay = await app.inject({
+        method: "POST",
+        url: "/v1/redeem",
+        headers,
+        payload: { rewardId: "reward_5", idempotencyKey: "engine-key" },
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.body).toBe(first.body);
+      expect(replay.headers["idempotent-replay"]).toBe("true");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does not debit twice on that replay — one redemption, one spend", async () => {
+    const db = new FakeRedeemDb({ spendable: 500 });
+    const { app, enqueuer } = buildRedeemApp({
+      db,
+      redeemRateLimit: { maxRequests: 1, windowMs: 60_000 },
+    });
+    try {
+      await app.ready();
+      const headers = {
+        authorization: `Bearer ${BEARER_TOKEN}`,
+        "idempotency-key": "replay-no-double-debit",
+        "content-type": "application/json",
+      };
+      await app.inject({ method: "POST", url: "/v1/redeem", headers, payload: { rewardId: "reward_5", idempotencyKey: "engine-key" } });
+      await app.inject({ method: "POST", url: "/v1/redeem", headers, payload: { rewardId: "reward_5", idempotencyKey: "engine-key" } });
+      // The handler ran once, so exactly one discount-code job was enqueued.
+      expect(enqueuer.jobs).toHaveLength(1);
+    } finally {
+      await app.close();
+    }
+  });
+});

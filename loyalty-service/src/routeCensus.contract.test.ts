@@ -94,6 +94,8 @@ const REQUIRED_PRESENT = [
   "/v1/orders/:orderId/reorder-plan",
   "/v1/catalog/products",
   "/v1/redeem",
+  // N16 (task 10.2). Registered unconditionally, like balance and history.
+  "/v1/redemptions",
   "/v1/profile",
   "/v1/profile/visit",
   "/v1/profile/favourites",

@@ -21,6 +21,7 @@ import { registerHistoryRoute, type LedgerHistorySource } from "./history.js";
 import { registerOrdersRoutes, type PortalOrderSource } from "./orders.js";
 import { registerCatalogRoutes, type PortalCatalogSource } from "./catalog.js";
 import { registerWishlistWriteRoute, type WishlistWriteStore } from "./wishlist.js";
+import { registerRedemptionsRoute, type PortalRedemptionSource } from "./redemptions.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
@@ -119,6 +120,12 @@ export interface V1RouterOptions {
    * gate on their store rather than accepting writes that go nowhere.
    */
   wishlistStore?: WishlistWriteStore;
+  /**
+   * Backs `GET /v1/redemptions` (N16, task 10.2). Absent → an empty in-memory
+   * source, which is fail-closed here: "you have redeemed nothing" is true of a
+   * customer this service holds no redemptions for.
+   */
+  redemptionSource?: PortalRedemptionSource;
   /**
    * Per-customer redemption rate-limit configuration for `POST /v1/redeem`
    * (task 6.5, Req 11.12). Defaults to 10 requests / 60s keyed on
@@ -314,6 +321,9 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
   registerCatalogRoutes(app, { catalogSource: opts.portalCatalogSource });
   registerWishlistWriteRoute(app, {
     ...(opts.wishlistStore ? { wishlistStore: opts.wishlistStore } : {}),
+  });
+  registerRedemptionsRoute(app, {
+    ...(opts.redemptionSource ? { redemptionSource: opts.redemptionSource } : {}),
   });
 
   // Authenticated Fragrance_Profile + journey timeline (task 14.5, Req 17.1,

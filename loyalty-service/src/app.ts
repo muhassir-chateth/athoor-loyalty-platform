@@ -33,6 +33,7 @@ import type { LedgerHistorySource } from "./routes/history.js";
 import type { PortalOrderSource } from "./routes/orders.js";
 import type { PortalCatalogSource } from "./routes/catalog.js";
 import type { WishlistWriteStore } from "./routes/wishlist.js";
+import type { PortalRedemptionSource } from "./routes/redemptions.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
@@ -204,6 +205,19 @@ export interface AppDependencies {
    * would answer `404`, which a client reads as "not on your wishlist".
    */
   wishlistStore?: WishlistWriteStore;
+  /**
+   * Backs `GET /v1/redemptions` (N16, task 10.2) — issued codes with value and
+   * status, which `/v1/history` alone cannot state (§9.2). Omitted → an empty
+   * in-memory source.
+   *
+   * DECLARED AND FORWARDED TOGETHER, deliberately. Task 8.4 constructed
+   * `portalCatalogSource` in index.ts and passed it through a SPREAD, which
+   * bypasses excess-property checking — so an undeclared dependency travelled
+   * silently and was never forwarded, and the endpoint answered 502 in production
+   * until task 9.1 found it. `app.test.ts` asserts this forwarding by observing the
+   * route rather than trusting the wiring.
+   */
+  redemptionSource?: PortalRedemptionSource;
   /**
    * Dependencies for the spec-defined `POST /v1/redeem` handler (Req 3.2–3.11):
    * the append-only ledger repository, the atomic transactor, and the
@@ -569,6 +583,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     portalOrderSource: deps.portalOrderSource,
     portalCatalogSource: deps.portalCatalogSource,
     wishlistStore: deps.wishlistStore,
+    redemptionSource: deps.redemptionSource,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
     portalVisitRecorder: deps.portalVisitRecorder,
