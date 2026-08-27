@@ -348,7 +348,9 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
                   </nav>
                 <div class="menu-drawer__utility-links">
                   {%- if shop.customer_accounts_enabled -%}
-                    <a href="{%- if customer -%}{{ routes.account_url }}{%- else -%}{{ routes.account_login_url }}{%- endif -%}" class="menu-drawer__account link focus-inset h5">
+                    {%- capture portal_drawer_href -%}{% render 'portal-account-href' %}{%- endcapture -%}
+                    {%- assign portal_drawer_href = portal_drawer_href | strip -%}
+                    <a href="{%- if portal_drawer_href != blank -%}{{ portal_drawer_href }}{%- elsif customer -%}{{ routes.account_url }}{%- else -%}{{ routes.account_login_url }}{%- endif -%}" class="menu-drawer__account link focus-inset h5">
                       {% render 'icon-account' %}
                       {%- liquid
                         if customer
@@ -980,7 +982,16 @@ ul.dt-nav.dt-desktop-menu > li.top-level-link a.dt-sc-nav-link:hover span:not(.d
             assign account_link_label = 'customer.log_in' | t
           endif
         -%}
-        <a href="{%- if customer -%}{{ routes.account_url }}{%- else -%}/pages/account-landing{%- endif -%}"{% unless customer %} data-account-drawer-open{% endunless %} class="header__icon header__icon--account link focus-inset{% if section.settings.menu != blank %} small-hide{% endif %}" aria-label="{{ account_link_label | escape }}">
+        {%- comment -%}
+          Task 19.3, design §25.3: the ONE flag-gated live-theme change. With the
+          portal off `portal_account_href` is blank and the two branches below are
+          the ones that shipped before, so the rendered href is byte-identical to
+          today's. The gate itself lives in `portal-account-href` so it cannot drift
+          from the one the portal pages use.
+        {%- endcomment -%}
+        {%- capture portal_account_href -%}{% render 'portal-account-href' %}{%- endcapture -%}
+        {%- assign portal_account_href = portal_account_href | strip -%}
+        <a href="{%- if portal_account_href != blank -%}{{ portal_account_href }}{%- elsif customer -%}{{ routes.account_url }}{%- else -%}/pages/account-landing{%- endif -%}"{% unless customer %} data-account-drawer-open{% endunless %} class="header__icon header__icon--account link focus-inset{% if section.settings.menu != blank %} small-hide{% endif %}" aria-label="{{ account_link_label | escape }}">
           {% render 'icon-account' %}
           <span class="icon__fallback-text">
             {%- liquid

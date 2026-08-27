@@ -1,0 +1,117 @@
+{%- comment -%}
+  snippets/portal-nav.liquid — the account navigation (spec task 19.1, design §17.4).
+
+  Requirements 4.12, 17.3, 17.4, 17.8, 17.10, 25.6, 25.9.
+
+  ── ONE `<nav>`, THREE PRESENTATIONS ──────────────────────────────────────────
+  §17.4 designs desktop, tablet and mobile separately because the constraints
+  differ. They are NOT three markup trees: that would triple the DOM, put the same
+  link on the page three times for a screen reader, and let the three drift.
+
+  One list is rendered. CSS turns it into a vertical rail at ≥990 px, a horizontal
+  scrolling row at 750–989 px, and a fixed bottom bar below 750 px. The bottom bar
+  shows the first four entries plus **More**; the four demoted entries are hidden
+  from the bar and reachable through the sheet, which renders the SAME hrefs.
+
+  ── WHY THE BAR IS LIQUID AND NOT JAVASCRIPT ──────────────────────────────────
+  Task 19.1: "rendered by Liquid so it survives any script failure". The bottom bar
+  is the only way to leave a section on a phone, so if it depended on the portal
+  bundle then a JavaScript error would trap the customer on one page. It is markup
+  and CSS only; the sole scripted part is the More sheet, and `<dialog>` degrades to
+  a visible list when the script never runs (see `portal-more-sheet`).
+
+  ── `aria-current` IS SERVER-RENDERED ─────────────────────────────────────────
+  Requirement 17.10 and §17.4. The current entry is known at render time, so
+  computing it in JavaScript would mean the first paint has no current entry and a
+  screen reader reaching the nav before the bundle executes hears eight
+  indistinguishable links.
+
+  ── THE ACTIVE STATE IS NEVER COLOUR ALONE (Requirement 17.8) ─────────────────
+  Three non-colour carriers, one per breakpoint: a leading-edge hairline on the
+  rail, an underline on the tablet row, and heavier label weight on the bar. Colour
+  accompanies each; none depends on it.
+
+  ── TARGETS ───────────────────────────────────────────────────────────────────
+  Every link is ≥44×44 px with ≥8 px separation (Requirement 17.3), enforced in
+  `athoor-portal.css` by min-height and gap rather than by padding guesswork.
+
+  PARAMETERS
+    current  the `nav_key` of the page being rendered
+{%- endcomment -%}
+
+<nav class="athoor-portal__nav" aria-label="Your account">
+  <ul class="athoor-portal__nav-list" role="list">
+    {%- comment -%}
+      Order is §17.4's, and the first four are the bottom bar's four. Activity is
+      deliberately absent: §17.4 nests it under Rewards, so it is reached from the
+      Rewards section rather than being a ninth destination.
+    {%- endcomment -%}
+    {%- assign nav_items = 'overview,orders,wishlist,rewards,referrals,fragrance,profile,settings' | split: ',' -%}
+    {%- for item in nav_items -%}
+      {%- liquid
+        case item
+          when 'overview'
+            assign label = 'Overview'
+            assign href = '/pages/my-athoor'
+          when 'orders'
+            assign label = 'Orders'
+            assign href = '/pages/my-athoor-orders'
+          when 'wishlist'
+            assign label = 'Wishlist'
+            assign href = '/pages/my-athoor-wishlist'
+          when 'rewards'
+            assign label = 'Rewards'
+            assign href = '/pages/my-athoor-rewards'
+          when 'referrals'
+            assign label = 'Referrals'
+            assign href = '/pages/my-athoor-referrals'
+          when 'fragrance'
+            assign label = 'Fragrance profile'
+            assign href = '/pages/my-athoor-fragrance'
+          when 'profile'
+            assign label = 'Profile'
+            assign href = '/pages/my-athoor-profile'
+          when 'settings'
+            assign label = 'Settings'
+            assign href = '/pages/my-athoor-settings'
+        endcase
+
+        assign is_current = false
+        if item == current
+          assign is_current = true
+        endif
+
+        assign in_bar = false
+        if forloop.index <= 4
+          assign in_bar = true
+        endif
+      -%}
+      <li class="athoor-portal__nav-item{% unless in_bar %} athoor-portal__nav-item--overflow{% endunless %}">
+        <a
+          class="athoor-portal__nav-link"
+          href="{{ href }}"
+          {% if is_current %}aria-current="page"{% endif %}
+        >
+          <span class="athoor-portal__nav-label">{{ label }}</span>
+        </a>
+      </li>
+    {%- endfor -%}
+
+    {%- comment -%}
+      The fifth bottom-bar target. Hidden above 750 px, where all eight entries fit.
+      A `<button>` because it opens a dialog rather than navigating — announcing it
+      as a link would promise a page that does not exist.
+    {%- endcomment -%}
+    <li class="athoor-portal__nav-item athoor-portal__nav-item--more">
+      <button
+        class="athoor-portal__nav-link athoor-portal__nav-link--more"
+        type="button"
+        data-portal-more-open
+        aria-haspopup="dialog"
+        aria-controls="AthoorPortalMore"
+      >
+        <span class="athoor-portal__nav-label">More</span>
+      </button>
+    </li>
+  </ul>
+</nav>

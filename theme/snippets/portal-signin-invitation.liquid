@@ -1,0 +1,113 @@
+{%- comment -%}
+  snippets/portal-signin-invitation.liquid — what an anonymous visitor gets
+  (spec task 19.2, design §5.7, §13.7).
+
+  Requirements 1.5, 5.7, 13.7.
+
+  ── WHAT IS DELIBERATELY ABSENT, AND WHY EACH ABSENCE MATTERS ─────────────────
+  Task 19.2: "no shell, no data hooks, no portal script for an anonymous visitor".
+  Each of those is a specific hazard rather than tidiness:
+
+    no `data-portal-section` root  the boot scan finds nothing, so no section can
+                                   attempt a read for a customer who does not exist
+    no portal script tag           an anonymous visitor downloads no portal
+                                   JavaScript at all — the bundle cannot be the
+                                   thing that discloses the portal's shape
+    no live region, no nav         there is no account to navigate, and a rail of
+                                   eight links to pages that will all refuse is a
+                                   worse experience than one clear invitation
+    no `athoor-portal.css`         nothing here needs it; the two rules used are
+                                   inline-scoped below
+
+  ── NO CREDENTIAL INPUT OF ANY KIND (Requirement 1.5) ─────────────────────────
+  There is no `<form>`, no `<input>`, and no password field. This is a page a
+  visitor can reach without signing in, and a login form on a merchant-authored
+  page is a credential-harvesting shape a customer cannot distinguish from a real
+  one. Authentication belongs to Shopify's own hosted flow, which is where these two
+  links go and where the customer can see the URL they are typing into.
+
+  ── IT DOES NOT REUSE `templates/page.account-landing.liquid` ─────────────────
+  Task 19.2 says so explicitly, and the reason is visible in that file: it opens the
+  theme's account DRAWER, which contains sign-in fields. Extending it would import
+  exactly the credential surface the paragraph above rules out. The two links here
+  are `routes.account_login_url` and `routes.account_register_url` and nothing else.
+
+  Because the store uses Shopify's new customer accounts (D1 / OQ-1, Branch B),
+  both routes resolve to Shopify's hosted authentication rather than to a theme
+  template, so there is no theme login markup involved even indirectly.
+{%- endcomment -%}
+
+<div class="athoor-portal-invitation">
+  <h1 class="athoor-portal-invitation__title">Your Athoor account</h1>
+  <p class="athoor-portal-invitation__lead">
+    Sign in to see your orders, your saved fragrances and the points you have earned.
+  </p>
+  <p class="athoor-portal-invitation__actions">
+    <a class="athoor-portal-invitation__button" href="{{ routes.account_login_url }}">Sign in</a>
+    <a class="athoor-portal-invitation__link" href="{{ routes.account_register_url }}">Create an account</a>
+  </p>
+</div>
+
+{%- comment -%}
+  Scoped to this component only. §25.6 requires the flag-off page to be
+  byte-identical to today's and the header, footer and `<head>` asset list to be
+  unchanged, so a bare element selector or a shared utility class would be a
+  rollout failure rather than a style bug. Every selector below is rooted at
+  `.athoor-portal-invitation`.
+{%- endcomment -%}
+<style>
+  .athoor-portal-invitation {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 3rem 1.25rem;
+    text-align: center;
+  }
+  .athoor-portal-invitation__title {
+    margin: 0 0 1rem;
+    font-family: Georgia, serif;
+    font-size: 1.625rem;
+    line-height: 1.25;
+    letter-spacing: 0.06em;
+    color: #1a1a1a;
+  }
+  .athoor-portal-invitation__lead {
+    margin: 0 0 2rem;
+    font-size: 1rem;
+    line-height: 1.6;
+    letter-spacing: 0.03em;
+    color: #6f665d;
+  }
+  .athoor-portal-invitation__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+  }
+  .athoor-portal-invitation__button,
+  .athoor-portal-invitation__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Requirement 17.3 — 44 px minimum target, with the 8 px separation above. */
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 1.5rem;
+    font-size: 0.875rem;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+  }
+  .athoor-portal-invitation__button {
+    background: #1a1a1a;
+    color: #fff;
+    border-radius: 4px;
+  }
+  .athoor-portal-invitation__link {
+    /* The text gold, not the decorative gold: #B8960C on a light surface fails
+       4.5:1 (§18.4, and the dashboard audit measured 2.84:1 for that pair). */
+    color: #8c6b00;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+</style>

@@ -1435,5 +1435,31 @@
         "info": "t:settings_schema.cart.settings.cart_drawer.collection.info"
       }
     ]
+  },
+  {
+    "name": "My Athoor Portal",
+    "settings": [
+      {
+        "type": "header",
+        "content": "Customer experience portal"
+      },
+      {
+        "type": "paragraph",
+        "content": "The portal is deployed but hidden until this is switched on. With it off, every page renders exactly as it does today and no portal markup, stylesheet or script is emitted."
+      },
+      {
+        "type": "checkbox",
+        "id": "portal_enabled",
+        "default": false,
+        "label": "Show the My Athoor portal to everyone",
+        "info": "Turn on to release the portal to all signed-in customers. Leave off to keep using the allowlist below for a staged rollout."
+      },
+      {
+        "type": "textarea",
+        "id": "portal_allowlist",
+        "label": "Staged rollout: customer IDs",
+        "info": "Comma-separated numeric customer IDs. These customers see the portal while it is still hidden from everyone else. Ignored once the switch above is on."
+      }
+    ]
   }
 ]

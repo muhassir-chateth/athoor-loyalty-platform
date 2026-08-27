@@ -1,0 +1,750 @@
+/*! Athoor London Customer Experience Portal — generated from theme-src/portal/styles/**.
+ *  DO NOT EDIT IN THE SHOPIFY ASSET EDITOR: edit the source and run
+ *  `npm run build:portal` in loyalty-service/. Budget: <=20 KB compressed. */
+/*
+ * theme-src/portal/styles/base.css — the portal's shared layer (spec task 19.5,
+ * design §18.1–§18.5, §18.7, §18.8, §17.3, §17.4, §20.2, §20.7, §20.8).
+ *
+ * Requirements 25.1, 25.2, 25.3, 25.4, 25.10, 17.2, 17.3, 17.9, 18.3, 18.10.
+ *
+ * ── EVERY SELECTOR IS ROOTED AT A PORTAL CONTAINER ───────────────────────────
+ * `.athoor-portal`, `.athoor-portal-invitation`, or a descendant. Not one bare
+ * element selector, not one shared utility class. §25.6 requires the flag-off page
+ * to be byte-identical to today's, with the header, the footer and the `<head>`
+ * asset list unchanged — so a rule here that could reach a non-portal page is a
+ * rollout failure, not a style bug. This stylesheet is only ever loaded by a portal
+ * template, and even if it were loaded elsewhere it would change nothing.
+ *
+ * ── NO NEW HUE, NO NEW TYPEFACE, ZERO FONT REQUESTS ──────────────────────────
+ * Every token below was read from a shipped file (§18.1 cites each one). Georgia is
+ * a system serif and the body stack is the platform UI stack, so the portal makes no
+ * font request at all — performance opportunity P1 (§21.10). The tokens are
+ * RE-DECLARED here rather than inherited from `athoor-custom.css` because that file
+ * is outside this task's scope and load order between two independent assets is not
+ * something a stylesheet should depend on.
+ *
+ * ── TWO PROHIBITIONS THIS FILE HONOURS ───────────────────────────────────────
+ *   1. No rule targets `button.disclosure__button::before`. Requirement 18.10
+ *      forbids it until the measured 0.1044 desktop layout shift is attributed to a
+ *      named element, and guessing at a fix for an unattributed shift is how you
+ *      acquire a second one.
+ *   2. No `scroll-behavior: smooth`. It overrides a user's own motion preference on
+ *      every scroll, including the ones they did not initiate.
+ */
+
+/* ========================================================================== *
+ * §18.1 — tokens
+ * ========================================================================== */
+
+.athoor-portal {
+  /* Ink, gold and muted, from athoor-loyalty.css:12–15. */
+  --athoor-ink: #1a1a1a;
+  --athoor-gold: #b8960c;
+  --athoor-gold-text: #8c6b00;
+  --athoor-muted-text: #6f665d;
+
+  /* Surfaces and hairlines, from .pc-welcome / .reward-card / .stat-card. */
+  --athoor-surface: #fafafa;
+  --athoor-line: #f0ede8;
+
+  /* The issued-code panel and birthday recognition ONLY (§18.4). */
+  --athoor-surface-warm: #fbf7ef;
+  --athoor-line-warm: #e6d9b8;
+
+  /* Disabled control background. Never a text colour. */
+  --athoor-disabled: #8a8580;
+
+  /* §18.1 — Georgia carries voice, the system sans carries information. */
+  --athoor-display-face: Georgia, "Times New Roman", serif;
+  --athoor-body-face: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* §18.3 — 4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64. */
+  --athoor-space-1: 4px;
+  --athoor-space-2: 8px;
+  --athoor-space-3: 12px;
+  --athoor-space-4: 16px;
+  --athoor-space-5: 20px;
+  --athoor-space-6: 24px;
+  --athoor-space-7: 32px;
+  --athoor-space-8: 40px;
+  --athoor-space-9: 48px;
+  --athoor-space-10: 64px;
+
+  /* §18.5 — radii by role: focus ring, badge, inline panel, card, tier pill. */
+  --athoor-radius-ring: 3px;
+  --athoor-radius-badge: 4px;
+  --athoor-radius-panel: 6px;
+  --athoor-radius-card: 8px;
+  --athoor-radius-pill: 24px;
+
+  /* §18.1 — the only two durations, and only ever transform/opacity. */
+  --athoor-motion-fast: 0.2s;
+  --athoor-motion: 0.3s;
+
+  /* The fixed bottom bar's height, used by the scroll padding below. */
+  --athoor-bar-height: 56px;
+
+  /* §18.1 — container. */
+  --athoor-container: 1000px;
+
+  /* Requirement 17.3 — the minimum target, named so it cannot drift. */
+  --athoor-target: 44px;
+}
+
+/* ========================================================================== *
+ * Layout
+ * ========================================================================== */
+
+.athoor-portal {
+  box-sizing: border-box;
+  max-width: var(--athoor-container);
+  /* §18.3 — page gutter 20, container top/bottom 32 on mobile, 40 above. */
+  margin: 0 auto;
+  padding: var(--athoor-space-7) var(--athoor-space-5);
+  font-family: var(--athoor-body-face);
+  /* §18.2 Body: 14 / 1.7 / 0.02em. */
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--athoor-ink);
+
+  /* WCAG 2.2 2.4.11 Focus Not Obscured. The bar is fixed, so a control focused
+   * near the bottom of the page would otherwise sit behind it (§17.4, §20.2). */
+  scroll-padding-block-end: calc(var(--athoor-bar-height) + env(safe-area-inset-bottom, 0px) + var(--athoor-space-4));
+}
+
+.athoor-portal *,
+.athoor-portal *::before,
+.athoor-portal *::after {
+  box-sizing: inherit;
+}
+
+.athoor-portal a:focus-visible,
+.athoor-portal button:focus-visible,
+.athoor-portal [tabindex]:focus-visible {
+  /* §18.1 — the existing ring, reused rather than redesigned. */
+  outline: 2px solid var(--athoor-gold-text);
+  outline-offset: 2px;
+  border-radius: var(--athoor-radius-ring);
+}
+
+/* The internal skip link: visually hidden until focused (§20.2). It is the first
+ * focusable element inside the portal and jumps past the account rail. */
+.athoor-portal__skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.athoor-portal__skip:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0 0 var(--athoor-space-4);
+  padding: var(--athoor-space-3) var(--athoor-space-4);
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  display: inline-block;
+  min-height: var(--athoor-target);
+  background: var(--athoor-ink);
+  color: #fff;
+  text-decoration: none;
+  border-radius: var(--athoor-radius-badge);
+}
+
+/* Both live regions. Present in the DOM from the server render (§20.6) and
+ * announced rather than seen, so they are removed from the visual flow without
+ * `display: none`, which would take them out of the accessibility tree too. */
+.athoor-portal__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.athoor-portal__content {
+  /* A focus target when content is replaced wholesale (§20.2). It takes
+   * `tabindex="-1"`, so it must not paint a ring when focused programmatically. */
+  outline: none;
+}
+
+/* ========================================================================== *
+ * §18.2 — typography
+ * ========================================================================== */
+
+.athoor-portal__wordmark {
+  /* Display: 28 / 1.2 / 0.15em UPPER — the wordmark line only. */
+  margin: 0 0 var(--athoor-space-2);
+  font-family: var(--athoor-display-face);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--athoor-ink);
+}
+
+.athoor-portal__title {
+  /* Title: 26 / 1.25 / 0.06em. At most one per page (§18.2). */
+  margin: 0;
+  font-family: var(--athoor-display-face);
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  font-weight: 400;
+  color: var(--athoor-ink);
+}
+
+.athoor-portal__header {
+  margin-bottom: var(--athoor-space-9);
+}
+
+.athoor-portal__eyebrow {
+  /* Eyebrow: 11 / 1.4 / 0.24em UPPER. */
+  display: block;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--athoor-muted-text);
+}
+
+.athoor-portal__row-meta,
+.athoor-portal__state-reference {
+  /* Meta: 12 / 1.5 / 0.08em. */
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  color: var(--athoor-muted-text);
+}
+
+.athoor-portal__state-message {
+  /* Lead: 16 / 1.6 / 0.03em. */
+  margin: 0 0 var(--athoor-space-3);
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  /* Line length capped near 72ch (§18.2). */
+  max-width: 72ch;
+}
+
+.athoor-portal__sheet-title {
+  /* Subtitle: 18 / 1.4 / 0.08em, Georgia. */
+  margin: 0 0 var(--athoor-space-4);
+  font-family: var(--athoor-display-face);
+  font-size: 18px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  font-weight: 400;
+}
+
+.athoor-portal__row-points,
+.athoor-portal__card-value {
+  /* Numeral: 32 / 1.1, tabular. Reserved for figures so the balance is
+   * unmistakably the largest number on any page it appears on (§18.2). */
+  font-family: var(--athoor-display-face);
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================================================================== *
+ * §18.5 — the ruled section, not the card
+ * ========================================================================== */
+
+.athoor-portal__section {
+  /* A heading, content, and a 1 px rule with 48 px of air. No border box, no
+   * background, no shadow — the editorial pattern, and the cheapest markup. */
+  margin: 0 0 var(--athoor-space-9);
+  padding: 0 0 var(--athoor-space-9);
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+.athoor-portal__section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.athoor-portal__row {
+  display: grid;
+  gap: var(--athoor-space-3);
+  padding: var(--athoor-space-4) 0;
+  /* A ruled row. Explicitly NOT a card (§18.5). */
+  border-bottom: 1px solid var(--athoor-line);
+  list-style: none;
+}
+
+.athoor-portal__row:last-child {
+  border-bottom: 0;
+}
+
+.athoor-portal__row-link {
+  color: var(--athoor-ink);
+  text-decoration: none;
+  /* Requirement 17.3 — the row link is the target, so it carries the minimum. */
+  min-height: var(--athoor-target);
+  display: flex;
+  align-items: center;
+}
+
+.athoor-portal__row-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* One of the three permitted cards: a reward is a discrete offer with a price and
+ * an action, so it needs a boundary to be a unit (§18.5). */
+.athoor-portal__card {
+  padding: var(--athoor-space-6);
+  border: 1px solid var(--athoor-line);
+  border-radius: var(--athoor-radius-card);
+  background: var(--athoor-surface);
+  list-style: none;
+}
+
+/* The second permitted card shape: the image needs a defined box for its reserved
+ * aspect ratio (§21.6). It carries no border — only the box. */
+.athoor-portal__image-box {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: var(--athoor-radius-panel);
+  background: var(--athoor-surface);
+}
+
+.athoor-portal__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* §18.4 — the decorative/text gold split is load-bearing. `--athoor-gold` is a
+ * 2 px accent rule here and never a text colour; text gold is used below. */
+.athoor-portal__header {
+  border-top: 2px solid var(--athoor-gold);
+  padding-top: var(--athoor-space-6);
+}
+
+.athoor-portal__footer {
+  margin-top: var(--athoor-space-9);
+  padding-top: var(--athoor-space-6);
+  border-top: 1px solid var(--athoor-line);
+}
+
+.athoor-portal__footer-link {
+  color: var(--athoor-gold-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--athoor-target);
+}
+
+/* ========================================================================== *
+ * §17.4 — navigation: one list, three presentations
+ * ========================================================================== */
+
+.athoor-portal__nav-list {
+  display: flex;
+  /* Requirement 17.3 — ≥8 px separation between targets. */
+  gap: var(--athoor-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal__nav-item {
+  margin: 0;
+}
+
+.athoor-portal__nav-link {
+  display: flex;
+  align-items: center;
+  /* Requirement 17.3 — ≥44×44 px. */
+  min-height: var(--athoor-target);
+  min-width: var(--athoor-target);
+  padding: 0 var(--athoor-space-3);
+  font: inherit;
+  color: var(--athoor-muted-text);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-radius: var(--athoor-radius-badge);
+  cursor: pointer;
+  transition: opacity var(--athoor-motion-fast) ease;
+}
+
+.athoor-portal__nav-link:hover {
+  color: var(--athoor-ink);
+}
+
+/* THE ACTIVE STATE IS NEVER COLOUR ALONE (Requirement 17.8). Each breakpoint
+ * carries a non-colour signal: a hairline on the rail, an underline on the tablet
+ * row, heavier weight on the bar. */
+.athoor-portal__nav-link[aria-current="page"] {
+  color: var(--athoor-ink);
+  font-weight: 600;
+}
+
+/* Base = mobile: the fixed bottom bar, five targets, the ONLY fixed element. */
+@media screen and (max-width: 749px) {
+  .athoor-portal {
+    /* Bottom-nav clearance on the last element: 64 + safe area (§18.3). */
+    padding-bottom: calc(var(--athoor-space-10) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .athoor-portal__nav {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 5;
+    background: #fff;
+    border-top: 1px solid var(--athoor-line);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .athoor-portal__nav-list {
+    /* All five targets in the lower third, evenly divided (§17.4). */
+    gap: 0;
+  }
+
+  .athoor-portal__nav-item {
+    flex: 1 1 0;
+  }
+
+  /* The four demoted entries are hidden from the bar and reached through the
+   * More sheet, which renders the same hrefs (§17.4). */
+  .athoor-portal__nav-item--overflow {
+    display: none;
+  }
+
+  .athoor-portal__nav-link {
+    flex-direction: column;
+    justify-content: center;
+    height: var(--athoor-bar-height);
+    padding: 0 var(--athoor-space-1);
+    width: 100%;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  /* Mobile reduces Title 26→22 and Title S 22→19 (§18.2). */
+  .athoor-portal__title {
+    font-size: 22px;
+  }
+
+  .athoor-portal__wordmark {
+    font-size: 22px;
+  }
+
+  /* A focused row must not sit behind the fixed bar (WCAG 2.2 2.4.11). */
+  .athoor-portal__row-link,
+  .athoor-portal__card-action {
+    scroll-margin-block-end: calc(var(--athoor-bar-height) + env(safe-area-inset-bottom, 0px) + var(--athoor-space-4));
+  }
+}
+
+/* Tablet 750–989 px: the collapsed rail — one horizontal row above the content. */
+@media screen and (min-width: 750px) {
+  .athoor-portal {
+    padding-top: var(--athoor-space-8);
+    padding-bottom: var(--athoor-space-8);
+  }
+
+  .athoor-portal__nav {
+    margin-bottom: var(--athoor-space-7);
+    border-bottom: 1px solid var(--athoor-line);
+  }
+
+  .athoor-portal__nav-list {
+    /* Horizontal scroll with no scrollbar shift (§17.4). */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .athoor-portal__nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .athoor-portal__nav-item--overflow {
+    display: block;
+  }
+
+  /* All eight fit, so More is unnecessary above the mobile breakpoint. */
+  .athoor-portal__nav-item--more {
+    display: none;
+  }
+
+  .athoor-portal__nav-link[aria-current="page"] {
+    /* The tablet row's non-colour signal. */
+    box-shadow: inset 0 -2px 0 0 var(--athoor-gold);
+  }
+}
+
+/* Desktop ≥990 px: the persistent vertical rail, left, sticky within its column. */
+@media screen and (min-width: 990px) {
+  .athoor-portal__body {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: var(--athoor-space-9);
+    align-items: start;
+  }
+
+  .athoor-portal__nav {
+    position: sticky;
+    top: var(--athoor-space-6);
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .athoor-portal__nav-list {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .athoor-portal__nav-link {
+    /* The rail's non-colour signal: a gold hairline on the leading edge. */
+    border-inline-start: 2px solid transparent;
+    border-radius: 0;
+    padding-inline-start: var(--athoor-space-4);
+  }
+
+  .athoor-portal__nav-link[aria-current="page"] {
+    border-inline-start-color: var(--athoor-gold);
+    box-shadow: none;
+  }
+}
+
+/* 1400 px — a margin-only step (§19.x): more air, no new layout. */
+@media screen and (min-width: 1400px) {
+  .athoor-portal {
+    padding-inline: var(--athoor-space-8);
+  }
+}
+
+/* ========================================================================== *
+ * §18.8 — the eight designed states
+ * ========================================================================== */
+
+/* `ready` is the only state that shows the body; the rest show their message. */
+.athoor-portal__section[data-state="ready"] .athoor-portal__state,
+.athoor-portal__section[data-state="ready"] .athoor-portal__skeleton {
+  display: none;
+}
+
+.athoor-portal__section:not([data-state="ready"]) .athoor-portal__section-body {
+  display: none;
+}
+
+/* Only `loading` shows the skeleton. */
+.athoor-portal__section:not([data-state="loading"]) .athoor-portal__skeleton {
+  display: none;
+}
+
+.athoor-portal__section[data-state="loading"] .athoor-portal__state-message {
+  color: var(--athoor-muted-text);
+}
+
+/* `empty` is centred prose — explicitly not a card (§18.5). */
+.athoor-portal__section[data-state="empty"] .athoor-portal__state {
+  padding: var(--athoor-space-9) 0;
+  text-align: center;
+}
+
+/* `disabled` must state why, so the reason is the message and it stays legible.
+ * `--athoor-disabled` is a background token and never a text colour (§18.4). */
+.athoor-portal__section[data-state="disabled"] .athoor-portal__state-message {
+  color: var(--athoor-muted-text);
+}
+
+/* `offline`, `session-expired` and `degraded` each say what is affected and
+ * whether anything changed. The warm surface is permitted for recognition, and is
+ * used here for the two states that reassure rather than alarm (§18.4). */
+.athoor-portal__section[data-state="offline"] .athoor-portal__state,
+.athoor-portal__section[data-state="session-expired"] .athoor-portal__state {
+  padding: var(--athoor-space-5);
+  background: var(--athoor-surface-warm);
+  border: 1px solid var(--athoor-line-warm);
+  border-radius: var(--athoor-radius-panel);
+}
+
+/* No semantic red is introduced (§18.4): an error is stated in ink with a heading,
+ * not flashed in a colour that would need its own contrast audit. */
+.athoor-portal__section[data-state="error"] .athoor-portal__state,
+.athoor-portal__section[data-state="degraded"] .athoor-portal__state {
+  padding: var(--athoor-space-5);
+  border-inline-start: 2px solid var(--athoor-gold);
+  background: var(--athoor-surface);
+  border-radius: var(--athoor-radius-panel);
+}
+
+.athoor-portal__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--athoor-target);
+  min-width: var(--athoor-target);
+  margin-top: var(--athoor-space-3);
+  padding: 0 var(--athoor-space-5);
+  font: inherit;
+  color: #fff;
+  background: var(--athoor-ink);
+  border: 0;
+  border-radius: var(--athoor-radius-badge);
+  cursor: pointer;
+}
+
+.athoor-portal__retry[hidden],
+.athoor-portal__state-reference[hidden] {
+  /* Belt and braces: `hidden` is a presentational hint a stylesheet can override,
+   * and `render/states.ts` relies on it actually hiding the control. */
+  display: none;
+}
+
+/* The skeleton reserves a real row's height so nothing shifts (§21.6). */
+.athoor-portal__skeleton-row {
+  height: var(--athoor-target);
+  margin-bottom: var(--athoor-space-3);
+  background: var(--athoor-surface);
+  border-radius: var(--athoor-radius-badge);
+}
+
+/* ========================================================================== *
+ * §19.8 — the sheet
+ * ========================================================================== */
+
+.athoor-portal__sheet {
+  width: 100%;
+  max-width: 34rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--athoor-radius-card) var(--athoor-radius-card) 0 0;
+  background: #fff;
+  color: var(--athoor-ink);
+  font-family: var(--athoor-body-face);
+}
+
+.athoor-portal__sheet::backdrop {
+  background: rgb(26 26 26 / 45%);
+}
+
+.athoor-portal__sheet-inner {
+  padding: var(--athoor-space-6) var(--athoor-space-5)
+    calc(var(--athoor-space-6) + env(safe-area-inset-bottom, 0px));
+}
+
+.athoor-portal__sheet-list {
+  margin: 0 0 var(--athoor-space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal__sheet-link {
+  display: flex;
+  align-items: center;
+  min-height: var(--athoor-target);
+  color: var(--athoor-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+.athoor-portal__sheet-link[aria-current="page"] {
+  font-weight: 600;
+}
+
+.athoor-portal__sheet-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--athoor-target);
+  font: inherit;
+  color: var(--athoor-ink);
+  background: none;
+  border: 1px solid var(--athoor-line);
+  border-radius: var(--athoor-radius-badge);
+  cursor: pointer;
+}
+
+/* Bottom-entering below 750 px, centred above — one media query (§18.7). */
+@media screen and (max-width: 749px) {
+  .athoor-portal__sheet {
+    margin: 0 0 0 auto;
+    inset-block-end: 0;
+    inset-block-start: auto;
+  }
+
+  .athoor-portal__sheet[open] {
+    animation: athoor-portal-sheet-up var(--athoor-motion) ease;
+  }
+}
+
+@media screen and (min-width: 750px) {
+  .athoor-portal__sheet {
+    border-radius: var(--athoor-radius-card);
+  }
+
+  .athoor-portal__sheet[open] {
+    animation: athoor-portal-sheet-in var(--athoor-motion-fast) ease;
+  }
+}
+
+/* ≤300 ms, and only `transform`/`opacity` — never a property that triggers
+ * layout (§18.1, Requirement 25.4). */
+@keyframes athoor-portal-sheet-up {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@keyframes athoor-portal-sheet-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ========================================================================== *
+ * §20.8 — reduced motion
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .athoor-portal *,
+  .athoor-portal *::before,
+  .athoor-portal *::after,
+  .athoor-portal__sheet,
+  .athoor-portal__sheet[open] {
+    /* The state change still happens; only the movement is removed. A customer
+     * who asks for less motion is not asking for less function. */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================================================== *
+ * §20.7 — forced colours
+ * ========================================================================== */
+
+@media (forced-colors: active) {
+  /* In a forced-colours mode our tokens are discarded, so the non-colour signals
+   * are all that remain — which is why Requirement 17.8 insists on them. The
+   * current entry keeps a visible border rather than relying on the gold. */
+  .athoor-portal__nav-link[aria-current="page"] {
+    border-inline-start-color: CanvasText;
+  }
+}
