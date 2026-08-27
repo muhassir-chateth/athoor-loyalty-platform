@@ -101,6 +101,8 @@ const REQUIRED_PRESENT = [
   "/v1/profile/favourites",
   // N10/N11 (task 12.2).
   "/v1/profile/birthday",
+  // N12/N13 (task 13.2). Registered unconditionally so this sweep cannot shrink.
+  "/v1/profile/preferences",
   "/v1/profile/wishlist",
   // N5 (task 9.1). The wishlist's only removal authority and the only writer of
   // the explicit-removal tombstone: if it silently stopped registering, removals

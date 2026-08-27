@@ -35,6 +35,8 @@ import type { PortalCatalogSource } from "./routes/catalog.js";
 import type { WishlistWriteStore } from "./routes/wishlist.js";
 import type { PortalRedemptionSource } from "./routes/redemptions.js";
 import type { BirthdayRouteOptions } from "./routes/birthday.js";
+import type { PreferencesRouteOptions } from "./routes/preferences.js";
+import type { ProductTaxonomy } from "./profile/inferred.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
@@ -225,6 +227,16 @@ export interface AppDependencies {
    * through a spread, undeclared, and never reaching its route.
    */
   birthdayDeps?: BirthdayRouteOptions;
+  /**
+   * Backs `GET`/`PUT /v1/profile/preferences` (N12/N13, task 13.2). DECLARED AND
+   * FORWARDED together, for the same reason `birthdayDeps` is.
+   */
+  preferencesDeps?: PreferencesRouteOptions;
+  /**
+   * The server-owned product→family/note mapping behind the additive `inferred`
+   * block on `GET /v1/profile` (task 13.3). Absent → an empty mapping.
+   */
+  productTaxonomy?: ProductTaxonomy;
   /**
    * Dependencies for the spec-defined `POST /v1/redeem` handler (Req 3.2–3.11):
    * the append-only ledger repository, the atomic transactor, and the
@@ -592,6 +604,8 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     wishlistStore: deps.wishlistStore,
     redemptionSource: deps.redemptionSource,
     birthdayDeps: deps.birthdayDeps,
+    preferencesDeps: deps.preferencesDeps,
+    productTaxonomy: deps.productTaxonomy,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
     portalVisitRecorder: deps.portalVisitRecorder,
