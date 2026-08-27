@@ -286,6 +286,11 @@ async function main(): Promise<void> {
     // guarantee is `birthday_grants UNIQUE (customer_id, grant_year)` — no scheduled
     // job is added and no second reward mechanism exists.
     birthdayDeps: { db: pool },
+    // N12/N13 (task 13.2). The SAME pool-backed transactor the earning, clawback,
+    // expiry and redemption units use — set-replacements per dimension need real
+    // BEGIN/COMMIT atomicity, and reusing the one that already exists is what
+    // stops a second, subtly different transaction helper appearing.
+    preferencesDeps: { db: pool, transactor },
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives

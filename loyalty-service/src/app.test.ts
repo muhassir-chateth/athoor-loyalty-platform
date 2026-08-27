@@ -227,6 +227,125 @@ describe("buildApp forwards every portal dependency into /v1", () => {
     }
   });
 
+  it("forwards preferencesDeps — db AND transactor reach the route (task 13.2)", async () => {
+    // Same shape as the birthday check: the preferences routes register
+    // UNCONDITIONALLY with a refusing executor, so "the route exists" proves
+    // nothing. This authenticates and observes the response, which is the only
+    // place a dropped hand-off shows up.
+    let queries = 0;
+    let transactions = 0;
+    const db = {
+      async query(sql: string) {
+        queries += 1;
+        const rows = sql.includes("FROM customer_fragrance_preferences")
+          ? [{ dimension: "scent_family", value: "oud" }]
+          : [];
+        return { rows, rowCount: rows.length, command: "SELECT", oid: 0, fields: [] };
+      },
+    };
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      tokenVerifier: new FakeTokenVerifier({ [BEARER]: SHOPIFY_ID }),
+      customerResolver: new InMemoryCustomerResolver({ [SHOPIFY_ID]: CUSTOMER_UUID }),
+      preferencesDeps: {
+        db: db as never,
+        transactor: {
+          async transaction<T>(fn: (tx: never) => Promise<T>): Promise<T> {
+            transactions += 1;
+            // Hands the SAME executor to the callback, which is what a real
+            // pool-backed transactor does with its client.
+            return fn(db as never);
+          },
+        },
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/profile/preferences",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      // A 500 would be `PreferenceStoreUnconfiguredError` — the refusing default,
+      // meaning the executor never arrived.
+      expect(res.statusCode).toBe(200);
+      expect(queries).toBeGreaterThan(0);
+      const body = res.json() as { declared: { scent_family: string[] } };
+      expect(body.declared.scent_family).toEqual(["oud"]);
+
+      // And the TRANSACTOR half, which a read cannot exercise: a write must reach
+      // it, or set-replacements would run without atomicity.
+      const write = await app.inject({
+        method: "PUT",
+        url: "/v1/profile/preferences",
+        headers: { authorization: `Bearer ${BEARER}`, "idempotency-key": "app-test-pref-1" },
+        payload: { declared: { note: ["rose"] } },
+      });
+      expect(write.statusCode).toBe(200);
+      expect(transactions).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("forwards productTaxonomy into the /v1/profile inferred block (task 13.3)", async () => {
+    // `inferred` is present either way, so its PRESENCE proves nothing. What proves
+    // the hand-off is a CONCLUSION only the wired taxonomy could produce.
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      tokenVerifier: new FakeTokenVerifier({ [BEARER]: SHOPIFY_ID }),
+      customerResolver: new InMemoryCustomerResolver({ [SHOPIFY_ID]: CUSTOMER_UUID }),
+      productTaxonomy: {
+        lookup(productId: string) {
+          return productId === "wired-product"
+            ? { families: ["oud"], notes: ["saffron"] }
+            : undefined;
+        },
+      },
+      fragranceProfileDataSource: {
+        async getPurchasedFragrances() {
+          return [
+            {
+              productId: "wired-product",
+              title: null,
+              firstPurchasedAt: null,
+              lastPurchasedAt: null,
+              purchaseCount: 1,
+            },
+          ];
+        },
+        async getFavourites() {
+          return [];
+        },
+        async getWishlist() {
+          return [];
+        },
+        async getRecentlyViewed() {
+          return [];
+        },
+        async getSuggestions() {
+          return [];
+        },
+        async getTierChanges() {
+          return [];
+        },
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/profile",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const inferred = (res.json() as { inferred: { scent_family: unknown[] } }).inferred;
+      // Empty here would mean the taxonomy was constructed and dropped — the
+      // `portalCatalogSource` defect, in the shape it would take on this route.
+      expect(inferred.scent_family).toEqual([{ value: "oud", distinctProducts: 1 }]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("forwards wishlistStore — a wired store must not answer 404", async () => {
     const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
       wishlistStore: {

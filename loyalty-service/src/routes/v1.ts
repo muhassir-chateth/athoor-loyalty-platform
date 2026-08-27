@@ -24,6 +24,7 @@ import { registerWishlistWriteRoute, type WishlistWriteStore } from "./wishlist.
 import { registerRedemptionsRoute, type PortalRedemptionSource } from "./redemptions.js";
 import { registerBirthdayRoutes, type BirthdayRouteOptions } from "./birthday.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
+import { registerPreferencesRoutes, type PreferencesRouteOptions } from "./preferences.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
 import { registerBenefitRoutes } from "./benefits.js";
@@ -183,6 +184,22 @@ export interface V1RouterOptions {
    * routes are not registered so the existing surface is unchanged.
    */
   preferenceStore?: ProfileRouteOptions["preferenceStore"];
+  /**
+   * The server-owned product→family/note mapping behind the additive `inferred`
+   * block on `GET /v1/profile` (task 13.3). Absent → an empty mapping, so the
+   * block is present and concludes nothing rather than being omitted.
+   */
+  productTaxonomy?: ProfileRouteOptions["productTaxonomy"];
+  /**
+   * Backs `GET`/`PUT /v1/profile/preferences` (N12/N13, task 13.2).
+   *
+   * Absent does NOT unregister the routes — they register unconditionally and fall
+   * back to a refusing executor and a refusing transactor, so an un-wired build
+   * answers `500` rather than `404`. A `404` would read to a client as "this
+   * account has no preferences" instead of "this build is misconfigured", and it
+   * would quietly shrink the unauthenticated route census.
+   */
+  preferencesDeps?: PreferencesRouteOptions;
   /**
    * Backs `POST /v1/profile/recently-viewed` (task 31, Req 17.5). Production
    * wires the existing `RecentlyViewedStore`, which owns sampling and retention.
@@ -352,7 +369,11 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
     portalVisitRecorder: opts.portalVisitRecorder,
     preferenceStore: opts.preferenceStore,
     recentlyViewedRecorder: opts.recentlyViewedRecorder,
+    productTaxonomy: opts.productTaxonomy,
   });
+
+  // N12/N13 (task 13.2). Declared fragrance + communication preferences.
+  registerPreferencesRoutes(app, opts.preferencesDeps ?? {});
 
   // Mobile readiness (task 19.1, Req 19.1/19.7): additive device-token
   // registration/de-registration under /v1 (POST /v1/devices,

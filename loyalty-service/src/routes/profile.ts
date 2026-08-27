@@ -49,6 +49,13 @@ import {
 } from "../profile/favouritesWishlist.js";
 import { RecentlyViewedValidationError } from "../profile/recentlyViewed.js";
 import {
+  deriveInferredSignal,
+  EMPTY_PRODUCT_TAXONOMY,
+  orderMonthsFromPurchaseInstants,
+  type InferredSignal,
+  type ProductTaxonomy,
+} from "../profile/inferred.js";
+import {
   WISHLIST_RECONCILE_SCHEMA,
   WISHLIST_RECONCILE_INVALID_REQUEST_MESSAGE,
   type WishlistReconcileResponse,
@@ -211,7 +218,34 @@ export interface ProfileRouteOptions {
    * retention window. Absent → the route is not registered.
    */
   recentlyViewedRecorder?: RecentlyViewedRecorder;
+  /**
+   * The server-owned product→family/note mapping behind the additive `inferred`
+   * block on `GET /v1/profile` (task 13.3, §12.3).
+   *
+   * Absent → {@link EMPTY_PRODUCT_TAXONOMY}, so `inferred` is present but
+   * concludes nothing. That is a truthful "no mapping is loaded", not a failure:
+   * Req 12.7 requires an empty category to render as empty and never as an error,
+   * and §12.6 gives the client the empty-state presentation for it. The route is
+   * never gated on this, because gating it would REMOVE a field from a shipped
+   * response depending on configuration.
+   */
+  productTaxonomy?: ProductTaxonomy;
 }
+
+/**
+ * `GET /v1/profile` with the additive `inferred` block (task 13.3).
+ *
+ * ── ADDITIVE, AND THAT IS ENFORCED BY THE TYPE ──────────────────────────────
+ * An intersection rather than a redeclaration, so every field of `FragranceProfile`
+ * survives by construction and this type cannot drift from it. Requirement 20.6
+ * forbids removing or reshaping a shipped field, and `profile.inferred.test.ts`
+ * asserts the seven original keys are all still present with their original shapes.
+ */
+export type ProfileWithInferred = Awaited<
+  ReturnType<FragranceProfileService["getFragranceProfile"]>
+> & {
+  readonly inferred: InferredSignal;
+};
 
 /**
  * Registers `GET /v1/profile` and `GET /v1/profile/journey` on `app`. MUST be
@@ -226,6 +260,7 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
   const dataSource = opts.fragranceProfileDataSource ?? new InMemoryFragranceProfileDataSource();
   const service = new FragranceProfileService(dataSource);
   const portalVisitRecorder = opts.portalVisitRecorder ?? new InMemoryPortalVisitRecorder();
+  const productTaxonomy = opts.productTaxonomy ?? EMPTY_PRODUCT_TAXONOMY;
 
   // Portal-visit state (task 14.6, Req 16.1/16.2). A state-changing POST, so the
   // scope-level idempotency plugin requires an `Idempotency-Key`; the private-
@@ -244,7 +279,39 @@ export function registerProfileRoutes(app: FastifyInstance, opts: ProfileRouteOp
     const ctx = requireCustomerScope(req);
 
     // Only the requesting customer's id is ever passed to the composition (Req 17.10).
-    return service.getFragranceProfile(ctx.customerId);
+    const profile = await service.getFragranceProfile(ctx.customerId);
+
+    // ── The additive `inferred` block (task 13.3, §12.8) ───────────────────
+    //
+    // DERIVED FROM WHAT THE COMPOSITION ALREADY READ. No extra query, no extra
+    // round trip, and — decisively — no new data source: §12.3's input list is
+    // exactly purchases, wishlist, recently viewed and favourites, and the profile
+    // has all four in hand. Adding a second read path for the same rows would
+    // create two answers to "what has this customer touched".
+    //
+    // It also means this block cannot see anything the profile could not: the
+    // inputs are already scoped to the verified identity by the composition.
+    const inferred = deriveInferredSignal(
+      {
+        purchasedProductIds: profile.purchasedFragrances.map((p) => p.productId),
+        wishlistProductIds: profile.wishlist,
+        favouriteProductIds: profile.favourites,
+        recentlyViewedProductIds: profile.recentlyViewed.map((r) => r.productId),
+        // A lower bound on the order count — see `InferredInputs.orderMonths`.
+        // `firstPurchasedAt` rather than `lastPurchasedAt`: repurchasing a bottle
+        // must not move an order's month, and the first instant of a product is
+        // the one that corresponds to an order that actually happened.
+        orderMonths: orderMonthsFromPurchaseInstants(
+          profile.purchasedFragrances.map((p) => p.firstPurchasedAt),
+        ),
+      },
+      productTaxonomy,
+    );
+
+    // Spread FIRST so no key here can shadow a shipped one; `inferred` is the only
+    // addition, and a collision would be a compile error rather than a silent
+    // overwrite because `FragranceProfile` has no `inferred` field.
+    return { ...profile, inferred } satisfies ProfileWithInferred;
   });
 
   app.get("/profile/journey", async (req: FastifyRequest, reply: FastifyReply) => {
