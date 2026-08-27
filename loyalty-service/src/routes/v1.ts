@@ -25,6 +25,8 @@ import { registerRedemptionsRoute, type PortalRedemptionSource } from "./redempt
 import { registerBirthdayRoutes, type BirthdayRouteOptions } from "./birthday.js";
 import { registerProfileRoutes, type ProfileRouteOptions } from "./profile.js";
 import { registerPreferencesRoutes, type PreferencesRouteOptions } from "./preferences.js";
+import { registerIdentityRoutes, type IdentityRouteOptions } from "./identity.js";
+import { registerAddressRoutes, type AddressRouteOptions } from "./addresses.js";
 import { registerDeviceRoutes, type DeviceRouteOptions } from "./devices.js";
 import { registerReferralRoutes, type ReferralRoutesOptions } from "./referral.js";
 import { registerBenefitRoutes } from "./benefits.js";
@@ -201,6 +203,18 @@ export interface V1RouterOptions {
    */
   preferencesDeps?: PreferencesRouteOptions;
   /**
+   * Backs `GET`/`PUT /v1/profile/identity` and `GET`/`PUT /v1/profile/consent`
+   * (N6/N7/N9, tasks 14.2/14.4). Absent does NOT unregister the routes — they
+   * register unconditionally and answer `502`, because a `404` would read as "this
+   * account has no identity" and would shrink the unauthenticated route census.
+   */
+  identityDeps?: IdentityRouteOptions;
+  /**
+   * Backs `/v1/profile/addresses` CRUD and default selection (N8, task 14.3).
+   * Absent → the routes register and answer `502`, for the same reason.
+   */
+  addressDeps?: AddressRouteOptions;
+  /**
    * Backs `POST /v1/profile/recently-viewed` (task 31, Req 17.5). Production
    * wires the existing `RecentlyViewedStore`, which owns sampling and retention.
    */
@@ -374,6 +388,12 @@ export async function v1Routes(app: FastifyInstance, opts: V1RouterOptions = {})
 
   // N12/N13 (task 13.2). Declared fragrance + communication preferences.
   registerPreferencesRoutes(app, opts.preferencesDeps ?? {});
+
+  // N6/N7/N9 (tasks 14.2, 14.4) and N8 (task 14.3). Shopify-backed: identity,
+  // addresses and marketing consent are Shopify's to own, so nothing here reads or
+  // writes a local table and no migration accompanies them.
+  registerIdentityRoutes(app, opts.identityDeps ?? {});
+  registerAddressRoutes(app, opts.addressDeps ?? {});
 
   // Mobile readiness (task 19.1, Req 19.1/19.7): additive device-token
   // registration/de-registration under /v1 (POST /v1/devices,

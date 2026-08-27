@@ -111,6 +111,14 @@ export const REJECTED_DOCUMENT_REASONS = [
   "non_product_selection",
   "forbidden_catalogue_root",
   "caller_supplied_product_ids",
+  // ── the customer-mutation allowlist class (task 14.1) ────────────────────
+  "not_a_mutation",
+  "mutation_not_allowlisted",
+  "multiple_mutation_fields",
+  "forbidden_mutation_field",
+  "missing_user_errors_selection",
+  "missing_customer_ownership_variable",
+  "caller_supplied_ownership_variable",
 ] as const;
 
 export type RejectedDocumentReason = (typeof REJECTED_DOCUMENT_REASONS)[number];
@@ -525,4 +533,214 @@ export type ShopifyScopeParameterRejectsAString = Expect<
  */
 export type GidComesFromTheSanctionedLookup = Expect<
   Parameters<typeof resolveScopedCustomerGid>[0] extends ShopifyCustomerIdLookup ? true : false
+>;
+
+/* ========================================================================== *
+ * THE THIRD SECURITY CLASS: THE CUSTOMER-MUTATION ALLOWLIST (task 14.1)
+ *
+ * N6–N9 WRITE to Shopify. Neither existing guard can express that, and neither
+ * should be made to: both reject `contains_mutation` as their THIRD check, before
+ * anything else, and the header of `assertScopedCustomerQuery` already names where
+ * a write belongs — "the explicit customer-mutation allowlist of task 14.1, which
+ * is a different, narrower surface".
+ *
+ * So this is a third class, not a relaxation of either existing one. The two read
+ * guards are byte-for-byte unchanged, and this one is STRICTER than both in the
+ * dimension that matters for a write: a read guard proves a document cannot leave
+ * the customer's subtree, whereas this proves the document performs exactly one
+ * operation drawn from a six-name allowlist.
+ *
+ * ── WHY AN ALLOWLIST OF NAMES AND NOT A DENYLIST OF DAMAGE ──────────────────
+ * §13.2 requires that "no portal path can reach a product, order, discount or
+ * metafield mutation". A denylist would have to enumerate every dangerous
+ * mutation in the Admin API — a set that GROWS with every Shopify release, so the
+ * guard would silently weaken over time without anyone editing it. An allowlist of
+ * six names cannot: a mutation Shopify adds next quarter is refused because it is
+ * not one of the six, which is the correct default for a write surface.
+ *
+ * ── OWNERSHIP IS STRUCTURAL HERE TOO ────────────────────────────────────────
+ * Every allowlisted mutation acts on a customer, so each document must bind that
+ * customer through `$customerGid: ID!` — the same fixed variable name the read
+ * guard uses, bound by the primitive from the sanctioned lookup and refused if a
+ * caller supplies it. A foreign `addressId` therefore cannot be paired with a
+ * foreign customer: the customer is always ours, and Shopify rejects an address
+ * that does not belong to it (§13.5).
+ *
+ * ── `userErrors` IS MANDATORY IN THE SELECTION SET ──────────────────────────
+ * A Shopify mutation reports business-rule refusals in `userErrors` while still
+ * answering HTTP 200 with no GraphQL `errors`. A document that does not SELECT
+ * `userErrors` therefore cannot distinguish "saved" from "refused", and the route
+ * would answer 200 to a write Shopify declined. Requiring the selection makes that
+ * unrepresentable rather than a thing every author must remember.
+ * ========================================================================== */
+
+/**
+ * The six customer mutations a portal path may reach (§13.2), and nothing else.
+ *
+ * Verified against the LIVE `2024-10` Admin schema by introspection rather than
+ * assumed (OQ-8, which §13.2 explicitly left open: "this design does not assert a
+ * schema it has not read"). Two corrections came out of that reading and are
+ * recorded here because the design text differs:
+ *
+ *   • `customerAddressUpdate` and `customerAddressDelete` take `addressId`, NOT
+ *     `id`. A document written from the design's prose would fail at runtime.
+ *   • `customerAddressCreate` / `customerAddressUpdate` also accept
+ *     `setAsDefault: Boolean`, which this portal does not use — setting a default
+ *     is its own route (N8) so a failure names the operation the customer asked
+ *     for rather than a side effect of an unrelated save.
+ */
+export const ALLOWLISTED_CUSTOMER_MUTATIONS = [
+  "customerUpdate",
+  "customerAddressCreate",
+  "customerAddressUpdate",
+  "customerAddressDelete",
+  "customerUpdateDefaultAddress",
+  "customerEmailMarketingConsentUpdate",
+] as const;
+
+export type AllowlistedCustomerMutation = (typeof ALLOWLISTED_CUSTOMER_MUTATIONS)[number];
+
+/**
+ * Mutation families no portal path may reach (§13.2, §5.5).
+ *
+ * Belt to the allowlist's braces. The allowlist alone is sufficient — a name not
+ * on it is refused — so this exists to make the INTENT legible and to fail with a
+ * reason that names the category rather than "not allowlisted", which is the
+ * difference between a diagnosable rejection and a puzzling one.
+ */
+const FORBIDDEN_MUTATION_FIELDS: readonly { pattern: RegExp; label: string }[] = [
+  { pattern: /\bproduct[A-Z]\w*\s*\(/, label: "product*" },
+  { pattern: /\border[A-Z]\w*\s*\(/, label: "order*" },
+  { pattern: /\bdraftOrder\w*\s*\(/, label: "draftOrder*" },
+  { pattern: /\bdiscount[A-Z]\w*\s*\(/, label: "discount*" },
+  { pattern: /\bpriceRule\w*\s*\(/, label: "priceRule*" },
+  { pattern: /\bmetafield\w*\s*\(/, label: "metafield*" },
+  { pattern: /\bmetaobject\w*\s*\(/, label: "metaobject*" },
+  { pattern: /\bcustomerDelete\s*\(/, label: "customerDelete" },
+  { pattern: /\bcustomerGenerateAccountActivationUrl\s*\(/, label: "activation url" },
+  { pattern: /\bcustomerCreate\s*\(/, label: "customerCreate" },
+  { pattern: /\bcustomers\s*\(/i, label: "customers(" },
+  { pattern: /\bnode\s*\(\s*id\s*:/i, label: "node(id:)" },
+  { pattern: /\bnodes\s*\(\s*ids\s*:/i, label: "nodes(ids:)" },
+];
+
+/** Matches the first field of the mutation's selection set. */
+const FIRST_MUTATION_FIELD = /\{\s*([A-Za-z_]\w*)\s*\(/;
+
+/**
+ * Proves a document is exactly one allowlisted customer mutation, or throws.
+ *
+ * Exported so `ownership.gate.test.ts` runs it over every document literal in the
+ * file declared to hold this class — the gate and the runtime then share one
+ * definition rather than drifting into two, exactly as they do for the read
+ * classes.
+ */
+export function assertCustomerMutationDocument(document: string): void {
+  if (typeof document !== "string" || document.trim() === "") {
+    throw new UnscopedShopifyQueryError("empty_document");
+  }
+  if (document.includes("${")) {
+    // A written value assembled by interpolation is the one thing no amount of
+    // downstream validation can recover from.
+    throw new UnscopedShopifyQueryError("interpolated_document");
+  }
+  if (!/^\s*mutation\b/i.test(document)) {
+    // The INVERSE of the read guards' `not_a_query`. A read that reached this
+    // gate would be validated against mutation rules and pass none of them, so
+    // saying so plainly beats a confusing cascade.
+    throw new UnscopedShopifyQueryError("not_a_mutation");
+  }
+
+  // ── Ownership, before anything about what the mutation does ───────────────
+  if (!CUSTOMER_VARIABLE_DECLARATION.test(document)) {
+    throw new UnscopedShopifyQueryError("missing_customer_ownership_variable");
+  }
+
+  // ── Exactly one allowlisted field ────────────────────────────────────────
+  const named = ALLOWLISTED_CUSTOMER_MUTATIONS.filter((name) =>
+    new RegExp(`\\b${name}\\s*\\(`).test(document),
+  );
+  if (named.length === 0) {
+    throw new UnscopedShopifyQueryError("mutation_not_allowlisted");
+  }
+  if (named.length > 1) {
+    // Two mutations in one document would make a partial failure unreportable:
+    // Shopify runs mutation fields in series and one can succeed while the next
+    // refuses, leaving a response the route cannot describe honestly.
+    throw new UnscopedShopifyQueryError("multiple_mutation_fields");
+  }
+
+  // The forbidden-category check runs BEFORE the first-field check, so a document
+  // containing `productUpdate` is refused as `forbidden_mutation_field` rather than
+  // as the vaguer `mutation_not_allowlisted`. Both refuse it; the specific reason is
+  // the one that tells an author what they actually did wrong.
+  for (const { pattern } of FORBIDDEN_MUTATION_FIELDS) {
+    if (pattern.test(document)) {
+      throw new UnscopedShopifyQueryError("forbidden_mutation_field");
+    }
+  }
+
+  // The allowlisted name must be the FIRST field, so it cannot ride behind
+  // something else that got there first.
+  const first = FIRST_MUTATION_FIELD.exec(document);
+  if (first === null || first[1] !== named[0]) {
+    throw new UnscopedShopifyQueryError("mutation_not_allowlisted");
+  }
+
+  // ── A refusal must be observable ─────────────────────────────────────────
+  if (!/\buserErrors\s*\{/.test(document)) {
+    throw new UnscopedShopifyQueryError("missing_user_errors_selection");
+  }
+}
+
+/**
+ * Runs one allowlisted customer mutation with the customer GID bound by this
+ * function.
+ *
+ * The caller supplies every variable EXCEPT `$customerGid`. Supplying it is an
+ * error rather than an override, for the same reason as on the read path: a caller
+ * that believed it had chosen the customer would be wrong, and so would the next
+ * reader of that call site.
+ *
+ * Returns the raw mutation payload — including its `userErrors` — because deciding
+ * what a refusal MEANS is the caller's job, and a primitive that threw on any
+ * `userErrors` would collapse "your postcode is invalid" and "Shopify is down"
+ * into one outcome.
+ *
+ * @throws {UnscopedShopifyQueryError} document or variables break the contract — nothing is sent
+ * @throws {PortalResourceNotFoundError} the customer has no Shopify id
+ */
+export async function runCustomerMutation<T>(
+  transport: ScopedGraphqlTransport,
+  lookup: ShopifyCustomerIdLookup,
+  scope: CustomerScope,
+  document: string,
+  variables: Readonly<Record<string, unknown>> = {},
+  notFoundCode: PortalNotFoundCode = "not_found",
+): Promise<T> {
+  assertCustomerMutationDocument(document);
+
+  if (Object.prototype.hasOwnProperty.call(variables, SCOPED_CUSTOMER_VARIABLE)) {
+    throw new UnscopedShopifyQueryError("caller_supplied_ownership_variable");
+  }
+
+  const customerGid = await resolveScopedCustomerGid(lookup, scope);
+  if (customerGid === null) {
+    // No Shopify customer for this scope. Refusing here means a write is never
+    // attempted against a GID assembled from anything but the sanctioned lookup.
+    throw new PortalResourceNotFoundError(notFoundCode);
+  }
+
+  return transport.request<T>(document, {
+    ...variables,
+    [SCOPED_CUSTOMER_VARIABLE]: customerGid,
+  });
+}
+
+/**
+ * The allowlist is exactly the six names §13.2 lists — asserted at COMPILE time
+ * so the array cannot grow by one careless line.
+ */
+export type AllowlistHoldsExactlySixMutations = Expect<
+  (typeof ALLOWLISTED_CUSTOMER_MUTATIONS)["length"] extends 6 ? true : false
 >;

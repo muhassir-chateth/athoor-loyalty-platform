@@ -36,6 +36,8 @@ import type { WishlistWriteStore } from "./routes/wishlist.js";
 import type { PortalRedemptionSource } from "./routes/redemptions.js";
 import type { BirthdayRouteOptions } from "./routes/birthday.js";
 import type { PreferencesRouteOptions } from "./routes/preferences.js";
+import type { IdentityRouteOptions } from "./routes/identity.js";
+import type { AddressRouteOptions } from "./routes/addresses.js";
 import type { ProductTaxonomy } from "./profile/inferred.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
@@ -232,6 +234,14 @@ export interface AppDependencies {
    * FORWARDED together, for the same reason `birthdayDeps` is.
    */
   preferencesDeps?: PreferencesRouteOptions;
+  /**
+   * Backs N6/N7/N9 (`/v1/profile/identity`, `/v1/profile/consent`, tasks
+   * 14.2/14.4). DECLARED AND FORWARDED together, for the same reason
+   * `birthdayDeps` is.
+   */
+  identityDeps?: IdentityRouteOptions;
+  /** Backs N8 (`/v1/profile/addresses`, task 14.3). Declared and forwarded together. */
+  addressDeps?: AddressRouteOptions;
   /**
    * The server-owned product→family/note mapping behind the additive `inferred`
    * block on `GET /v1/profile` (task 13.3). Absent → an empty mapping.
@@ -605,6 +615,8 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     redemptionSource: deps.redemptionSource,
     birthdayDeps: deps.birthdayDeps,
     preferencesDeps: deps.preferencesDeps,
+    identityDeps: deps.identityDeps,
+    addressDeps: deps.addressDeps,
     productTaxonomy: deps.productTaxonomy,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
