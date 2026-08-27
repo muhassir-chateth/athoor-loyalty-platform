@@ -346,6 +346,76 @@ describe("buildApp forwards every portal dependency into /v1", () => {
     }
   });
 
+  it("forwards identityDeps and addressDeps — the Shopify source reaches N6-N9 (task 14)", async () => {
+    // The N6-N9 routes register unconditionally and answer 502 when unwired, so
+    // "the route exists" proves nothing and neither does a 401. This authenticates
+    // and asserts a 200 carrying a value only the wired transport could supply.
+    let documents = 0;
+    const transport = {
+      async request<T>(document: string, variables: Record<string, unknown>): Promise<T> {
+        documents += 1;
+        if (document.startsWith("query portalCustomerIdentity")) {
+          return {
+            customer: {
+              id: variables.customerGid,
+              firstName: "WIRED",
+              lastName: null,
+              email: "wired@example.com",
+              phone: null,
+            },
+          } as T;
+        }
+        if (document.startsWith("query portalCustomerAddresses")) {
+          return {
+            customer: {
+              id: variables.customerGid,
+              defaultAddress: { id: "gid://shopify/MailingAddress/7" },
+              addresses: [{ id: "gid://shopify/MailingAddress/7", address1: "7 Wired Way" }],
+            },
+          } as T;
+        }
+        throw new Error(`unexpected document: ${document.slice(0, 40)}`);
+      },
+    };
+    const lookup = {
+      async findShopifyCustomerId(): Promise<string | null> {
+        return "9395357876563";
+      },
+    };
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      tokenVerifier: new FakeTokenVerifier({ [BEARER]: SHOPIFY_ID }),
+      customerResolver: new InMemoryCustomerResolver({ [SHOPIFY_ID]: CUSTOMER_UUID }),
+      identityDeps: { deps: { transport, lookup } },
+      addressDeps: { deps: { transport, lookup } },
+    });
+    try {
+      await app.ready();
+      const identity = await app.inject({
+        method: "GET",
+        url: "/v1/profile/identity",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      // A 502 here would mean `identityDeps` never arrived at the route.
+      expect(identity.statusCode).toBe(200);
+      expect(identity.json()).toMatchObject({ firstName: "WIRED", emailEditable: false });
+
+      const addresses = await app.inject({
+        method: "GET",
+        url: "/v1/profile/addresses",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      // Asserted separately because the two are separate hand-offs: forwarding one
+      // and dropping the other is exactly the half-wiring this test class exists for.
+      expect(addresses.statusCode).toBe(200);
+      expect(addresses.json()).toMatchObject({
+        addresses: [{ address1: "7 Wired Way", isDefault: true }],
+      });
+      expect(documents).toBeGreaterThanOrEqual(2);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("forwards wishlistStore — a wired store must not answer 404", async () => {
     const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
       wishlistStore: {

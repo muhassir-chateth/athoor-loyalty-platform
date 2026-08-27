@@ -213,6 +213,26 @@ async function main(): Promise<void> {
       )
     : undefined;
 
+  // N6-N9's Shopify source (tasks 14.1-14.4). Same Admin credential, and a THIRD
+  // security class again: these are the only portal paths that WRITE to Shopify, so
+  // every document goes through the six-name customer-mutation allowlist rather
+  // than either read guard. `write_customers` is granted on production, confirmed
+  // by introspecting the live access scopes rather than taken from the closure
+  // record alone (D8 / OQ-11).
+  //
+  // Without an Admin token the source is left unwired and every N6-N9 route answers
+  // `502`. Never an empty identity or a default consent state: reporting "not
+  // subscribed" for a customer Shopify has as subscribed would be inventing a
+  // compliance-relevant fact.
+  const portalCustomerWriteSource = config.shopify.adminApiToken
+    ? {
+        transport: new ShopifyGraphqlTransport(
+          config.shopify.shopDomain,
+          config.shopify.adminApiToken,
+        ),
+        lookup: new PgShopifyCustomerIdLookup(pool),
+      }
+    : undefined;
   // N4's catalogue source (task 8.4). Same Admin credential, DIFFERENT security
   // class: products are global, so this path is validated by
   // `assertGlobalCatalogueQuery` — which proves the query cannot reach
@@ -291,6 +311,10 @@ async function main(): Promise<void> {
     // BEGIN/COMMIT atomicity, and reusing the one that already exists is what
     // stops a second, subtly different transaction helper appearing.
     preferencesDeps: { db: pool, transactor },
+    // N6/N7/N9 and N8 (task 14). Shopify owns identity, addresses and consent, so
+    // these carry no db and no transactor — there is nothing local to write.
+    identityDeps: portalCustomerWriteSource ? { deps: portalCustomerWriteSource } : {},
+    addressDeps: portalCustomerWriteSource ? { deps: portalCustomerWriteSource } : {},
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives

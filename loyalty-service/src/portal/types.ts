@@ -390,8 +390,16 @@ export interface PortalOrderLineItem extends PortalImage {
  * `address2`, and a customer need not have supplied a phone. Typing those as
  * `string` would have the client trust a value that is absent — the W1/W2 class
  * of defect inverted, and one that surfaces as `undefined` rendered to a
- * customer, which Req 16.8 forbids outright. Recorded as a discrepancy to
- * confirm against the live `2024-10` schema when N8 is built (task 14.3).
+ * customer, which Req 16.8 forbids outright.
+ *
+ * CONFIRMED AGAINST THE LIVE `2024-10` SCHEMA (task 14.3, by introspection): every
+ * field of `MailingAddress` and `MailingAddressInput` is indeed nullable/optional,
+ * so the divergence above was correct and stands. Two notes from that reading:
+ * `MailingAddressInput` also accepts `company`, which this contract deliberately
+ * omits — §6.3 does not list it and the portal offers no control for it, so adding
+ * it here would create a field no surface can set; and Shopify names the country
+ * enum `countryCodeV2` on output while the input takes `countryCode`, which is why
+ * the projection maps one to the other rather than passing it through.
  */
 export interface PortalAddress {
   readonly firstName: string | null;

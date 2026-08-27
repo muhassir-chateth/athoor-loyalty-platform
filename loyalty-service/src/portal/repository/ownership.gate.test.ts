@@ -54,7 +54,13 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DELEGATION_TARGETS } from "./customerOwned.js";
-import { assertGlobalCatalogueQuery, assertScopedCustomerQuery } from "./shopifyScope.js";
+import {
+  ALLOWLISTED_CUSTOMER_MUTATIONS,
+  assertCustomerMutationDocument,
+  assertGlobalCatalogueQuery,
+  assertScopedCustomerQuery,
+  UnscopedShopifyQueryError,
+} from "./shopifyScope.js";
 import { UnscopedStatementError, validateScopedStatement } from "./scopedQuery.js";
 
 const REPOSITORY_DIR = dirname(fileURLToPath(import.meta.url));
@@ -468,13 +474,22 @@ describe("the repository layer emits no logs (design §24.3)", () => {
  * ========================================================================== */
 
 /**
- * THE TWO SECURITY CLASSES, AND WHY MEMBERSHIP IS DECLARED PER FILE.
+ * THE THREE SECURITY CLASSES, AND WHY MEMBERSHIP IS DECLARED PER FILE.
  *
- * Most documents here are customer-rooted and must satisfy
+ * Most documents here are customer-rooted reads and must satisfy
  * `assertScopedCustomerQuery`. The N4 catalogue read (task 8.4) cannot be —
  * products are global data with no customer to scope to — so it satisfies
  * `assertGlobalCatalogueQuery`, which proves the inverse property: the query
- * cannot reach customer-owned data.
+ * cannot reach customer-owned data. The N6–N9 WRITES (task 14.1) can satisfy
+ * neither: both read guards reject `contains_mutation` as their third check, so
+ * writes satisfy `assertCustomerMutationDocument`, which proves a third property —
+ * the document performs exactly one operation drawn from a six-name allowlist.
+ *
+ * ADDING THE THIRD CLASS DID NOT WEAKEN THE FIRST TWO. Both read guards are
+ * unchanged; the mutation class is stricter than either in the dimension that
+ * matters for a write. The alternative — relaxing `assertScopedCustomerQuery`
+ * until a mutation fitted — would have widened the portal's only structural
+ * defence against reading another customer's orders, to serve a write path.
  *
  * MEMBERSHIP IS BY FILENAME, NEVER BY CONTENT. If the class were inferred from
  * what a document contains, deleting a `customer(id:)` traversal would silently
@@ -485,43 +500,146 @@ describe("the repository layer emits no logs (design §24.3)", () => {
  */
 const GLOBAL_CATALOGUE_FILES: readonly string[] = ["catalog.ts"];
 
+/** The one file permitted to hold portal WRITES to Shopify (task 14.1). */
+const CUSTOMER_MUTATION_FILES: readonly string[] = ["customerMutations.ts"];
+
+/** The three classes, as a total function over filename — no file is unclassified. */
+type DocumentClass = "scoped" | "catalogue" | "mutation";
+function classOf(name: string): DocumentClass {
+  if (CUSTOMER_MUTATION_FILES.includes(name)) return "mutation";
+  if (GLOBAL_CATALOGUE_FILES.includes(name)) return "catalogue";
+  return "scoped";
+}
+
+/** The guard that must ACCEPT a document of each class. */
+const ACCEPTS: Readonly<Record<DocumentClass, (document: string) => void>> = {
+  scoped: assertScopedCustomerQuery,
+  catalogue: assertGlobalCatalogueQuery,
+  mutation: assertCustomerMutationDocument,
+};
+
 describe("every GraphQL document belongs to exactly one security class", () => {
   it("validates each document with the guard for its declared class", () => {
+    let checked = 0;
     for (const name of repositorySourceFiles()) {
-      const isCatalogue = GLOBAL_CATALOGUE_FILES.includes(name);
+      const declared = classOf(name);
       for (const document of graphqlLiterals(readRepositoryFile(name))) {
-        if (isCatalogue) {
+        checked += 1;
+        expect(
+          () => ACCEPTS[declared](document),
+          `${name} is declared class "${declared}" but contains a document its guard refuses`,
+        ).not.toThrow();
+      }
+    }
+    // The extractor must actually be finding documents; a scanning gate that finds
+    // nothing reports safety it never checked.
+    expect(checked).toBeGreaterThanOrEqual(8);
+  });
+
+  it("holds all three classes apart: no guard accepts another class's documents", () => {
+    // If any guard accepted more than its own kind, having three would be theatre.
+    const classes: readonly DocumentClass[] = ["scoped", "catalogue", "mutation"];
+    for (const name of repositorySourceFiles()) {
+      const declared = classOf(name);
+      for (const document of graphqlLiterals(readRepositoryFile(name))) {
+        for (const other of classes) {
+          if (other === declared) continue;
           expect(
-            () => assertGlobalCatalogueQuery(document),
-            `${name} is declared a GLOBAL CATALOGUE file but contains a document that could reach customer-owned data`,
-          ).not.toThrow();
-        } else {
-          expect(
-            () => assertScopedCustomerQuery(document),
-            `${name} contains a document that does not traverse from customer(id:)`,
-          ).not.toThrow();
+            () => ACCEPTS[other](document),
+            `${name}'s "${declared}" document also satisfies the "${other}" guard, so those classes are not distinct`,
+          ).toThrow();
         }
       }
     }
   });
 
-  it("holds the two classes apart: neither guard accepts the other's documents", () => {
-    // If either guard accepted both kinds, having two would be theatre.
-    for (const name of repositorySourceFiles()) {
-      const isCatalogue = GLOBAL_CATALOGUE_FILES.includes(name);
-      for (const document of graphqlLiterals(readRepositoryFile(name))) {
-        if (isCatalogue) {
-          expect(
-            () => assertScopedCustomerQuery(document),
-            `${name}'s catalogue document also satisfies the SCOPED guard, so the two classes are not distinct`,
-          ).toThrow();
-        } else {
-          expect(
-            () => assertGlobalCatalogueQuery(document),
-            `${name}'s customer document also satisfies the CATALOGUE guard, so that guard is not proving "no customer data reachable"`,
-          ).toThrow();
-        }
+  it("refuses a mutation smuggled into a file of either READ class", () => {
+    // The failure this classification exists to prevent: a write added to a read
+    // file. Both read guards must refuse it on `contains_mutation`, before any
+    // request could be made.
+    const write = `mutation m($customerGid: ID!) {
+      customerUpdate(input: { id: $customerGid }) { customer { id } userErrors { field message } }
+    }`;
+    for (const guard of [assertScopedCustomerQuery, assertGlobalCatalogueQuery]) {
+      expect(() => guard(write)).toThrow(UnscopedShopifyQueryError);
+      try {
+        guard(write);
+      } catch (err) {
+        expect((err as UnscopedShopifyQueryError).reason).toBe("contains_mutation");
       }
+    }
+  });
+
+  it("refuses a forbidden mutation, a second mutation field, and a missing userErrors selection", () => {
+    // The three ways an author could widen the write surface without noticing.
+    const cases: readonly (readonly [string, string, string])[] = [
+      [
+        "a product mutation",
+        `mutation m($customerGid: ID!) { productUpdate(input: {}) { userErrors { field } } customerUpdate(input: { id: $customerGid }) { userErrors { field } } }`,
+        "forbidden_mutation_field",
+      ],
+      [
+        "two allowlisted mutations in one document",
+        `mutation m($customerGid: ID!, $addressId: ID!) { customerAddressDelete(customerId: $customerGid, addressId: $addressId) { userErrors { field } } customerUpdateDefaultAddress(customerId: $customerGid, addressId: $addressId) { userErrors { field } } }`,
+        "multiple_mutation_fields",
+      ],
+      [
+        "no userErrors selection",
+        `mutation m($customerGid: ID!) { customerUpdate(input: { id: $customerGid }) { customer { id } } }`,
+        "missing_user_errors_selection",
+      ],
+      [
+        "no customer ownership variable",
+        `mutation m($addressId: ID!) { customerAddressDelete(customerId: "gid://shopify/Customer/1", addressId: $addressId) { userErrors { field } } }`,
+        "missing_customer_ownership_variable",
+      ],
+      [
+        "a mutation that is not on the allowlist",
+        `mutation m($customerGid: ID!) { customerPaymentMethodRemove(paymentMethodId: $customerGid) { userErrors { field } } }`,
+        "mutation_not_allowlisted",
+      ],
+      [
+        "a read handed to the mutation guard",
+        `query q($customerGid: ID!) { customer(id: $customerGid) { id } }`,
+        "not_a_mutation",
+      ],
+      [
+        "an interpolated document",
+        'mutation m($customerGid: ID!) { customerUpdate(input: { id: $customerGid, firstName: "${name}" }) { userErrors { field } } }',
+        "interpolated_document",
+      ],
+    ];
+    for (const [label, document, reason] of cases) {
+      let caught: unknown = null;
+      try {
+        assertCustomerMutationDocument(document);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught, `${label} was ACCEPTED by the mutation guard`).toBeInstanceOf(
+        UnscopedShopifyQueryError,
+      );
+      expect((caught as UnscopedShopifyQueryError).reason, label).toBe(reason);
+    }
+  });
+
+  it("accepts exactly the six allowlisted mutation names and no seventh", () => {
+    expect([...ALLOWLISTED_CUSTOMER_MUTATIONS]).toEqual([
+      "customerUpdate",
+      "customerAddressCreate",
+      "customerAddressUpdate",
+      "customerAddressDelete",
+      "customerUpdateDefaultAddress",
+      "customerEmailMarketingConsentUpdate",
+    ]);
+    // A mutation Shopify adds later is refused because it is not one of the six —
+    // the property an allowlist has and a denylist does not.
+    for (const invented of ["customerMerge", "customerSmsMarketingConsentUpdate", "customerDelete"]) {
+      expect(() =>
+        assertCustomerMutationDocument(
+          `mutation m($customerGid: ID!) { ${invented}(customerId: $customerGid) { userErrors { field } } }`,
+        ),
+      ).toThrow(UnscopedShopifyQueryError);
     }
   });
 
