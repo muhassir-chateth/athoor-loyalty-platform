@@ -50,17 +50,21 @@ function makeFakeDb(): { db: Queryable; inserts: Captured[] } {
 }
 
 describe("AUDIT_OPERATION_TYPES covers the Req 10.9 operations plus benefit_request", () => {
-  it("declares adjustment, manual_credit, migration, reconciliation, benefit_request", () => {
+  it("declares adjustment, manual_credit, migration, reconciliation, benefit_request, customer_redaction", () => {
     // The first four are Req 10.9's own list; `benefit_request` was added by
     // task 41 so an operator advancing a benefit request's lifecycle is
-    // attributable. Kept in step with the `admin_audit_log.operation_type` CHECK
-    // by migration 1785900000000_benefit-request-lifecycle.
+    // attributable. `customer_redaction` was added by task 15.3 so the
+    // operator-run redaction procedure is accountable — recording an erasure as
+    // `reconciliation` would put a false statement in the audit trail. Each is kept
+    // in step with the `admin_audit_log.operation_type` CHECK by its own migration
+    // (1785900000000_benefit-request-lifecycle, 1786600000000_extend-audit-for-redaction).
     expect([...AUDIT_OPERATION_TYPES]).toEqual([
       "adjustment",
       "manual_credit",
       "migration",
       "reconciliation",
       "benefit_request",
+      "customer_redaction",
     ]);
   });
 });

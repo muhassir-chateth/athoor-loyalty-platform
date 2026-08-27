@@ -77,6 +77,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { PORTAL_MIGRATIONS } from "./migration/migrateDownGuard.js";
+import { AUDIT_OPERATION_TYPES } from "./admin/auditTrail.js";
 
 // ---------------------------------------------------------------------------
 // Scope constants
@@ -543,9 +544,44 @@ function allMigrationFilenames(): string[] {
     .sort((a, b) => (versionOf(a) as number) - (versionOf(b) as number) || a.localeCompare(b));
 }
 
+/**
+ * TWO CLASSES OF PORTAL-ERA MIGRATION, DECLARED BY FILENAME.
+ *
+ * Every portal migration up to task 14 CREATES A TABLE, and the assertions below
+ * are built around that: additive means `CREATE TABLE`/`CREATE INDEX`, teardown
+ * means `DROP TABLE IF EXISTS`, and `PORTAL_MIGRATIONS` names the tables so the
+ * task-6.5 row-count guard can refuse a destructive `down`.
+ *
+ * Task 15.3 needs something structurally different: `admin_audit_log`'s
+ * `operation_type` CHECK must accept `customer_redaction`, or the redaction
+ * procedure cannot record an honest audit entry (recording one as `reconciliation`
+ * would put a false statement in the audit trail). That migration creates no table
+ * and its statements are `ALTER TABLE ... DROP/ADD CONSTRAINT`.
+ *
+ * THE FIX IS A SECOND CLASS, NOT LOOSER RULES FOR THE FIRST. Relaxing "every up
+ * statement is CREATE TABLE or CREATE INDEX" so an ALTER slips through would
+ * weaken the check that protects five real tables, to accommodate one migration
+ * that does not touch them. Instead the widening migration is declared here by
+ * name and carries its OWN, narrower assertions further down: it may only widen a
+ * CHECK, must name no ledger-protected table, and its `down` must REFUSE rather
+ * than delete audit history.
+ *
+ * MEMBERSHIP IS BY FILENAME, NEVER BY CONTENT — the same principle
+ * `ownership.gate.test.ts` uses for its three GraphQL classes. If the class were
+ * inferred from what a file contains, adding a `CREATE TABLE` to a widening
+ * migration would silently move it into the weaker set of rules.
+ */
+const CONSTRAINT_WIDENING_MIGRATIONS: readonly string[] = [
+  "1786600000000_extend-audit-for-redaction.ts",
+];
+
 let portalFilenames: string[];
+/** The table-creating family — every portal migration except the widening class. */
+let tableFamilyFilenames: string[];
 let preExistingTables: Set<string>;
 let loaded: LoadedMigration[];
+/** The widening class, loaded the same way for its own assertions. */
+let widening: LoadedMigration[];
 
 /** Every statement from every portal `up`, across the family. */
 let familyUp: string[];
@@ -557,6 +593,12 @@ beforeAll(async () => {
   expect(all.length, "migrations directory should not be empty").toBeGreaterThan(0);
 
   portalFilenames = all.filter((f) => (versionOf(f) as number) >= PORTAL_ERA_FLOOR);
+  // The table-creating family is every portal migration EXCEPT the declared
+  // constraint-widening ones. Filtering here rather than inside each assertion
+  // means a new widening migration is excluded once, by name, in one place.
+  tableFamilyFilenames = portalFilenames.filter(
+    (f) => !CONSTRAINT_WIDENING_MIGRATIONS.includes(f),
+  );
 
   // The universe of table names that existed before the portal series. Read as
   // TEXT rather than executed: this only needs the names, and executing 15
@@ -572,7 +614,7 @@ beforeAll(async () => {
   }
 
   loaded = [];
-  for (const filename of portalFilenames) {
+  for (const filename of tableFamilyFilenames) {
     const url = pathToFileURL(join(migrationsDir, filename)).href;
     const mod = (await import(/* @vite-ignore */ url)) as {
       up: (pgm: unknown) => Promise<void>;
@@ -600,6 +642,34 @@ beforeAll(async () => {
 
   familyUp = loaded.flatMap((m) => m.up);
   familyDown = loaded.flatMap((m) => m.down);
+
+  // The widening class, loaded identically so its own assertions can run over
+  // real recorded statements rather than over the file as text.
+  widening = [];
+  for (const filename of portalFilenames.filter((f) =>
+    CONSTRAINT_WIDENING_MIGRATIONS.includes(f),
+  )) {
+    const url = pathToFileURL(join(migrationsDir, filename)).href;
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      up: (pgm: unknown) => Promise<void>;
+      down: (pgm: unknown) => Promise<void>;
+      shorthands?: unknown;
+    };
+    const upRec = makeRecordingBuilder();
+    await mod.up(upRec.builder);
+    const downRec = makeRecordingBuilder();
+    await mod.down(downRec.builder);
+    widening.push({
+      filename,
+      version: String(versionOf(filename)),
+      upCalls: upRec.calls,
+      downCalls: downRec.calls,
+      up: executableStatements(upRec.calls),
+      down: executableStatements(downRec.calls),
+      otherMembersUsed: [...upRec.otherMembersUsed, ...downRec.otherMembersUsed],
+      hasShorthands: "shorthands" in mod,
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -623,9 +693,27 @@ describe("discovery — the portal migration surface, found rather than assumed"
   });
 
   it("loaded every discovered migration and each exports up, down and shorthands", () => {
-    expect(loaded).toHaveLength(portalFilenames.length);
-    for (const migration of loaded) {
+    // BOTH classes together must account for every portal-era file on disk. That is
+    // what stops a migration being excluded from the table family and then never
+    // asserted by anything — the failure mode a per-assertion filter would have
+    // allowed.
+    expect(loaded.length + widening.length).toBe(portalFilenames.length);
+    for (const migration of [...loaded, ...widening]) {
       expect(migration.hasShorthands, `${migration.filename} should export shorthands`).toBe(true);
+    }
+  });
+
+  it("assigns every portal-era migration to exactly ONE class", () => {
+    const inFamily = new Set(tableFamilyFilenames);
+    const inWidening = new Set(CONSTRAINT_WIDENING_MIGRATIONS);
+    for (const filename of portalFilenames) {
+      const memberships = [inFamily.has(filename), inWidening.has(filename)].filter(Boolean).length;
+      expect(memberships, `${filename} belongs to ${memberships} classes, expected exactly 1`).toBe(1);
+    }
+    // And no declared widening migration is absent from disk — a stale name here
+    // would silently shrink the table family's coverage.
+    for (const declared of CONSTRAINT_WIDENING_MIGRATIONS) {
+      expect(portalFilenames, `${declared} is declared but not on disk`).toContain(declared);
     }
   });
 
@@ -634,7 +722,7 @@ describe("discovery — the portal migration surface, found rather than assumed"
     // to PORTAL_MIGRATIONS — not to loosen this. The task-6.5 guard refuses
     // migrate:down based on that list, so a list narrower than reality means a
     // table whose row count is never checked before it is dropped.
-    expect(PORTAL_MIGRATIONS.map((m) => m.filename)).toEqual(portalFilenames);
+    expect(PORTAL_MIGRATIONS.map((m) => m.filename)).toEqual(tableFamilyFilenames);
   });
 
   it("PORTAL_MIGRATIONS versions match the filename timestamps", () => {
@@ -1111,5 +1199,115 @@ describe("SQL utilities", () => {
         "CREATE TABLE t (updated_at TIMESTAMPTZ, grant_year SMALLINT, granted_at TIMESTAMPTZ)",
       ]),
     ).toEqual([]);
+  });
+});
+
+/* ==========================================================================
+ * The constraint-widening class (task 15.3) — its own, narrower rules
+ *
+ * These migrations create no table, so the family assertions above do not apply.
+ * What must hold instead is that they only ever WIDEN a CHECK, touch no
+ * ledger-protected table, and refuse rather than delete on the way back down.
+ * ========================================================================== */
+
+describe("constraint-widening migrations widen, and only widen", () => {
+  it("creates and drops NO table, and touches no row", () => {
+    for (const migration of widening) {
+      const sql = [...migration.up, ...migration.down].join(" ");
+      // The whole point of the separate class: no table lifecycle at all.
+      expect(sql, `${migration.filename} should create no table`).not.toMatch(/\bCREATE\s+TABLE\b/i);
+      expect(sql, `${migration.filename} should drop no table`).not.toMatch(/\bDROP\s+TABLE\b/i);
+      // And no data statement — a constraint change must not rewrite rows.
+      expect(sql, `${migration.filename} should delete no row`).not.toMatch(/\bDELETE\s+FROM\b/i);
+      expect(sql, `${migration.filename} should truncate nothing`).not.toMatch(/\bTRUNCATE\b/i);
+      // `UPDATE` guarded to the data form, so `DROP CONSTRAINT` phrasing cannot
+      // trip it.
+      expect(sql, `${migration.filename} should update no row`).not.toMatch(
+        /\bUPDATE\s+[a-z_]+\s+SET\b/i,
+      );
+    }
+  });
+
+  it("only ever DROPs and re-ADDs a CHECK constraint", () => {
+    for (const migration of widening) {
+      // The RAW calls, not the split statements: `splitStatements` breaks on `;`,
+      // which fragments the guarded `DO $$ … END $$` block into pieces that are
+      // individually neither constraint work nor a refusal. One `pgm.sql(...)` call
+      // is one logical statement, which is the unit this rule is about.
+      for (const statement of [...migration.upCalls, ...migration.downCalls]) {
+        const isConstraintWork =
+          /\bALTER\s+TABLE\b[\s\S]*\b(?:DROP|ADD)\s+CONSTRAINT\b/i.test(statement) ||
+          // The guarded `down` preflight, which raises rather than writing.
+          /\bRAISE\s+EXCEPTION\b/i.test(statement);
+        expect(
+          isConstraintWork,
+          `${migration.filename} statement is neither constraint work nor a refusal:\n${statement}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("WIDENS: every value the old CHECK allowed, the new one still allows", () => {
+    // The safety property that makes this class additive at all. A migration that
+    // narrowed a CHECK could break an existing write path the moment it applied.
+    for (const migration of widening) {
+      const values = (sql: string): string[] =>
+        [...sql.matchAll(/'([a-z_]+)'/gi)].map((m) => m[1] as string);
+      const upAdded = migration.up.filter((s) => /\bADD\s+CONSTRAINT\b/i.test(s)).join(" ");
+      const downAdded = migration.down.filter((s) => /\bADD\s+CONSTRAINT\b/i.test(s)).join(" ");
+      const after = new Set(values(upAdded));
+      const before = new Set(values(downAdded));
+      expect(before.size, `${migration.filename} down should restore a value set`).toBeGreaterThan(0);
+      for (const value of before) {
+        expect(
+          after.has(value),
+          `${migration.filename} drops '${value}' from the CHECK — that is a narrowing, not a widening`,
+        ).toBe(true);
+      }
+      // And it genuinely adds something, or the migration is a no-op.
+      expect(after.size).toBeGreaterThan(before.size);
+    }
+  });
+
+  it("names NO ledger-protected table (Req 23.6)", () => {
+    for (const migration of widening) {
+      const sql = [...migration.up, ...migration.down].join(" ").toLowerCase();
+      for (const table of [
+        "ledger_entries",
+        "point_lots",
+        "redemptions",
+        "discount_codes",
+        "referrals",
+      ]) {
+        expect(sql, `${migration.filename} names ${table}`).not.toMatch(
+          new RegExp(`\\b${table}\\b`),
+        );
+      }
+    }
+  });
+
+  it("REFUSES on the way down rather than deleting history", () => {
+    // An audit trail a rollback can quietly erase is not an audit trail. The `down`
+    // must raise when a row holding the new value exists.
+    for (const migration of widening) {
+      const down = migration.down.join(" ");
+      expect(down, `${migration.filename} down should raise rather than delete`).toMatch(
+        /\bRAISE\s+EXCEPTION\b/i,
+      );
+      expect(down).toMatch(/\bcount\(\*\)/i);
+    }
+  });
+
+  it("keeps the audit vocabulary in step with the code constant", () => {
+    // The migration and `AUDIT_OPERATION_TYPES` describe the same set. Drift means
+    // either a value the code writes that the CHECK rejects, or a value the CHECK
+    // allows that nothing can produce.
+    const source = readFileSync(
+      join(migrationsDir, "1786600000000_extend-audit-for-redaction.ts"),
+      "utf8",
+    );
+    const declared = [...source.matchAll(/^\s*"([a-z_]+)",$/gm)].map((m) => m[1] as string);
+    expect(declared.length).toBeGreaterThan(0);
+    expect([...declared].sort()).toEqual([...AUDIT_OPERATION_TYPES].sort());
   });
 });

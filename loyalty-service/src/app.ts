@@ -38,6 +38,7 @@ import type { BirthdayRouteOptions } from "./routes/birthday.js";
 import type { PreferencesRouteOptions } from "./routes/preferences.js";
 import type { IdentityRouteOptions } from "./routes/identity.js";
 import type { AddressRouteOptions } from "./routes/addresses.js";
+import type { PrivacyRouteOptions } from "./routes/privacy.js";
 import type { ProductTaxonomy } from "./profile/inferred.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
@@ -242,6 +243,11 @@ export interface AppDependencies {
   identityDeps?: IdentityRouteOptions;
   /** Backs N8 (`/v1/profile/addresses`, task 14.3). Declared and forwarded together. */
   addressDeps?: AddressRouteOptions;
+  /**
+   * Backs N14/N15 (`/v1/profile/export`, `/v1/profile/erasure-request`, tasks
+   * 15.1/15.2). DECLARED AND FORWARDED together, as every portal dependency is.
+   */
+  privacyDeps?: PrivacyRouteOptions;
   /**
    * The server-owned product→family/note mapping behind the additive `inferred`
    * block on `GET /v1/profile` (task 13.3). Absent → an empty mapping.
@@ -617,6 +623,7 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     preferencesDeps: deps.preferencesDeps,
     identityDeps: deps.identityDeps,
     addressDeps: deps.addressDeps,
+    privacyDeps: deps.privacyDeps,
     productTaxonomy: deps.productTaxonomy,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,

@@ -60,6 +60,12 @@ import { PgPortalRedemptionSource } from "./routes/redemptions.js";
 import { ShopifyGraphqlTransport } from "./shopify/graphqlClient.js";
 import { PgFragranceProfileDataSource } from "./profile/fragranceProfile.js";
 import { PgPortalVisitRecorder, PgProfilePreferenceStore } from "./routes/profile.js";
+import { buildExportReaders } from "./privacy/exportComposition.js";
+import {
+  readCustomerAddresses,
+  readCustomerConsent,
+  readCustomerIdentity,
+} from "./portal/repository/customerIdentity.js";
 import { RecentlyViewedStore } from "./profile/recentlyViewed.js";
 import { RulesBasedSuggestionEngine } from "./profile/suggestions.js";
 import { DbMarketConfigProvider } from "./markets/marketConfig.js";
@@ -311,6 +317,30 @@ async function main(): Promise<void> {
     // BEGIN/COMMIT atomicity, and reusing the one that already exists is what
     // stops a second, subtly different transaction helper appearing.
     preferencesDeps: { db: pool, transactor },
+    // N14/N15 (tasks 15.1, 15.2). The export COMPOSES the shipped readers rather
+    // than adding SQL of its own, so there is no second answer to "what does this
+    // customer have". `db` also backs the erasure-request INSERT, which stays
+    // recordable even when the Shopify credential is absent — a customer's right to
+    // ASK does not depend on whether their identity panel is reachable.
+    privacyDeps: {
+      db: pool,
+      exportReaders: buildExportReaders({
+        db: pool,
+        ...(portalCustomerWriteSource
+          ? {
+              shopify: {
+                identity: (scope) => readCustomerIdentity(portalCustomerWriteSource, scope),
+                addresses: (scope) => readCustomerAddresses(portalCustomerWriteSource, scope),
+                consent: (scope) => readCustomerConsent(portalCustomerWriteSource, scope),
+              },
+            }
+          : {}),
+        balance: new PgCustomerBalanceSource(pool),
+        ledger: new PgLedgerHistorySource(pool),
+        redemptions: new PgPortalRedemptionSource(pool),
+      }),
+    },
+
     // N6/N7/N9 and N8 (task 14). Shopify owns identity, addresses and consent, so
     // these carry no db and no transactor — there is nothing local to write.
     identityDeps: portalCustomerWriteSource ? { deps: portalCustomerWriteSource } : {},

@@ -40,6 +40,12 @@ export const AUDIT_OPERATION_TYPES = [
   "migration",
   "reconciliation",
   "benefit_request",
+  // Added by task 15.3 so the operator-run redaction procedure is accountable.
+  // Recording a redaction as `reconciliation` would put a false statement in the
+  // audit trail, which is worse than no record. Kept in step with the CHECK by
+  // migration 1786600000000_extend-audit-for-redaction, and `redaction.test.ts`
+  // asserts the two agree by reading that file.
+  "customer_redaction",
 ] as const;
 
 export type AuditOperationType = (typeof AUDIT_OPERATION_TYPES)[number];
