@@ -2,7 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { FakeTokenVerifier, InMemoryCustomerResolver } from "./auth/identity.js";
 import { API_VERSION, API_VERSION_FIELD, API_VERSION_HEADER } from "./version.js";
+
+/** Identity fixtures for the dependency-forwarding checks below. */
+const BEARER = "app-test-caa-token";
+const SHOPIFY_ID = "9395357876563";
+const CUSTOMER_UUID = "11111111-1111-4111-8111-111111111111";
 
 describe("app boot + /v1 versioning", () => {
   let app: FastifyInstance;
@@ -170,6 +176,52 @@ describe("buildApp forwards every portal dependency into /v1", () => {
       // Unauthenticated, so 401 — but the route must EXIST, which proves
       // referralDeps was forwarded at all.
       expect(res.statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("forwards birthdayDeps — both the db AND the clock reach the route (task 12.2)", async () => {
+    // STRONGER THAN THE CHECKS ABOVE, and it has to be. The birthday routes register
+    // UNCONDITIONALLY with a refusing executor, so "the route exists" proves nothing
+    // about whether `birthdayDeps` arrived — a dropped hand-off would still answer 401
+    // to an anonymous caller and 500 only to a real customer. So this test authenticates
+    // and observes the response, which is the only place a missing executor shows up.
+    let queries = 0;
+    const clockNow = new Date("2031-03-05T12:00:00Z");
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      tokenVerifier: new FakeTokenVerifier({ [BEARER]: SHOPIFY_ID }),
+      customerResolver: new InMemoryCustomerResolver({ [SHOPIFY_ID]: CUSTOMER_UUID }),
+      birthdayDeps: {
+        db: {
+          async query(sql: string) {
+            queries += 1;
+            const rows = sql.includes("FROM customer_birthdays")
+              ? [{ birth_month: 3, birth_day: 12, changed_at: null }]
+              : [];
+            return { rows, rowCount: rows.length, command: "SELECT", oid: 0, fields: [] };
+          },
+        } as never,
+        clock: { now: () => clockNow },
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/profile/birthday",
+        headers: { authorization: `Bearer ${BEARER}` },
+      });
+      // A 500 here would be `BirthdayStoreUnconfiguredError` — the refusing default,
+      // meaning the executor never arrived.
+      expect(res.statusCode).toBe(200);
+      expect(queries).toBeGreaterThan(0);
+      const body = res.json() as { birthday: unknown; eligibility: { windowOpensOn: string } };
+      expect(body.birthday).toEqual({ month: 3, day: 12 });
+      // The INJECTED clock's year, not the real one. If `clock` were dropped while `db`
+      // survived, the read would still succeed and only this date would be wrong — which
+      // is exactly the kind of half-forwarded dependency the earlier defect was.
+      expect(body.eligibility.windowOpensOn).toBe("2031-03-12");
     } finally {
       await app.close();
     }

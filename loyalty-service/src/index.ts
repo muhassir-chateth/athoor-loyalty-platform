@@ -282,6 +282,10 @@ async function main(): Promise<void> {
     wishlistStore: new PgWishlistWriteStore(pool),
     // N16 (task 10.2). Read-only over `redemptions` LEFT JOIN `discount_codes`.
     redemptionSource: new PgPortalRedemptionSource(pool),
+    // N10/N11 (task 12.2). Eligibility is evaluated ON READ and the once-per-year
+    // guarantee is `birthday_grants UNIQUE (customer_id, grant_year)` — no scheduled
+    // job is added and no second reward mechanism exists.
+    birthdayDeps: { db: pool },
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was
     // unmet end to end (reachability-audit finding 2). Constructing it here gives

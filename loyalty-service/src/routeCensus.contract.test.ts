@@ -99,6 +99,8 @@ const REQUIRED_PRESENT = [
   "/v1/profile",
   "/v1/profile/visit",
   "/v1/profile/favourites",
+  // N10/N11 (task 12.2).
+  "/v1/profile/birthday",
   "/v1/profile/wishlist",
   // N5 (task 9.1). The wishlist's only removal authority and the only writer of
   // the explicit-removal tombstone: if it silently stopped registering, removals
