@@ -243,8 +243,9 @@ async function main(): Promise<void> {
     balanceSource: new PgCustomerBalanceSource(pool),
     historySource: new PgLedgerHistorySource(pool),
     // Orders read live from Shopify (task 8.1/8.2). Undefined without an Admin
-    // token, in which case the routes keep their empty-page fallback rather than
-    // inventing data.
+    // token, in which case the routes answer `502 upstream_unavailable` via
+    // `UnconfiguredPortalOrderSource` — NOT an empty page. See the note above
+    // where `portalOrderSource` is built for why that distinction matters.
     ...(portalOrderSource ? { portalOrderSource } : {}),
     // VIP benefits / entitlements (task 30, Req 18.2/18.3/18.5/18.6). The
     // resolver existed since task 15.2 but was NEVER CONSTRUCTED, so Req 18 was

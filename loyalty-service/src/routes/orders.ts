@@ -39,7 +39,8 @@
  *   `InvalidOrderReferenceError` → 400 `invalid_order_reference`
  *   source returned `null`       → 404 `order_not_found`, body has NO order field
  *   `UnscopedShopifyQueryError`  → RETHROWN → 500
- *   anything else                → 502 `upstream_unavailable`
+ *   Shopify upstream failures    → 502 `upstream_unavailable` (allowlist below)
+ *   anything else                → RETHROWN → 500, so a defect stays loud
  *
  * The fourth line is the important one. An unscoped-document rejection is OUR
  * bug — a query that would have left the customer traversal — and it is caught
