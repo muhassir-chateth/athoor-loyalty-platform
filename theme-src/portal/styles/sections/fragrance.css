@@ -1,0 +1,14 @@
+/*
+ * Per-section styles for the `fragrance` Portal_Section.
+ *
+ * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 24.1
+ * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
+ * empty — see that file's header for why the partials are wired ahead of being
+ * written.
+ *
+ * Two rules for whatever is added here. Every selector must be rooted at this
+ * section's own container, because design §25.6 requires everything outside the
+ * portal's containers to stay byte-identical. And the shared layer — tokens,
+ * typographic scale, spacing scale, colour, states — belongs in task 19.5's
+ * file, not here: a token redeclared per section is a token that drifts.
+ */

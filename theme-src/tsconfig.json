@@ -1,0 +1,77 @@
+{
+  // ==========================================================================
+  // Typecheck configuration for `theme-src/portal/**` — the portal's browser
+  // TypeScript (spec task 7.1, design §16.7).
+  //
+  // WHY A SECOND TSCONFIG EXISTS AT ALL
+  // -----------------------------------
+  // `loyalty-service/tsconfig.json` declares `rootDir: "src"` and
+  // `include: ["src/**/*.ts"]`. `theme-src/` is therefore OUTSIDE that program:
+  // running `npm run typecheck` in the service checks not one line of portal
+  // source. A `tsc --noEmit` that silently covers nothing is theatre, and it is
+  // the same shape of gap that let defects W1/W2 ship green (design §16.7) — a
+  // contract with no checker on one side of the boundary.
+  //
+  // This file is that checker. `npm run typecheck:portal` runs it; CI runs both.
+  //
+  // WHY THE LIB IS ES2019 AND NOT ES2023
+  // ------------------------------------
+  // esbuild emits with `--target=es2019` and adds NO polyfill (design §16.7), so
+  // an ES2020+ builtin compiles happily and then throws in an older browser —
+  // esbuild downlevels *syntax*, never *library* calls. Pinning `lib` to ES2019
+  // makes that a compile error instead: `array.at(...)`, `String.replaceAll`,
+  // `Object.hasOwn` and friends do not typecheck here. The lib floor is the
+  // enforcement mechanism for the "no polyfills" promise, not documentation of
+  // it.
+  //
+  // The service's own tsconfig stays at ES2023 — it runs on Node 24, where those
+  // builtins exist. The two targets differ because the two runtimes differ.
+  //
+  // DOM, and no `@types/node`
+  // -------------------------
+  // `lib` carries DOM and DOM.Iterable because this code runs in a browser, and
+  // `types: []` withholds the ambient `@types/node` globals that
+  // `loyalty-service/node_modules` would otherwise supply. Without that, a
+  // portal module could reference `process.env` or `Buffer` and typecheck — then
+  // fail in the browser. Withholding the types makes the wrong runtime
+  // unreachable.
+  // ==========================================================================
+  "compilerOptions": {
+    "target": "ES2019",
+    "lib": ["ES2019", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+
+    // Types only. esbuild produces the artefacts; `tsc` never emits here, so
+    // there is exactly one tool that can write into `theme/assets/`.
+    "noEmit": true,
+
+    // No ambient Node globals — see the note above.
+    "types": [],
+
+    // Matches the service's settings so a module moved between the two does not
+    // change meaning. `noUncheckedIndexedAccess` matters more here than there:
+    // almost every portal read is `querySelector`, `dataset[...]` or a NodeList
+    // index, and each of those genuinely can be absent.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+
+    // esbuild compiles each file on its own and never consults the type system,
+    // so any construct that needs whole-program knowledge to emit correctly is a
+    // construct esbuild will get wrong. `isolatedModules` rejects those up front.
+    "isolatedModules": true
+  },
+
+  // `portal/**` only. The built artefacts in `theme/assets/` are OUTPUT and are
+  // never typechecked; the smoke test that reads them lives in the service's
+  // vitest program (design §16.7 — tests run against the source).
+  "include": ["portal/**/*.ts", "portal/**/*.d.ts"],
+  "exclude": ["../node_modules", "../theme"]
+}

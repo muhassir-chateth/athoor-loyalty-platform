@@ -1,0 +1,68 @@
+/*! Athoor London Customer Experience Portal — generated from theme-src/portal/styles/**.
+ *  DO NOT EDIT IN THE SHOPIFY ASSET EDITOR: edit the source and run
+ *  `npm run build:portal` in loyalty-service/. Budget: <=20 KB compressed. */
+
+/*
+ * theme/assets/athoor-portal.css — the portal's ONE stylesheet (spec task 7.1,
+ * design §21.3).
+ *
+ * This file is the CSS bundle's entry point: esbuild resolves the `@import`s
+ * below and emits a single minified file, so the portal costs one render-blocking
+ * request rather than eleven. Design §21.3 argues that trade explicitly — at the
+ * 10–14 KB §21.2 expects, on the Shopify CDN, one blocking file beats inlining
+ * critical CSS into every page and maintaining the split in Liquid.
+ *
+ * The banner above it is an esbuild "legal comment" (`/*!`), preserved through
+ * minification on purpose. `theme/assets/` is editable in the Shopify admin, and
+ * a generated file with no provenance in it is a file someone eventually edits in
+ * place — after which the next build silently reverts their work. The banner is
+ * the cheapest available defence against that.
+ *
+ * IMPORT ORDER IS CASCADE ORDER. `@import` is flattened in place, so the order
+ * below is the specificity tie-breaker for every rule in the portal:
+ *
+ *   1. (task 19.5)    tokens, typography, spacing, colour, layout, states
+ *   2. sections/*.css per-section rules, alphabetical, each overriding the above
+ *
+ * WHY THE SECTION PARTIALS ARE WIRED BUT EMPTY
+ * -------------------------------------------
+ * Task 7.1 builds the pipeline; it does not write the design language. Every
+ * partial below is imported and empty, because the import list is the wiring this
+ * task delivers and each partial's content arrives with the section task that
+ * owns it (20.1, 21.1, 22.1, 23.1, 24.1, 25.1, 26.1, 27.1). Wiring them now means
+ * a section author adds rules to a file that is already in the bundle, rather
+ * than discovering afterwards that their CSS was never shipped.
+ *
+ * Task 19.5 owns the shared layer: the tokens of §18.1 (no new hue, no new
+ * typeface, zero font requests), the typographic scale of §18.2, the spacing
+ * scale of §18.3, the colour rules of §18.4 including the decorative-gold /
+ * text-gold split, the ruled-section structure of §18.5, the eight designed
+ * states of §18.8, the three breakpoints, `100dvh`, the `:focus-visible` ring,
+ * the `prefers-reduced-motion` block and the <=300 ms transform/opacity
+ * transitions. It also owns two prohibitions this file must never quietly
+ * breach: no rule targeting `button.disclosure__button::before` until the 0.1044
+ * desktop layout shift is attributed to a named element (Requirement 18.10), and
+ * no `scroll-behavior: smooth`.
+ *
+ * ONE STANDING RULE FOR EVERYTHING ADDED BELOW. Every selector must be rooted at
+ * a portal container. Design §25.6 requires the flag-off page to be byte-identical
+ * to today's and the `<head>` asset list, header and footer to be unchanged, so a
+ * bare element or utility-class selector here would be a rollout failure rather
+ * than a style bug.
+ *
+ * BUDGET: <=20 KB compressed (Requirement 18.3). Task 29.11 makes that
+ * build-failing; `scripts/build/portal-assets.mjs` reports the measurement today.
+ */
+
+/* Per-section partials, alphabetical by section name. Empty until the owning
+ * section task fills them — see the note above. */
+@import "./sections/activity.css";
+@import "./sections/fragrance.css";
+@import "./sections/order-detail.css";
+@import "./sections/orders.css";
+@import "./sections/overview.css";
+@import "./sections/profile.css";
+@import "./sections/referrals.css";
+@import "./sections/rewards.css";
+@import "./sections/settings.css";
+@import "./sections/wishlist.css";

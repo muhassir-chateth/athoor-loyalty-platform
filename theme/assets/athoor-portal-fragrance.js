@@ -1,0 +1,1 @@
+"use strict";(()=>{function e(t,r){let o=window.AthoorPortal;if(!o){typeof console!="undefined"&&typeof console.warn=="function"&&console.warn("[athoor-portal] core bundle absent; section not booted:",t);return}o.register(t,r),o.boot()}e("fragrance",()=>{});})();
