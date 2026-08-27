@@ -614,6 +614,9 @@ describe("discovery — the portal migration surface, found rather than assumed"
         "1786100000000_create-fragrance-preferences.ts",
         "1786200000000_create-communication-preferences.ts",
         "1786300000000_create-erasure-requests.ts",
+        // Task 9.1's explicit-removal tombstone (§8.4 rule 3). Additive, on the
+        // same convention, and in the portal era — so this suite governs it too.
+        "1786500000000_create-wishlist-removals.ts",
       ]),
     );
     expect(portalFilenames.length).toBeGreaterThanOrEqual(4);
@@ -689,13 +692,14 @@ describe("non-vacuity — there is real DDL under these assertions", () => {
     expect(familyDown.length).toBeGreaterThanOrEqual(5);
   });
 
-  it("creates exactly the five portal tables, once each", () => {
+  it("creates exactly the six portal tables, once each", () => {
     expect(tablesCreated(familyUp)).toEqual([
       "customer_birthdays",
       "birthday_grants",
       "customer_fragrance_preferences",
       "customer_communication_preferences",
       "customer_erasure_requests",
+      "customer_wishlist_removals",
     ]);
   });
 
@@ -735,6 +739,7 @@ describe("additive only — every up statement creates, nothing else", () => {
     "1786100000000_create-fragrance-preferences.ts",
     "1786200000000_create-communication-preferences.ts",
     "1786300000000_create-erasure-requests.ts",
+    "1786500000000_create-wishlist-removals.ts",
   ]) {
     it(`${expected}: up is additive`, () => {
       const migration = loaded.find((m) => m.filename === expected);

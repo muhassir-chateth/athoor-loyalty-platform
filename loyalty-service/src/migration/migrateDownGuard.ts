@@ -3,7 +3,7 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * The four portal migrations (tasks 6.1–6.4) are additive: they only
+ * The portal migrations (tasks 6.1–6.4 and 9.1) are additive: they only
  * `CREATE TABLE`. Their `down` functions are not additive — they `DROP TABLE`,
  * and what they drop is customer-entered data plus two records that cannot be
  * reconstructed from anything else. So `npm run migrate:down` is the one command
@@ -74,13 +74,13 @@
  * `DROP TABLE IF EXISTS`, so permitting an absent table buys no capability that
  * matters — it only removes the check.
  *
- * WHY ALL FIVE TABLES, EVERY TIME
- * -------------------------------
+ * WHY EVERY PORTAL TABLE, EVERY TIME
+ * ----------------------------------
  * `node-pg-migrate down` rolls back one migration by default, but the step count
  * is an argument the operator supplies, so at guard time the number of
  * migrations about to be reversed is unknown. The guard therefore assumes the
- * worst case it cannot rule out — all four — and requires all five tables to be
- * empty. Refusing while an unrelated older migration is the intended target is
+ * worst case it cannot rule out — all of them — and requires every portal table
+ * to be empty. Refusing while an unrelated older migration is the intended target is
  * correct rather than over-broad: `node-pg-migrate` reverses in reverse order, so
  * reaching an older migration means passing through these four first.
  *
@@ -141,6 +141,15 @@ export const PORTAL_MIGRATIONS = [
     filename: "1786300000000_create-erasure-requests.ts",
     tables: ["customer_erasure_requests"],
   },
+  {
+    // Task 9.1, not task 6. §8.4 rule 3 places the explicit-removal tombstone
+    // here, and the guard's scope must follow the migrations rather than the task
+    // numbering — `node-pg-migrate down` reverses in timestamp order and knows
+    // nothing about which task authored what.
+    version: "1786500000000",
+    filename: "1786500000000_create-wishlist-removals.ts",
+    tables: ["customer_wishlist_removals"],
+  },
 ] as const satisfies readonly PortalMigrationDefinition[];
 
 /** The table whose loss is a points-integrity defect rather than lost history. */
@@ -148,6 +157,17 @@ export const GRANT_GUARD_TABLE = "birthday_grants";
 
 /** The table whose loss destroys the evidence that a deletion right was honoured. */
 export const ERASURE_AUDIT_TABLE = "customer_erasure_requests";
+
+/**
+ * The table whose loss RESURRECTS products the customer explicitly deleted.
+ *
+ * Like `birthday_grants`, this is not history: it is the only record that a
+ * removal happened. Because `localStorage['shopify-wishlist']` is never cleared
+ * (§8.4 rule 3), dropping it means the next reconcile re-adds every removed
+ * product, and the customer watches items they deleted reappear on their next page
+ * load. The data cannot be re-derived — nothing else knows what was removed.
+ */
+export const WISHLIST_TOMBSTONE_TABLE = "customer_wishlist_removals";
 
 /**
  * Why a count could not be established.
@@ -347,7 +367,7 @@ async function probeOne(
 /**
  * Runs the precondition and produces the verdict plus the message to print.
  *
- * Sequential rather than concurrent: five queries, and a stable output order
+ * Sequential rather than concurrent: one query per table, and a stable output order
  * matters more here than a few milliseconds. It also means a database that is
  * refusing connections is hit once per table rather than five times at once.
  */
@@ -438,7 +458,7 @@ export function buildRefusalMessage(findings: readonly TableFinding[]): string {
     "ROLLING BACK THE PORTAL IS A FEATURE-FLAG FLIP, NOT A MIGRATION.",
     "  Disabling the Portal_Feature_Flag returns the storefront to the previous",
     "  account experience with no further deployment and no schema change",
-    "  (Requirement 22.3). All four portal migrations are additive, so leaving",
+    "  (Requirement 22.3). Every portal migration is additive, so leaving",
     "  these tables in place while the flag is off costs nothing and loses",
     "  nothing. If your goal is to turn the portal off, flip the flag and stop",
     "  here — migrate:down is not the lever you want.",
@@ -458,6 +478,14 @@ export function buildRefusalMessage(findings: readonly TableFinding[]): string {
     "  Open requests are lost silently — the customer is never told and never",
     "  chases it — and completed rows are the record that the obligation was met",
     "  (Requirement 23.5).",
+    "",
+    "A ROLLBACK OF MIGRATION 5 WOULD RESURRECT PRODUCTS CUSTOMERS DELETED.",
+    "  1786500000000_create-wishlist-removals.ts drops",
+    "  `customer_wishlist_removals`, the only record that a removal ever happened.",
+    "  The device-local wishlist is NEVER cleared (design §8.4 rule 3), so the very",
+    "  next reconcile re-adds every removed product — and reconciliation runs once",
+    "  per PAGE LOAD, not once per session. The customer watches items they deleted",
+    "  reappear, repeatedly, and nothing else in the system knows what was removed.",
     "",
     "WHAT THIS GUARD FOUND",
     formatFindings(findings),

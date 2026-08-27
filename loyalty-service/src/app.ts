@@ -31,6 +31,8 @@ import type { CustomerBalanceSource } from "./routes/balance.js";
 import type { EntitlementResolver } from "./benefits/entitlementResolver.js";
 import type { LedgerHistorySource } from "./routes/history.js";
 import type { PortalOrderSource } from "./routes/orders.js";
+import type { PortalCatalogSource } from "./routes/catalog.js";
+import type { WishlistWriteStore } from "./routes/wishlist.js";
 import type { DeviceTokenStore } from "./devices/deviceTokens.js";
 import type { MembershipCredentialService } from "./membership/credential.js";
 import { InMemoryIdempotencyStore, type IdempotencyStore } from "./idempotency/store.js";
@@ -181,6 +183,27 @@ export interface AppDependencies {
    * Forwarded into the `/v1` router.
    */
   portalOrderSource?: PortalOrderSource;
+  /**
+   * Backs `GET /v1/catalog/products` (task 8.4, §6.3 N4). Global catalogue data, so
+   * it takes NO customer scope and is validated by `assertGlobalCatalogueQuery`
+   * rather than the customer-scoped guard. Omitted → the route answers
+   * `502 upstream_unavailable` rather than reporting every product deleted.
+   *
+   * DECLARED HERE FOR A REASON. Task 8.4 built this source and index.ts constructed
+   * it, but it was passed through a SPREAD — `...(x ? { x } : {})` — and TypeScript
+   * applies excess-property checking only to object LITERALS. So an undeclared
+   * dependency travelled silently, was never forwarded below, and the endpoint ran
+   * on its refusing default in production. Declared and forwarded now, and
+   * `boot.wiring.test.ts` asserts the forwarding rather than trusting it.
+   */
+  portalCatalogSource?: PortalCatalogSource;
+  /**
+   * Backs `PUT /v1/profile/wishlist/:productId` (N5, task 9.1) — the wishlist’s only
+   * removal authority and the only writer of the explicit-removal tombstone.
+   * Omitted → the route still registers but refuses loudly, because an absent route
+   * would answer `404`, which a client reads as "not on your wishlist".
+   */
+  wishlistStore?: WishlistWriteStore;
   /**
    * Dependencies for the spec-defined `POST /v1/redeem` handler (Req 3.2–3.11):
    * the append-only ledger repository, the atomic transactor, and the
@@ -544,6 +567,8 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     entitlementResolver: deps.entitlementResolver,
     historySource: deps.historySource,
     portalOrderSource: deps.portalOrderSource,
+    portalCatalogSource: deps.portalCatalogSource,
+    wishlistStore: deps.wishlistStore,
     redeemDeps: deps.redeemDeps,
     fragranceProfileDataSource: deps.fragranceProfileDataSource,
     portalVisitRecorder: deps.portalVisitRecorder,

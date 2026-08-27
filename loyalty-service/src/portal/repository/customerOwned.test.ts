@@ -44,7 +44,10 @@ function scopeFor(customerId: string): CustomerScope {
 const SCOPE_A = scopeFor(CUSTOMER_A);
 const SCOPE_B = scopeFor(CUSTOMER_B);
 
-type TableName = "customer_wishlist" | "customer_favourites";
+type TableName =
+  | "customer_wishlist"
+  | "customer_wishlist_removals"
+  | "customer_favourites";
 
 /**
  * A two-table store that honours the predicates a statement actually writes.
@@ -57,6 +60,7 @@ class FakeTables implements Queryable {
   readonly calls: { sql: string; values: unknown[] }[] = [];
   private readonly tables: Record<TableName, Set<string>> = {
     customer_wishlist: new Set(),
+    customer_wishlist_removals: new Set(),
     customer_favourites: new Set(),
   };
 
@@ -126,8 +130,27 @@ class FakeTables implements Queryable {
     return this.result<R>(rows, rows.length);
   }
 
+  /**
+   * Which table a statement targets.
+   *
+   * ── LONGEST NAME FIRST, AND NO SILENT DEFAULT ────────────────────────────────
+   * `customer_wishlist_removals` STARTS WITH `customer_wishlist`, so testing the
+   * shorter name first routes every tombstone statement to the wishlist table: the
+   * tombstone INSERT adds a wishlist row, the DELETE then removes it, and
+   * `setWishlistItem` reports a change that never happened. That is not a
+   * hypothetical — it is what this double did before task 9.1, and the same trap
+   * caught `favouritesWishlist.test.ts` independently.
+   *
+   * The previous version also DEFAULTED to `customer_wishlist` for anything it did
+   * not recognise, which is how the mis-routing stayed invisible. An unrecognised
+   * table now throws, so a new table added to this layer fails loudly here instead
+   * of quietly corrupting a different table's assertions.
+   */
   private tableOf(sql: string): TableName {
-    return /customer_favourites/i.test(sql) ? "customer_favourites" : "customer_wishlist";
+    if (/\bcustomer_wishlist_removals\b/i.test(sql)) return "customer_wishlist_removals";
+    if (/\bcustomer_favourites\b/i.test(sql)) return "customer_favourites";
+    if (/\bcustomer_wishlist\b/i.test(sql)) return "customer_wishlist";
+    throw new Error(`FakeTables: statement names no table this double knows: ${sql}`);
   }
 
   private result<R extends QueryResultRow>(rows: R[], rowCount: number): QueryResult<R> {
@@ -194,7 +217,13 @@ describe("reads return only the caller's rows (Requirements 2.1, 2.5, 2.6)", () 
     await setWishlistItem(db, SCOPE_A, "1003", false);
     await setFavourite(db, SCOPE_A, "3002", true);
 
-    expect(db.calls.length).toBe(6);
+    // EIGHT, not six: since task 9.1 each `setWishlistItem` issues TWO statements —
+    // the explicit-removal tombstone plus the row itself (§8.4 rule 3). The count is
+    // asserted rather than left loose because the property being tested is that
+    // EVERY statement this layer issues binds the caller's own id as `$1`, and a
+    // count that drifted upward silently would let a future unscoped statement slip
+    // in unexamined.
+    expect(db.calls.length).toBe(8);
     for (const call of db.calls) {
       expect(call.values[0]).toBe(CUSTOMER_A);
     }

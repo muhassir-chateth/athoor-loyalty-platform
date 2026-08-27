@@ -74,23 +74,28 @@ function findingFor(findings: readonly TableFinding[], table: string): TableFind
   return found as TableFinding;
 }
 
-describe("scope — the four portal migrations and their five tables", () => {
-  it("covers exactly the four migrations of tasks 6.1–6.4", () => {
+describe("scope — the five portal migrations and their six tables", () => {
+  it("covers exactly the migrations of tasks 6.1–6.4 and 9.1", () => {
     expect(PORTAL_MIGRATIONS.map((m) => m.filename)).toEqual([
       "1786000000000_create-customer-birthdays.ts",
       "1786100000000_create-fragrance-preferences.ts",
       "1786200000000_create-communication-preferences.ts",
       "1786300000000_create-erasure-requests.ts",
+      // Task 9.1's explicit-removal tombstone. In scope because `node-pg-migrate
+      // down` reverses in TIMESTAMP order and knows nothing about task numbering:
+      // reaching an older migration passes through this one first.
+      "1786500000000_create-wishlist-removals.ts",
     ]);
   });
 
-  it("covers exactly the five tables those migrations create", () => {
+  it("covers exactly the six tables those migrations create", () => {
     expect(ALL_TABLES).toEqual([
       "customer_birthdays",
       "birthday_grants",
       "customer_fragrance_preferences",
       "customer_communication_preferences",
       "customer_erasure_requests",
+      "customer_wishlist_removals",
     ]);
   });
 
@@ -109,10 +114,10 @@ describe("scope — the four portal migrations and their five tables", () => {
 });
 
 describe("permits only when every table is proven empty", () => {
-  it("permits when all five counts are zero", async () => {
+  it("permits when every count is zero", async () => {
     const result = await evaluateMigrateDownGuard({ probe: constantProbe(0) });
     expect(result.decision).toBe("permit");
-    expect(result.findings).toHaveLength(5);
+    expect(result.findings).toHaveLength(6);
     expect(result.findings.every((f) => f.status === "empty")).toBe(true);
   });
 
@@ -154,12 +159,23 @@ describe("refuses when any table holds rows", () => {
     expect(result.message).toContain("4271");
   });
 
-  it("refuses when only one of five is occupied", async () => {
+  it("refuses when only one table is occupied", async () => {
     const result = await evaluateMigrateDownGuard({
       probe: probeWith({ customer_erasure_requests: 1 }),
     });
     expect(result.decision).toBe("refuse");
-    expect(result.findings.filter((f) => f.status === "empty")).toHaveLength(4);
+    expect(result.findings.filter((f) => f.status === "empty")).toHaveLength(5);
+  });
+
+  it("refuses when the wishlist tombstone holds rows, and names the consequence", async () => {
+    // Specific and worth asserting: dropping this table resurrects products the
+    // customer explicitly deleted, because the device list is never cleared.
+    const result = await evaluateMigrateDownGuard({
+      probe: probeWith({ customer_wishlist_removals: 3 }),
+    });
+    expect(result.decision).toBe("refuse");
+    expect(result.message).toContain("RESURRECT");
+    expect(result.message).toContain("customer_wishlist_removals");
   });
 });
 

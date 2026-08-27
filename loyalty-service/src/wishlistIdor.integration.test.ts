@@ -41,6 +41,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { QueryResult, QueryResultRow } from "pg";
 import { buildApp } from "./app.js";
+import { PgWishlistWriteStore } from "./routes/wishlist.js";
 import { loadConfig } from "./config.js";
 import { InMemoryCustomerResolver } from "./auth/identity.js";
 import { computeAppProxySignature, type QueryParams } from "./auth/appProxy.js";
@@ -95,6 +96,8 @@ function signedUrlFor(
  */
 class ScopedFakeDb implements Queryable {
   readonly wishlists = new Map<string, Set<string>>();
+  /** Task 9.1 explicit-removal tombstone, per customer. */
+  readonly removals = new Map<string, Set<string>>();
   readonly favourites = new Map<string, Set<string>>();
   readonly statements: Array<{ text: string; values: unknown[] }> = [];
 
@@ -133,6 +136,32 @@ class ScopedFakeDb implements Queryable {
 
     const customerId = String(values[0]);
 
+      // ── LONGEST TABLE NAME FIRST (task 9.1) ─────────────────────────
+      // `customer_wishlist_removals` CONTAINS `customer_wishlist`, so a substring
+      // matcher testing the shorter name first routes every tombstone statement to
+      // the wishlist table — the tombstone INSERT adds a wishlist row, and the echoed
+      // set then contains the product the customer just removed. This double is the
+      // THIRD caught by that trap during task 9.1, so removals are matched first here
+      // too. There was also no `DELETE FROM customer_wishlist` branch at all, because
+      // until 9.1 no route could delete a wishlist row.
+      if (text.includes("INSERT INTO customer_wishlist_removals")) {
+        this.setIn(this.removals, customerId).add(String(values[1]));
+        return ok([], "INSERT", 1);
+      }
+      if (text.includes("DELETE FROM customer_wishlist_removals")) {
+        const had = this.setIn(this.removals, customerId).delete(String(values[1]));
+        return ok([], "DELETE", had ? 1 : 0);
+      }
+      if (text.includes("FROM customer_wishlist_removals")) {
+        const ids = [...this.setIn(this.removals, customerId)].sort((a, b) =>
+          BigInt(a) < BigInt(b) ? -1 : 1,
+        );
+        return ok(ids.map((id) => ({ shopify_product_id: id })));
+      }
+      if (text.includes("DELETE FROM customer_wishlist")) {
+        const had = this.setIn(this.wishlists, customerId).delete(String(values[1]));
+        return ok([], "DELETE", had ? 1 : 0);
+      }
     if (text.includes("INSERT INTO customer_wishlist")) {
       this.setIn(this.wishlists, customerId).add(String(values[1]));
       return ok([], "INSERT", 1);
@@ -184,6 +213,9 @@ beforeEach(async () => {
       suggestionEngine: new RulesBasedSuggestionEngine(),
     }),
     preferenceStore: new PgProfilePreferenceStore(db),
+    // N5 (task 9.1). Wired here because the removal endpoint now EXISTS, and the
+    // point of this suite is that its existence does not open an IDOR.
+    wishlistStore: new PgWishlistWriteStore(db),
   });
   await app.ready();
 });
@@ -313,24 +345,61 @@ describe("A cannot remove B's wishlist entries", () => {
     expect(deletes).toEqual([]);
   });
 
-  it("no route exists that A could use to delete a wishlist row", async () => {
-    // The dedicated removal endpoint (`PUT /v1/profile/wishlist/:productId`) is
-    // spec task 9.1 and does not exist yet. Asserted here so that when it lands,
-    // this test fails and forces its own IDOR coverage rather than shipping
-    // unexamined.
-    for (const [method, url] of [
-      ["PUT", `/v1/profile/wishlist/${B_PRODUCT_IDS[0]}`],
-      ["DELETE", `/v1/profile/wishlist/${B_PRODUCT_IDS[0]}`],
-    ] as const) {
-      const res = await app.inject({
-        method,
-        url: signedUrlFor(url),
-        headers: { "Idempotency-Key": `no-route-${method}` },
-        payload: { on: false },
-      });
-      expect(res.statusCode).toBe(404);
+  it("the removal endpoint now EXISTS and cannot touch B's row (task 9.1)", async () => {
+    // THIS TEST REPLACES A SELF-RETIRING PLACEHOLDER. Until task 9.1 there was no
+    // route that could delete a wishlist row at all, and the previous version
+    // asserted that absence precisely so that landing the endpoint would fail here
+    // and force its IDOR coverage to be written rather than assumed. This is that
+    // coverage.
+    const bBefore = [...db.wishlists.get(B_LOCAL_ID)!].sort();
+
+    const res = await app.inject({
+      method: "PUT",
+      url: signedUrlFor(`/v1/profile/wishlist/${B_PRODUCT_IDS[0]}`),
+      headers: { "Idempotency-Key": "n5-idor-remove" },
+      payload: { on: false },
+    });
+
+    // A's request SUCCEEDS — and that is correct. A is asking to remove a product
+    // from A's OWN wishlist; the id happening to belong to B's set is not something
+    // A can observe. The statement carries `customer_id = $1` bound to A, so it
+    // matches zero rows.
+    expect(res.statusCode).toBe(200);
+
+    // B's set is untouched (design §4.5 row 8).
+    expect([...db.wishlists.get(B_LOCAL_ID)!].sort()).toEqual(bBefore);
+
+    // No existence oracle: the body describes A's set, and says nothing about
+    // whether that product exists for anyone else.
+    expect(res.json().wishlist).not.toContain(B_PRODUCT_IDS[0]);
+
+    // Every DELETE issued on this path is ownership-scoped.
+    const deletes = db.statements.filter(
+      (statement) => /^DELETE/i.test(statement.text) && statement.text.includes("customer_wishlist"),
+    );
+    expect(deletes.length).toBeGreaterThan(0);
+    for (const statement of deletes) {
+      expect(statement.text).toContain("customer_id = $1");
+      expect(statement.values[0]).not.toBe(B_LOCAL_ID);
     }
-    expect([...db.wishlists.get(B_LOCAL_ID)!].sort()).toEqual(B_PRODUCT_IDS);
+  });
+
+  it("A's removal tombstone cannot suppress a product for B", async () => {
+    // The tombstone is customer-scoped too. If it were not, one customer removing a
+    // product would stop every other customer's reconcile from ever merging it.
+    await app.inject({
+      method: "PUT",
+      url: signedUrlFor(`/v1/profile/wishlist/${B_PRODUCT_IDS[0]}`),
+      headers: { "Idempotency-Key": "n5-idor-tombstone" },
+      payload: { on: false },
+    });
+    const tombstoneWrites = db.statements.filter((statement) =>
+      statement.text.includes("customer_wishlist_removals"),
+    );
+    expect(tombstoneWrites.length).toBeGreaterThan(0);
+    for (const statement of tombstoneWrites) {
+      expect(statement.values[0]).not.toBe(B_LOCAL_ID);
+    }
   });
 
   it("the delete-shaped preference path is customer-scoped: A cannot unset B's favourite", async () => {

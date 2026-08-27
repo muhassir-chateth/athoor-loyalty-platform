@@ -72,3 +72,87 @@ describe("app boot + /v1 versioning", () => {
     expect(res.headers["set-cookie"]).toBeUndefined();
   });
 });
+
+/* ========================================================================== *
+ * Portal dependencies actually REACH their routes (task 9.1 regression)
+ * ========================================================================== */
+
+describe("buildApp forwards every portal dependency into /v1", () => {
+  /**
+   * WHY THIS EXISTS. Task 8.4 built `portalCatalogSource`, index.ts constructed it
+   * and handed it to `buildApp` — but `AppDependencies` never declared it and
+   * `app.ts` never forwarded it, so `GET /v1/catalog/products` ran on its refusing
+   * default in production and answered `502` for every request.
+   *
+   * It typechecked because index.ts passes it through a SPREAD:
+   * `...(x ? { x } : {})`. TypeScript applies excess-property checking to object
+   * LITERALS only, so a dependency no type declared travelled silently all the way
+   * to being dropped.
+   *
+   * Declaring the field fixed that instance. These tests close the CLASS by
+   * observing BEHAVIOUR at the route, so the next portal dependency that is added
+   * and not forwarded fails here rather than in production.
+   */
+  it("forwards portalCatalogSource — a wired source must not answer 502", async () => {
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      portalCatalogSource: {
+        async listProducts(ids: readonly string[]) {
+          return {
+            products: ids.map((id) => ({
+              productId: id,
+              title: "T",
+              handle: "t",
+              published: true,
+              availableForSale: true,
+              priceGBP: "1.00",
+              compareAtPriceGBP: null,
+              imageUrl: null,
+              imageWidth: 0,
+              imageHeight: 0,
+              defaultVariantId: null,
+            })),
+            missing: [],
+          };
+        },
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({ method: "GET", url: "/v1/catalog/products?ids=1001" });
+      // 401 is fine here (no identity wired). 502 is NOT — that would mean the
+      // source never arrived at the route.
+      expect(res.statusCode).not.toBe(502);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("forwards wishlistStore — a wired store must not answer 404", async () => {
+    const app = buildApp(loadConfig({ NODE_ENV: "test" }), {
+      wishlistStore: {
+        async read() {
+          return [];
+        },
+        async count() {
+          return 0;
+        },
+        async set() {
+          return true;
+        },
+      },
+    });
+    try {
+      await app.ready();
+      const res = await app.inject({
+        method: "PUT",
+        url: "/v1/profile/wishlist/1001",
+        payload: { on: true },
+      });
+      // A 404 would mean the route never registered, which a client reads as
+      // "that product is not on your wishlist".
+      expect(res.statusCode).not.toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
+});

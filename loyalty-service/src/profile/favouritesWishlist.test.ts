@@ -36,6 +36,8 @@ interface Row {
 class FakeDb implements Queryable {
   readonly favourites: Row[] = [];
   readonly wishlist: Row[] = [];
+  /** The task 9.1 explicit-removal tombstone. */
+  readonly removals: Row[] = [];
   /** Every statement issued, for off-ledger assertions. */
   readonly queries: string[] = [];
 
@@ -59,6 +61,25 @@ class FakeDb implements Queryable {
     }
     if (q.startsWith("SELECT shopify_product_id FROM customer_favourites")) {
       return this.select<R>(this.favourites, values[0] as string);
+    }
+    // ── ORDER MATTERS HERE, AND IT IS A REAL HAZARD ─────────────────────
+    // `customer_wishlist_removals` STARTS WITH `customer_wishlist`, so a prefix
+    // dispatch that tests the shorter name first silently routes every tombstone
+    // statement to the wishlist table — the tombstone SELECT returns wishlist rows,
+    // and the sweep then deletes the very products it just merged. These branches
+    // are therefore matched BEFORE the wishlist ones. Any other prefix matcher over
+    // this SQL has the same trap.
+    if (q.startsWith("INSERT INTO customer_wishlist_removals")) {
+      return this.insert<R>(this.removals, values as [string, string]);
+    }
+    if (q.startsWith("DELETE FROM customer_wishlist_removals")) {
+      return this.remove<R>(this.removals, values as [string, string]);
+    }
+    if (q.startsWith("SELECT shopify_product_id FROM customer_wishlist_removals")) {
+      return this.select<R>(this.removals, values[0] as string);
+    }
+    if (q.startsWith("DELETE FROM customer_wishlist")) {
+      return this.remove<R>(this.wishlist, values as [string, string]);
     }
     if (q.startsWith("INSERT INTO customer_wishlist")) {
       return this.insert<R>(this.wishlist, values as [string, string]);
