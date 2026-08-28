@@ -615,6 +615,53 @@
   display: none;
 }
 
+/* A portal action button. Shared by Reorder, Buy Again and "Show earlier orders"
+ * so the target size and the disabled treatment are decided once. */
+.athoor-portal__action,
+.athoor-portal__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--athoor-target);
+  min-width: var(--athoor-target);
+  padding: 0 var(--athoor-space-5);
+  font: inherit;
+  color: var(--athoor-ink);
+  background: none;
+  border: 1px solid var(--athoor-line);
+  border-radius: var(--athoor-radius-badge);
+  cursor: pointer;
+  transition: opacity var(--athoor-motion-fast) ease;
+}
+
+.athoor-portal__action:disabled,
+.athoor-portal__more:disabled {
+  /* `--athoor-disabled` is a BACKGROUND token and never a text colour (§18.4), so
+   * the label stays in muted ink and the control still states why it is disabled
+   * through its `title`/`aria-label` — never by colour alone (Requirement 17.8). */
+  background: var(--athoor-surface);
+  color: var(--athoor-muted-text);
+  cursor: not-allowed;
+}
+
+.athoor-portal__more[hidden] {
+  display: none;
+}
+
+/* The portal's own visually-hidden utility. Scoped, rather than reusing the
+ * theme's `.visually-hidden`, because §25.6 forbids this stylesheet from carrying
+ * a selector that could reach a non-portal page. */
+.athoor-portal__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* The skeleton reserves a real row's height so nothing shifts (§21.6). */
 .athoor-portal__skeleton-row {
   height: var(--athoor-target);

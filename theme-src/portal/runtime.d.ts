@@ -355,6 +355,46 @@ declare global {
    * 18.6 — the copy map
    * ====================================================================== */
 
+  /* ====================================================================== *
+   * 20.4 — the cart
+   * ====================================================================== */
+
+  /** What may be added: plan lines from N3, and nothing else. */
+  interface PortalCartLine {
+    readonly variantId: string;
+    readonly quantity: number;
+  }
+
+  /** Why a cart write failed, as an identifier — never Shopify's own text. */
+  type PortalCartFailureReason =
+    | "nothing_to_add"
+    | "unavailable"
+    | "network_unavailable"
+    | "request_timeout"
+    | "cart_unavailable";
+
+  type PortalCartResult =
+    | { readonly ok: true; readonly added: number }
+    | { readonly ok: false; readonly reason: PortalCartFailureReason };
+
+  interface AthoorPortalCart {
+    /**
+     * Add plan lines to the cart through Shopify's own `/cart/add.js`.
+     *
+     * Takes LINES rather than ids, so there is no signature by which a caller could
+     * pass a variant id that did not come from an N3 plan — which matters because
+     * the plan resolves the purchasable variant server-side at request time and the
+     * one recorded on an old order may be discontinued or restocked elsewhere.
+     *
+     * `key` identifies the intent, and a second call with the same key while the
+     * first is outstanding is REFUSED rather than queued: `/cart/add.js` has no
+     * idempotency key, so a double tap would otherwise add every line twice.
+     */
+    addToCart(key: string, lines: readonly PortalCartLine[]): Promise<PortalCartResult>;
+    /** Whether a write is outstanding for this intent. */
+    isAdding(key: string): boolean;
+  }
+
   interface AthoorPortalCopy {
     /**
      * The customer-facing description of a ledger entry (§18.9's table).
@@ -393,6 +433,8 @@ declare global {
     fieldError(code: string): string;
     /** Wording for one of the eight designed states. */
     state(state: PortalSectionState): string;
+    /** An ISO date as `12 June 2026`, locale-independent by construction. */
+    formatDate(iso: string): string;
   }
 
   /* ====================================================================== *
@@ -418,6 +460,8 @@ declare global {
     readonly sheet: AthoorPortalSheet;
     /** 18.6 */
     readonly copy: AthoorPortalCopy;
+    /** 20.4 — the only caller of Shopify's `/cart/add.js`. */
+    readonly cart: AthoorPortalCart;
     /**
      * 18.1 — the per-page-load, non-identifying request-group reference
      * (design §24.2). Exposed so the smoke test can assert it is neither stored

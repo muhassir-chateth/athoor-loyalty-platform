@@ -365,6 +365,20 @@ export const PORTAL_ORDER_ID_PATTERN = /^\d{1,20}$/;
  * to emit no link, since there is no handle to link to.
  */
 export interface PortalOrderLineItem extends PortalImage {
+  /**
+   * Shopify's own id for this line of this order, or `null` if absent.
+   *
+   * Present so the client can ask N3 for a plan covering ONE line — the Buy Again
+   * case of Requirement 6.6 — because `PortalReorderPlanRequest.lineItemIds`
+   * selects on exactly this id. Without it, a control labelled "buy this one
+   * again" could only reorder the whole order.
+   *
+   * It is not customer data and it is not rendered: it goes in a `data-` attribute
+   * and back to our own API, which re-scopes it to the caller. An id for a line
+   * that is not on this customer's order is IGNORED by the plan rather than
+   * reported, so possessing one confers nothing.
+   */
+  readonly lineItemId: string | null;
   /** Shopify's recorded line title, preserved even once the product is deleted. */
   readonly title: string;
   readonly quantity: number;

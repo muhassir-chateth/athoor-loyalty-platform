@@ -73,14 +73,110 @@
 
   {%- case name -%}
     {%- when 'orders' -%}
+      {%- comment -%}
+        Task 20.1. The row is a RULED ROW, not a card (§18.5): a hairline and air,
+        no border box. Four columns at desktop, stacked with a 64 px thumbnail at
+        base, and the total right-aligned on the number's baseline.
+
+        `width`/`height` are set from N1's intrinsic dimensions by the module, and
+        the placeholders here are the reserved geometry so nothing shifts when the
+        image loads (§21.6) — the measured 0.1044 desktop shift on the current
+        account page is what this pattern exists to avoid repeating.
+      {%- endcomment -%}
       <template data-portal-row="order">
-        <li class="athoor-portal__row">
-          <a class="athoor-portal__row-link" data-slot="link" href="#"></a>
+        <li class="athoor-portal__row athoor-orders__row">
+          <span class="athoor-portal__image-box athoor-orders__thumb">
+            <img
+              class="athoor-portal__image"
+              data-slot="image"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="64"
+              height="64"
+              sizes="(min-width: 990px) 80px, 64px"
+            >
+          </span>
+          <a class="athoor-portal__row-link athoor-orders__link" data-slot="link" href="#"></a>
           <span class="athoor-portal__row-number" data-slot="number"></span>
           <span class="athoor-portal__row-meta" data-slot="date"></span>
           <span class="athoor-portal__row-meta" data-slot="items"></span>
           <span class="athoor-portal__row-total" data-slot="total"></span>
           <span class="athoor-portal__row-status" data-slot="status"></span>
+        </li>
+      </template>
+
+      {%- comment -%}
+        "Show earlier orders" (task 20.1). Hidden until the module knows there is
+        another page, and it APPENDS — §20.2 requires focus to stay on this control
+        and the new count to be announced instead.
+      {%- endcomment -%}
+      <button class="athoor-portal__more" type="button" data-portal-more-orders hidden>
+        Show earlier orders
+      </button>
+
+    {%- when 'order-detail' -%}
+      {%- comment -%}
+        Task 20.3. ONE COLUMN AT EVERY WIDTH: an order is a document, read top to
+        bottom, and a two-column order confuses the totals with the address.
+
+        The totals are a real `<table>` with a `<caption>`, because they are tabular
+        data and a screen reader user needs the row header read with each figure
+        (§20.3). The caption is visually hidden, not absent.
+      {%- endcomment -%}
+      <header class="athoor-order__header">
+        <h2 class="athoor-order__number" data-slot="number"></h2>
+        <p class="athoor-order__date athoor-portal__row-meta" data-slot="date"></p>
+        <p class="athoor-order__fulfilment" data-slot="fulfilment"></p>
+        <a class="athoor-order__tracking" data-portal-tracking href="#" hidden></a>
+      </header>
+
+      <button class="athoor-portal__action athoor-order__reorder" type="button" data-portal-reorder>
+        Reorder everything available
+      </button>
+
+      <table class="athoor-order__totals">
+        <caption class="athoor-portal__visually-hidden">Order totals</caption>
+        <tbody>
+          <tr><th scope="row">Subtotal</th><td data-slot="subtotal"></td></tr>
+          <tr><th scope="row">Delivery</th><td data-slot="shipping"></td></tr>
+          <tr><th scope="row">Tax</th><td data-slot="tax"></td></tr>
+          <tr><th scope="row">Total</th><td data-slot="total"></td></tr>
+        </tbody>
+      </table>
+
+      <section class="athoor-order__delivery">
+        <h3 class="athoor-portal__eyebrow">Delivered to</h3>
+        {%- comment -%}
+          Removed entirely by the module when the order has no shipping address —
+          a digital-only order must not render an empty "Delivered to" heading.
+        {%- endcomment -%}
+        <p class="athoor-order__address" data-portal-address></p>
+      </section>
+
+      <template data-portal-row="line-item">
+        <li class="athoor-portal__row athoor-order__line">
+          <span class="athoor-portal__image-box athoor-order__thumb">
+            <img class="athoor-portal__image" data-slot="image" alt="" loading="lazy" decoding="async" width="80" height="80">
+          </span>
+          {%- comment -%}
+            Requirement 6.8/6.9: the link is REMOVED by the module when the product
+            has no handle, and the recorded title and price render regardless — which
+            is what lets a two-year-old order still read correctly.
+          {%- endcomment -%}
+          <a class="athoor-order__line-link" data-slot="link" href="#"></a>
+          <span class="athoor-order__line-title" data-slot="title"></span>
+          <span class="athoor-portal__row-meta" data-slot="quantity"></span>
+          <span class="athoor-portal__row-meta" data-slot="unit-price"></span>
+          <span class="athoor-order__line-total" data-slot="line-total"></span>
+          {%- comment -%}
+            The availability word. §7.5's four states are conveyed in TEXT, never by
+            colour alone (Requirement 17.8).
+          {%- endcomment -%}
+          <span class="athoor-order__line-availability" data-slot="availability"></span>
+          <button class="athoor-portal__action athoor-order__buy-again" type="button" data-portal-buy-again>
+            Buy again
+          </button>
         </li>
       </template>
 

@@ -152,6 +152,8 @@ describe("the core bundle", () => {
       "announce",
       "boot",
       "cache",
+      // 20.4 — the cart, in core so it is the only mutation boundary.
+      "cart",
       "copy",
       "draft",
       "focus",
@@ -189,6 +191,28 @@ describe("the core bundle", () => {
       expect(source, `${section.asset} uses XMLHttpRequest`).not.toContain("XMLHttpRequest");
       expect(source, `${section.asset} uses sendBeacon`).not.toContain("sendBeacon");
       expect(source, `${section.asset} opens an EventSource`).not.toContain("EventSource");
+    }
+  });
+
+  it("the cart is mutated from CORE only, and only via /cart/add.js (task 20.4)", () => {
+    // Task 20 added the portal's second `fetch` boundary. It lives in core for the
+    // same reason the API transport does: a second call site is a second place the
+    // URL, the content type and the duplicate-submission guard can each be got
+    // wrong — and this one has no idempotency key to fall back on.
+    const core = readAsset(CORE_ASSET);
+    expect(core, "core lost the cart client").toContain("/cart/add.js");
+
+    for (const section of SECTIONS) {
+      const source = readAsset(section.asset);
+      expect(source, `${section.asset} writes the cart itself`).not.toContain("/cart/add.js");
+      expect(source, `${section.asset} posts to some other cart route`).not.toMatch(/\/cart\/(add|change|update|clear)/);
+    }
+
+    // And no bundle reaches for any other Shopify mutation surface.
+    for (const asset of [CORE_ASSET, ...SECTIONS.map((section) => section.asset)]) {
+      const source = readAsset(asset);
+      expect(source, `${asset} calls the Storefront API`).not.toContain("/api/graphql");
+      expect(source, `${asset} calls the Admin API`).not.toContain("/admin/api");
     }
   });
 
