@@ -1,14 +1,182 @@
 /*
- * Per-section styles for the `referrals` Portal_Section.
+ * Per-section styles for the `referrals` Portal_Section (spec task 23.1).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 23.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 10.11, 17.4, 17.8, 25.5, 25.6.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * NO REWARD FIGURE APPEARS IN THIS FILE, and none can: every points value is
+ * written into a slot by the section module from the API response, so there is
+ * nothing here for a `content:` property to state (Requirement 10.11). A figure in
+ * CSS would also be invisible to the literal gate's output scan while still being
+ * shipped to customers, which is exactly the failure Requirement 10.12 exists to
+ * catch.
+ *
+ * Every selector is rooted at `.athoor-portal`, because §25.6 requires everything
+ * outside the portal's own containers to stay byte-identical. Tokens live in the
+ * shared layer — a token redeclared per section is a token that drifts.
+ */
+
+/* ── The invitation: code, link, controls ─────────────────────────────────── */
+
+.athoor-portal .athoor-referrals__invite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-3);
+  padding: var(--athoor-space-6) 0 var(--athoor-space-7);
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+/*
+ * The code at 18 px monospace-tabular, matching the redemption code panel.
+ * Monospace so a customer reading it aloud does not confuse similar glyphs, and
+ * `tabular-nums` so the digits align rather than shifting under proportional
+ * spacing. `user-select: all` makes one tap select the whole code on the devices
+ * where the clipboard API is refused.
+ */
+.athoor-portal .athoor-referrals__code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--athoor-ink);
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+/*
+ * The link wraps rather than truncating. An ellipsised URL cannot be read out or
+ * transcribed, and this is the one string a customer may want to copy by eye.
+ */
+.athoor-portal .athoor-referrals__link {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.athoor-portal .athoor-referrals__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--athoor-space-3);
+  margin-top: var(--athoor-space-2);
+}
+
+/* ── Totals ──────────────────────────────────────────────────────────────── */
+
+/*
+ * Three totals, and on a narrow screen they stack rather than squeezing into
+ * three columns a 320 px viewport cannot hold legibly. `auto-fit` with a floor
+ * does that without a media query.
+ */
+.athoor-portal .athoor-referrals__totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--athoor-space-4);
+  margin: 0;
+  padding: var(--athoor-space-6) 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-referrals__total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-1);
+}
+
+/* ── Stages ──────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-referrals__stages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Ruled rows, not cards (§18.5). A stage is one line in an explanation, not a
+ * discrete offer with its own action, so it gets a rule and not a boundary.
+ */
+.athoor-portal .athoor-referrals__stages > .athoor-portal__row + .athoor-portal__row {
+  border-top: 1px solid var(--athoor-line);
+}
+
+/* ── The manual claim fallback ────────────────────────────────────────────── */
+
+.athoor-portal .athoor-referrals__claim {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-3);
+  margin-top: var(--athoor-space-7);
+  padding-top: var(--athoor-space-6);
+  border-top: 1px solid var(--athoor-line);
+}
+
+/*
+ * The label is PERSISTENT and above the input (§19.7) — never a placeholder
+ * standing in for one, which disappears the moment it is needed most.
+ */
+.athoor-portal .athoor-referrals__label {
+  font-family: var(--athoor-body-face);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--athoor-muted-text);
+}
+
+/*
+ * 44 px minimum, a bottom hairline rather than a box, and a visible focus ring.
+ *
+ * `font-size: 16px` is not a style choice: iOS Safari zooms the viewport on focus
+ * for anything smaller, which shifts the whole page under the customer mid-typing.
+ *
+ * `text-transform` is presentational only — the stored value keeps the case the
+ * customer typed, and the server compares codes on its own terms. Doing this in
+ * CSS rather than by rewriting `input.value` avoids fighting the caret position
+ * on every keystroke.
+ */
+.athoor-portal .athoor-referrals__input {
+  min-height: var(--athoor-target);
+  padding: var(--athoor-space-2) 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  color: var(--athoor-ink);
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--athoor-line);
+  border-radius: 0;
+}
+
+.athoor-portal .athoor-referrals__input:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/*
+ * The claim result. Colour is NOT the only carrier — the wording itself states the
+ * outcome, so this survives forced-colours mode and colour blindness
+ * (Requirement 17.8). `currentColor` keeps it legible under a forced palette.
+ */
+.athoor-portal .athoor-referrals__message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--athoor-ink);
+}
+
+/* ── Headings ─────────────────────────────────────────────────────────────── */
+
+/*
+ * Section-scoped rather than a new shared class. Task 25 owns the portal's shared
+ * form and heading layer for the Profile section; adding a global
+ * `athoor-portal__subheading` here would pre-empt that decision from the section
+ * with the least claim to it.
+ */
+.athoor-portal .athoor-referrals__heading {
+  margin: 0;
+  font-family: var(--athoor-display-face);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--athoor-ink);
+}
+
+/*
+ * Reduced motion is honoured by having no motion here at all: nothing in this
+ * section animates, so there is no `prefers-reduced-motion` block to write.
  */

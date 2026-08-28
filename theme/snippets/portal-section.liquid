@@ -311,6 +311,68 @@
       </template>
 
     {%- when 'referrals' -%}
+      {%- comment -%}
+        Task 23.1. NOT ONE NUMBER APPEARS IN THIS ARM. Every points figure, stage
+        name, qualification sentence and state word is written by the section module
+        from `GET /v1/referral` (Requirements 10.10, 10.11), so a change to the
+        programme's economics reaches the customer without a theme deployment
+        (Requirement 10.13). That is also why there is no "earn N points" heading
+        here, however much more inviting a concrete figure would read — and why this
+        comment states the amount as `N` rather than the number, since the gate
+        inspects the file and is right to.
+
+        No referred person's name, email or identifier has anywhere to go: the stage
+        row has four slots and all four are programme-level, and the DTO carries no
+        such field to begin with (Requirement 10.7).
+      {%- endcomment -%}
+      <header class="athoor-referrals__invite">
+        <p class="athoor-portal__eyebrow">Your code</p>
+        {%- comment -%}
+          The code at 18 px monospace-tabular so it can be read aloud or copied by
+          eye, matching the redemption code panel. Empty until the response lands —
+          never a placeholder that looks like a real code.
+        {%- endcomment -%}
+        <p class="athoor-referrals__code" data-portal-referral-code></p>
+        <p class="athoor-referrals__link athoor-portal__row-meta" data-portal-referral-link hidden></p>
+        <div class="athoor-referrals__controls">
+          {%- comment -%}
+            Copy is always offered; SHARE is revealed by the module only where
+            `navigator.share` exists (Requirement 10.3), because a control that does
+            nothing is worse than no control. Both are 44 px.
+          {%- endcomment -%}
+          <button class="athoor-portal__action" type="button" data-portal-referral-copy hidden>
+            Copy your link
+          </button>
+          <button class="athoor-portal__action" type="button" data-portal-referral-share hidden>
+            Share
+          </button>
+        </div>
+        {%- comment -%}
+          The confirmation is ANNOUNCED as well as shown (task 23.2) — a clipboard
+          write is invisible, and a sighted-only tick tells a screen-reader user
+          nothing.
+        {%- endcomment -%}
+        <p class="athoor-portal__row-meta" data-portal-referral-copy-result hidden></p>
+      </header>
+      {%- comment -%}
+        Programme totals (Requirement 10.4): successful, pending, and points earned.
+        Values are written by the module; the labels are the only fixed text.
+      {%- endcomment -%}
+      <ul class="athoor-referrals__totals" data-portal-referral-totals role="list" hidden>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Successful</span>
+          <span class="athoor-portal__row-points" data-slot="successful"></span>
+        </li>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Pending</span>
+          <span class="athoor-portal__row-points" data-slot="pending"></span>
+        </li>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Points earned</span>
+          <span class="athoor-portal__row-points" data-slot="credited"></span>
+        </li>
+      </ul>
+      <h2 class="athoor-referrals__heading" data-portal-referral-stages-heading hidden>How it works</h2>
       <template data-portal-row="stage">
         <li class="athoor-portal__row">
           <span class="athoor-portal__eyebrow" data-slot="name"></span>
@@ -319,5 +381,46 @@
           <span class="athoor-portal__row-points" data-slot="points"></span>
         </li>
       </template>
+      {%- comment -%}
+        The manual code-entry fallback (Requirement 10.1 / task 23.1). Revealed only
+        on an explicit `wasReferred === false` — never on a missing field, because
+        offering the form to someone who has already been credited invites a
+        rejection we could have avoided asking for.
+
+        A real `<form>` so Enter submits and the control is a submit button. The
+        message region is `aria-live` and linked by `aria-describedby`, so a
+        rejection reaches a screen reader without moving focus away from the input.
+      {%- endcomment -%}
+      <form class="athoor-referrals__claim" data-portal-referral-claim hidden novalidate>
+        <h2 class="athoor-referrals__heading" id="AthoorReferralClaimTitle">Were you invited?</h2>
+        <label class="athoor-referrals__label" for="AthoorReferralClaimInput">Enter your friend's code</label>
+        <input
+          class="athoor-referrals__input"
+          id="AthoorReferralClaimInput"
+          name="referralCode"
+          type="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="64"
+          aria-describedby="AthoorReferralClaimMessage"
+        >
+        <button class="athoor-portal__action" type="submit" data-portal-referral-claim-submit>Apply code</button>
+        <p
+          class="athoor-referrals__message"
+          id="AthoorReferralClaimMessage"
+          data-portal-referral-claim-message
+          aria-live="polite"
+          hidden
+        ></p>
+      </form>
+      {%- comment -%}
+        Requirement 10.8 — the empty state carries the CODE and an invitation, not an
+        apology. Server-rendered so it is present before any script runs; the module
+        reveals it and fills the code.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        Share your code and you will both be rewarded when your friend joins.
+      </p>
   {%- endcase -%}
 </section>

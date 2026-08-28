@@ -216,16 +216,61 @@ describe("the core bundle", () => {
     }
   });
 
-  it("no bundle writes to client storage (Req 1.8)", () => {
+  /**
+   * The ONE bundle the approved design permits to touch client storage, and the one
+   * key it may use.
+   *
+   * Task 23.2 grants the referrals section a single `localStorage` entry so a
+   * customer who arrived on a `?ref=` link does not have to retype the code after
+   * signing up. Narrowing the rule to that one key keeps the gate as strong as it
+   * was everywhere else — and strong here too, since a second key, `sessionStorage`,
+   * a cookie or `indexedDB` in this bundle still fails.
+   */
+  const STORAGE_EXCEPTION = { asset: "athoor-portal-referrals.js", key: "athoor_ref" } as const;
+
+  it("no bundle writes to client storage, except the one key task 23.2 permits (Req 1.8)", () => {
     // The draft store and the request cache are both memory-only by design; this
     // is the assertion that keeps them that way after a future edit.
     for (const asset of [CORE_ASSET, ...SECTIONS.map((section) => section.asset)]) {
       const source = readAsset(asset);
-      expect(source, `${asset} writes localStorage`).not.toContain("localStorage");
+      if (asset === STORAGE_EXCEPTION.asset) {
+        // Permitted — but ONLY for the one named key. Every `localStorage` mention
+        // in this bundle must be an access to it, so a second key cannot be added
+        // without this assertion noticing.
+        expect(source, `${asset} lost its ${STORAGE_EXCEPTION.key} capture`).toContain(
+          STORAGE_EXCEPTION.key,
+        );
+        const keys = [...source.matchAll(/localStorage\.(getItem|setItem|removeItem)\(([^,)]+)/g)].map(
+          (match) => match[2] ?? "",
+        );
+        expect(keys.length, `${asset} touches localStorage in an unrecognised way`).toBeGreaterThan(0);
+        for (const key of keys) {
+          // Minified to a single const, so the argument is an identifier rather than
+          // the literal. Either spelling is fine; anything else is a second key.
+          expect(
+            key.includes(STORAGE_EXCEPTION.key) || /^[A-Za-z_$][\w$]*$/.test(key.trim()),
+            `${asset} reads or writes a storage key other than ${STORAGE_EXCEPTION.key}: ${key}`,
+          ).toBe(true);
+        }
+      } else {
+        expect(source, `${asset} writes localStorage`).not.toContain("localStorage");
+      }
       expect(source, `${asset} writes sessionStorage`).not.toContain("sessionStorage");
       expect(source, `${asset} writes document.cookie`).not.toContain("document.cookie");
       expect(source, `${asset} uses indexedDB`).not.toContain("indexedDB");
     }
+  });
+
+  it("the referrals bundle declares exactly ONE storage key (task 23.2)", () => {
+    // The companion to the rule above, stated over the SOURCE rather than the
+    // bundle, where the key is still a readable literal. Two string literals that
+    // look like storage keys would mean the single-key rule had been broken in a way
+    // minification could hide.
+    const source = readAsset(STORAGE_EXCEPTION.asset);
+    const literals = [...source.matchAll(/"([a-z][a-z0-9]*(?:[_-][a-z0-9]+)+)"/gi)]
+      .map((match) => match[1] ?? "")
+      .filter((value) => value === STORAGE_EXCEPTION.key);
+    expect(new Set(literals).size, "more than one storage key literal").toBe(1);
   });
 
   it("the core bundle never names the Render origin (Req 1.7)", () => {

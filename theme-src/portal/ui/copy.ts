@@ -69,19 +69,24 @@ const ACTIVITY_BY_REASON: Readonly<Record<string, string>> = {
 
 /** §18.9 — referral stage wording, both stages plus the unmapped fallback. */
 const REFERRAL_STAGES: Readonly<
-  Record<string, { name: string; qualification: string; pending: string; awarded: string }>
+  Record<
+    string,
+    { name: string; qualification: string; pending: string; awarded: string; none: string }
+  >
 > = {
   friend_signup: {
     name: "When your friend joins",
     qualification: "Your friend creates a My Athoor account with your code",
     pending: "Awaiting your friend",
     awarded: "Credited",
+    none: "No invitations used yet",
   },
   friend_first_purchase: {
     name: "When your friend's first order is placed",
     qualification: "Your friend completes their first order",
     pending: "Awaiting their first order",
     awarded: "Credited",
+    none: "No first orders yet",
   },
 };
 
@@ -365,7 +370,19 @@ export function referralStage(stage: PortalReferralStage): {
       state: REFERRAL_FALLBACK.state,
     };
   }
-  const state = stage.state === "awarded" ? mapped.awarded : stage.state === "pending" ? mapped.pending : REFERRAL_FALLBACK.state;
+  // The service derives THREE states, not two: `deriveStageState` returns `none`
+  // when a stage has no awarded and no pending referrals. Folding `none` into the
+  // unmapped fallback rendered "In progress" for a stage where nothing is in
+  // progress — a statement about the customer's account that is not true. The
+  // fallback stays for a genuinely unknown fourth state, which is what it is for.
+  const state =
+    stage.state === "awarded"
+      ? mapped.awarded
+      : stage.state === "pending"
+        ? mapped.pending
+        : stage.state === "none"
+          ? mapped.none
+          : REFERRAL_FALLBACK.state;
   return { name: mapped.name, qualification: mapped.qualification, state };
 }
 
