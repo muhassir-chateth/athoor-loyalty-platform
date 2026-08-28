@@ -125,7 +125,19 @@
         (§20.3). The caption is visually hidden, not absent.
       {%- endcomment -%}
       <header class="athoor-order__header">
-        <h2 class="athoor-order__number" data-slot="number"></h2>
+        {%- comment -%}
+          The heading is SERVER-RENDERED with generic wording, and the module replaces
+          it with the order's own number once N2 returns. It cannot be empty here:
+          the order number is not known until the fetch completes, and an empty `<h2>`
+          puts a nameless heading in the outline in every state before that — which is
+          most of them, including `loading`, which is the state this markup ships in.
+          Task 29.2's heading-outline walk caught exactly that.
+
+          Leaving it empty and hiding it instead would be worse, not better: the next
+          heading in this arm is the `<h3>` below, so a hidden `<h2>` turns the outline
+          into h1 → h3, which is the level jump Requirement 17.10 forbids outright.
+        {%- endcomment -%}
+        <h2 class="athoor-order__number" data-slot="number">Your order</h2>
         <p class="athoor-order__date athoor-portal__row-meta" data-slot="date"></p>
         <p class="athoor-order__fulfilment" data-slot="fulfilment"></p>
         <a class="athoor-order__tracking" data-portal-tracking href="#" hidden></a>
@@ -145,7 +157,14 @@
         </tbody>
       </table>
 
-      <section class="athoor-order__delivery">
+      {%- comment -%}
+        `data-portal-address-block` is the handle the module removes when an order has
+        no shipping address. It exists because removing `[data-portal-address]` alone
+        removes the PARAGRAPH and leaves this `<h3>` behind — an empty "Delivered to"
+        heading, which is precisely what the comment below has always said must not
+        happen. Task 29.2 found the module doing the narrower removal.
+      {%- endcomment -%}
+      <section class="athoor-order__delivery" data-portal-address-block>
         <h3 class="athoor-portal__eyebrow">Delivered to</h3>
         {%- comment -%}
           Removed entirely by the module when the order has no shipping address —
@@ -911,7 +930,19 @@
       {%- endcomment -%}
       <section class="athoor-overview__tile" data-portal-tile="order" aria-labelledby="AthoorOverviewOrderTitle">
         <h2 class="athoor-portal__eyebrow" id="AthoorOverviewOrderTitle">Your last order</h2>
-        <a class="athoor-portal__row athoor-overview__order" href="#" data-portal-order-link>
+        {%- comment -%}
+          The accessible name is SERVER-RENDERED, because the visible slots below are
+          empty until the module fills them — and an anchor whose only text arrives
+          with JavaScript has no discernible name at server-render time. The axe gate
+          of task 29.1 caught exactly that. The link's purpose is known here, so it is
+          stated here.
+        {%- endcomment -%}
+        <a
+          class="athoor-portal__row athoor-overview__order"
+          href="#"
+          data-portal-order-link
+          aria-label="Your last order"
+        >
           <span class="athoor-portal__row-description" data-slot="name"></span>
           <span class="athoor-portal__row-meta" data-slot="date"></span>
           <span class="athoor-portal__row-total" data-slot="total"></span>

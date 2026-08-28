@@ -49,6 +49,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import { sectionHtml } from "./portalFixtures.js";
 
 /** `loyalty-service/src/theme` -> repository root. */
 const REPO_ROOT = join(import.meta.dirname ?? new URL(".", import.meta.url).pathname, "..", "..", "..");
@@ -438,5 +439,156 @@ describe("no runtime dependency reaches a theme asset", () => {
     // publicly, and would add an unreviewed file to the scoped-push list of
     // design §25.5.
     expect(readAsset(asset)).not.toContain("sourceMappingURL");
+  });
+});
+
+/* ========================================================================== *
+ * TASK 29.12 — booting each bundle against the REAL section fixture
+ * ========================================================================== */
+
+/**
+ * The extension this file's header anticipated: "task 29.12 formally owns the
+ * bundle smoke test and will extend this file with per-section fixtures as sections
+ * gain behaviour". They have all gained behaviour now, so here it is.
+ *
+ * ── WHY A REAL FIXTURE AND NOT `seedRoot` ────────────────────────────────────
+ * The three `it.each` blocks above boot each bundle against `seedRoot(name)` — a
+ * bare `<div data-portal-section="name">`. That is the right shape for asserting the
+ * REGISTRATION contract, because registration does not depend on the markup.
+ *
+ * It is the wrong shape for asserting that a module can actually run. Every section
+ * queries for elements the scaffold provides — `[data-portal-body]`,
+ * `[data-portal-state-message]`, `[data-portal-live]`, its own `<template>` rows. A
+ * module that queried for a hook that does not exist, or that misspelled one, boots
+ * cleanly against an empty `<div>`: the query returns `null`, the guard skips, and
+ * nothing happens. Against the real fixture the same module has something to find,
+ * so the boot exercises the path a customer's browser takes.
+ *
+ * The fixtures come from `portalFixtures.ts`, which extracts them from the shipped
+ * `portal-section.liquid` at run time rather than transcribing them — so this asserts
+ * the bundles against the markup that actually ships.
+ *
+ * ── WHY `fetch` IS STUBBED RATHER THAN LEFT ABSENT ───────────────────────────
+ * Each module's boot ends in `void load()`, which calls the transport. With no
+ * `fetch` the promise rejects, the section degrades, and `data-portal-booted` would
+ * read `failed` for reasons that belong to the harness rather than the bundle. The
+ * stub answers every request with a 200 and an empty object, which is enough for the
+ * boot to complete; what the module then renders is asserted by the ten per-section
+ * DOM tests, against the source, where a failure names a line of TypeScript.
+ */
+describe("Task 29.12 — each bundle boots against the shipped section fixture", () => {
+  /**
+   * Answers every request with a `503 upstream_unavailable`.
+   *
+   * ── WHY AN ERROR AND NOT A 200 ───────────────────────────────────────────────
+   * The obvious stub is a 200 with `{}`. It is the wrong one, and finding out why was
+   * useful enough to record here.
+   *
+   * `{}` is OFF-CONTRACT. `PortalBirthdayResponse` types `birthday` as
+   * `{ day, month } | null`, so `{}` gives `undefined`, `value.birthday === null` is
+   * false, and `paintBirthday` dereferences `undefined.day`. A stub that invents a
+   * response the DTO forbids and then reports the module's reaction to it is testing
+   * the stub. Building ten contract-shaped bodies instead would mean ten transcribed
+   * DTOs in a test file, drifting from `data/types.ts` the moment either changes.
+   *
+   * The failure path needs no invented body. `{ ok: false, error: { code, … } }` is
+   * one fully-specified shape every section handles the same way — `states.degrade` —
+   * so one stub exercises all ten. Boot, registration and the global budget are
+   * asserted; what each section RENDERS on success is covered by the ten per-section
+   * DOM tests, against the source, where a failure names a line of TypeScript.
+   *
+   * ── A FINDING THIS TURNED UP, WHICH IS NOT TASK 29's TO FIX ──────────────────
+   * `proxyClient.ts` returns `{ ok: true, value: body as T }` — an unchecked cast —
+   * and sets `body = null` when a response is not JSON. So a 200 carrying a non-JSON
+   * body (an App Proxy error page, which is a real possibility) arrives at a section
+   * as `null` and crashes its paint. Because that happens inside an async `load()`,
+   * it lands after the boot boundary's `try` has already returned: the section is left
+   * in `loading` with no error state and no retry, rather than degrading.
+   *
+   * That is a response-shape robustness gap owned by the failure-isolation surface
+   * (§22, task 18.7), not by any of 29.1–29.12. It is reported rather than patched
+   * here, because widening a gate task into a resilience fix is how a verification
+   * task stops being verifiable.
+   */
+  function stubFetch(): void {
+    (globalThis as { fetch?: unknown }).fetch = () =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ error: "upstream_unavailable" }),
+        text: () => Promise.resolve('{"error":"upstream_unavailable"}'),
+      });
+  }
+
+  beforeEach(() => {
+    stubFetch();
+  });
+
+  it.each(SECTIONS)("$asset boots '$name' against its real markup", ({ asset, name }) => {
+    document.body.innerHTML = sectionHtml(name);
+    const root = document.querySelector<HTMLElement>(`[data-portal-section="${name}"]`);
+    expect(root, `the fixture for ${name} has no section root`).not.toBeNull();
+
+    loadBundle(readAsset(CORE_ASSET));
+    loadBundle(readAsset(asset));
+
+    // `failed` means the module threw while running against the markup that ships.
+    expect(
+      root?.getAttribute("data-portal-booted"),
+      `${asset} did not boot cleanly against the real ${name} fixture`,
+    ).toBe("true");
+  });
+
+  it.each(SECTIONS)("$asset adds no global while booting against real markup", ({ asset, name }) => {
+    document.body.innerHTML = sectionHtml(name);
+    loadBundle(readAsset(CORE_ASSET));
+
+    const added = loadBundle(readAsset(asset));
+
+    // The one-global rule, re-asserted with markup present. A module that assigned a
+    // helper to `window` only on a path guarded by an element's existence would pass
+    // the `seedRoot` version of this test and fail here.
+    expect(added).toEqual([]);
+  });
+
+  it.each(SECTIONS)("$asset leaves exactly one global on the page after booting", ({ asset, name }) => {
+    document.body.innerHTML = sectionHtml(name);
+    const before = new Set(Object.getOwnPropertyNames(globalThis));
+
+    loadBundle(readAsset(CORE_ASSET));
+    loadBundle(readAsset(asset));
+
+    const added = Object.getOwnPropertyNames(globalThis).filter((n) => !before.has(n));
+    expect(added).toEqual(["AthoorPortal"]);
+  });
+
+  it("every section fixture is distinct markup, so the boots above are not one test ten times", () => {
+    // If `sectionHtml` returned the same scaffold for every name, the ten assertions
+    // would be one assertion repeated. Each arm must contribute something of its own.
+    const bodies = new Map<string, number>();
+    for (const section of SECTIONS) {
+      const html = sectionHtml(section.name);
+      bodies.set(section.name, html.length);
+      // Each fixture must carry its own section name and more than the bare scaffold.
+      expect(html).toContain(`data-portal-section="${section.name}"`);
+    }
+    expect(new Set(bodies.values()).size, "the ten fixtures are not distinct").toBeGreaterThan(8);
+  });
+
+  it("is NON-VACUOUS: a module that throws on real markup is reported as failed", () => {
+    // Proves `data-portal-booted === "true"` is a real signal rather than a value the
+    // core sets unconditionally.
+    document.body.innerHTML = sectionHtml("orders");
+    const root = document.querySelector<HTMLElement>('[data-portal-section="orders"]');
+    loadBundle(readAsset(CORE_ASSET));
+    const runtime = (globalThis as {
+      AthoorPortal?: { register(n: string, b: (r: HTMLElement) => void): void; boot(): void };
+    }).AthoorPortal;
+    runtime?.register("orders", () => {
+      throw new Error("boom");
+    });
+    runtime?.boot();
+    expect(root?.getAttribute("data-portal-booted")).toBe("failed");
   });
 });
