@@ -587,3 +587,185 @@ describe("draft input", () => {
     expect(window.sessionStorage.length).toBe(0);
   });
 });
+
+/* ========================================================================== *
+ * A SUCCESS STATUS WITH AN UNUSABLE BODY
+ * ========================================================================== */
+
+/**
+ * The gap this closes, and how it was found.
+ *
+ * `failures become results, not exceptions` above already covers a **500** whose
+ * body will not parse: the status carries the meaning, so the parse failure is
+ * correctly ignored. Nothing covered the same thing on a **200**, and the transport
+ * returned `{ ok: true, value: null as T }` there.
+ *
+ * `null` satisfies no response DTO. `PortalBirthdayResponse` types `birthday` as
+ * `{ day, month } | null`, so `paintBirthday(null)` reads `.day` off nothing and
+ * throws — and because every section's boot ends in `void load()`, that rejection
+ * lands after the task-18.7 error boundary's `try` has already returned. The section
+ * stays in `loading` for ever: no error state, no retry, no announcement.
+ *
+ * Task 29.12 surfaced it. Booting the ten built bundles against their real fixtures
+ * with a 200-and-`{}` stub produced three unhandled rejections reading
+ * `Cannot read properties of undefined (reading 'day')`. That stub was off-contract
+ * and was replaced, but the transport behaviour it exposed was real.
+ *
+ * A 200 carrying a non-JSON body is not hypothetical: the Shopify App Proxy can
+ * answer with an HTML page, and a truncated response parses as nothing.
+ */
+describe("a success status whose body is unusable is a FAILURE, not a null value", () => {
+  /** A `Response` whose status is fine but whose body will not parse. */
+  function unparseable(status: number, headers: Record<string, string> = {}): Response {
+    const lower: Record<string, string> = {};
+    for (const key of Object.keys(headers)) lower[key.toLowerCase()] = headers[key] as string;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { get: (name: string) => lower[name.toLowerCase()] ?? null },
+      json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON at position 0")),
+    } as unknown as Response;
+  }
+
+  it("a 200 with an HTML body reports upstream_unavailable, never ok:true", async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve(unparseable(200))) as unknown as typeof fetch;
+
+    const result = await proxyFetch({ method: "GET", path: "/profile/birthday" });
+
+    // The whole point: this must not be a success carrying `null`.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("upstream_unavailable");
+    // The parse error's text is never surfaced to a customer.
+    expect(JSON.stringify(result.error)).not.toContain("Unexpected token");
+    expect(JSON.stringify(result.error)).not.toContain("SyntaxError");
+  });
+
+  it("reports the REAL status, so no customer is falsely told they are offline", async () => {
+    // `stateForFailure` maps `status === null` to `offline` when `navigator.onLine`
+    // is false. Reporting `null` here would tell a customer their connection had
+    // dropped immediately after we demonstrably reached the server — a false
+    // statement about their situation. 200 yields the `error` state instead.
+    globalThis.fetch = vi.fn(() => Promise.resolve(unparseable(200))) as unknown as typeof fetch;
+
+    const result = await proxyFetch({ method: "GET", path: "/balance" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(200);
+    expect(result.error.status).not.toBeNull();
+  });
+
+  it("offers a retry, because a truncated or substituted body is transient", async () => {
+    // Not derived from the status: `isRetryable` returns false for 200. Every
+    // mutation carries an Idempotency-Key, so a retry cannot double-apply.
+    globalThis.fetch = vi.fn(() => Promise.resolve(unparseable(200))) as unknown as typeof fetch;
+
+    const result = await proxyFetch({ method: "GET", path: "/orders" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.retryable).toBe(true);
+  });
+
+  it("passes the request id through, so the failure is still traceable", async () => {
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(unparseable(200, { "x-request-id": "req-abc-123" })),
+    ) as unknown as typeof fetch;
+
+    const result = await proxyFetch({ method: "GET", path: "/balance" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.requestId).toBe("req-abc-123");
+  });
+
+  it("rejects every non-object success body, not only an unparseable one", async () => {
+    // The check is on the VALUE, not on whether parsing threw. `JSON.parse("null")`
+    // returns `null` without throwing; a bare string or number parses cleanly and
+    // satisfies no response contract. Every portal response DTO is an object.
+    for (const body of [null, "a string", 42, true, false, 0, ""]) {
+      globalThis.fetch = vi.fn(() => Promise.resolve(response(200, body))) as unknown as typeof fetch;
+
+      const result = await proxyFetch({ method: "GET", path: "/balance" });
+
+      expect(result.ok, `a 200 body of ${JSON.stringify(body)} was accepted`).toBe(false);
+      if (result.ok) continue;
+      expect(result.error.code).toBe("upstream_unavailable");
+    }
+  });
+
+  it("still accepts every legitimate success body, including empty and array-valued", async () => {
+    // The guard must not reject a real response. An empty object is a valid DTO —
+    // `expiringSoon` is omitted entirely when nothing expires — and arrays are
+    // objects, so a response whose fields are arrays passes.
+    for (const body of [{}, { spendableBalance: 0 }, { orders: [] }, { addresses: [{ id: "1" }] }]) {
+      globalThis.fetch = vi.fn(() => Promise.resolve(response(200, body))) as unknown as typeof fetch;
+
+      const result = await proxyFetch({ method: "GET", path: "/balance" });
+
+      expect(result.ok, `a legitimate body ${JSON.stringify(body)} was rejected`).toBe(true);
+      if (!result.ok) continue;
+      expect(result.value).toEqual(body);
+    }
+  });
+
+  it("leaves the 500-with-HTML behaviour exactly as it was", async () => {
+    // A regression guard on the branch this change did NOT touch. There the status
+    // carries the meaning and the unparseable body is correctly ignored, so the
+    // outcome must be identical to before — including `retryable` from the status.
+    globalThis.fetch = vi.fn(() => Promise.resolve(unparseable(500))) as unknown as typeof fetch;
+
+    const result = await proxyFetch({ method: "GET", path: "/balance" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("upstream_unavailable");
+    expect(result.error.status).toBe(500);
+  });
+
+  it("does not cache an unusable answer as if it were data", async () => {
+    // §16.5 caches successful reads. Caching `null` under a success key would make
+    // one bad response poison the section for the whole TTL.
+    globalThis.fetch = vi.fn(() => Promise.resolve(unparseable(200))) as unknown as typeof fetch;
+
+    const first = await proxyFetch({ method: "GET", path: "/balance" });
+    expect(first.ok).toBe(false);
+
+    // A subsequent good answer must be served, not a cached failure or a cached null.
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(response(200, { spendableBalance: 500 })),
+    ) as unknown as typeof fetch;
+    const second = await proxyFetch({ method: "GET", path: "/balance" });
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value).toEqual({ spendableBalance: 500 });
+  });
+
+  it("is NON-VACUOUS: the pre-fix behaviour is what the assertions above reject", async () => {
+    // Reproduces the old contract in miniature, so the tests above are demonstrably
+    // asserting a change rather than restating what the code already did. This is
+    // exactly `{ ok: true, value: body as T }` with `body === null`.
+    const oldBehaviour = <T,>(parsed: unknown): { ok: true; value: T } => ({
+      ok: true,
+      value: parsed as T,
+    });
+    const legacy = oldBehaviour<{ birthday: { day: number } | null }>(null);
+    expect(legacy.ok).toBe(true);
+    expect(legacy.value).toBeNull();
+
+    // And the consequence: the dereference every section's paint performs.
+    expect(() => {
+      // `value.birthday === null` is FALSE for `undefined`, which is why the guard
+      // in `paintBirthday` does not catch this.
+      const value = legacy.value as unknown as { birthday: { day: number } };
+      return value.birthday.day;
+    }).toThrow(TypeError);
+
+    // The fixed transport never produces that value in the first place.
+    globalThis.fetch = vi.fn(() => Promise.resolve(response(200, null))) as unknown as typeof fetch;
+    const fixed = await proxyFetch({ method: "GET", path: "/profile/birthday" });
+    expect(fixed.ok).toBe(false);
+  });
+});
