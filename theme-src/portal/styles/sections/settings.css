@@ -1,14 +1,119 @@
 /*
- * Per-section styles for the `settings` Portal_Section.
+ * Per-section styles for the `settings` Portal_Section (spec task 26.1).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 26.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 13.7, 17.4, 17.8, 23.8, 25.5, 25.6.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * ── THE PURPOSE IS PART OF THE CONTROL, NOT A FOOTNOTE ──────────────────────
+ * Requirement 23.8 wants each preference's purpose stated at the point of
+ * collection, so the purpose sits inside the label and is laid out as the second
+ * line of the control rather than as small print beneath the row. That is also why
+ * the whole label is the target: a customer reading the purpose is already touching
+ * the thing they are about to change.
+ *
+ * ── THE DESTRUCTIVE ACTION IS NOT RED ───────────────────────────────────────
+ * Colour alone must not carry meaning (Requirement 17.8), and a red button in a
+ * luxury layout reads as an error rather than as gravity. The deletion control is
+ * distinguished by weight and a rule, and the wording does the rest — it is the only
+ * control on the page that says what it cannot undo.
+ *
+ * Every selector is rooted at `.athoor-portal`, because §25.6 requires everything
+ * outside the portal's own containers to stay byte-identical. Tokens live in the
+ * shared layer — a token redeclared per section is a token that drifts.
  */
+
+/* ── Groups ──────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-settings__group {
+  padding: var(--athoor-space-7) 0;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+/* The last group carries no rule: a trailing hairline reads as a truncated page. */
+.athoor-portal .athoor-settings__group--last {
+  border-bottom: 0;
+}
+
+/* ── Toggles ─────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-settings__list {
+  margin: var(--athoor-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-settings__item + .athoor-settings__item {
+  margin-top: var(--athoor-space-5);
+}
+
+/*
+ * The whole label is the target, so the 44 px minimum applies to the row rather than
+ * to the checkbox — a 16 px checkbox is not a touch target (Requirement 17.4).
+ * `align-items: flex-start` keeps the control level with the label's first line when
+ * the purpose wraps onto a second.
+ */
+.athoor-portal .athoor-settings__switch {
+  display: flex;
+  gap: var(--athoor-space-3);
+  align-items: flex-start;
+  min-height: var(--athoor-target);
+  padding: var(--athoor-space-1) 0;
+  cursor: pointer;
+}
+
+.athoor-portal .athoor-settings__switch input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  /* Nudged down so the box sits on the label's baseline rather than above its cap. */
+  margin-top: 0.15rem;
+  accent-color: var(--athoor-gold);
+}
+
+.athoor-portal .athoor-settings__switch input:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+.athoor-portal .athoor-settings__switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-1);
+}
+
+.athoor-portal .athoor-settings__switch-label {
+  font-family: var(--athoor-body-face);
+  font-size: 15px;
+  color: var(--athoor-ink);
+}
+
+/* ── Privacy actions ─────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-settings__action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-2);
+  align-items: flex-start;
+  margin-top: var(--athoor-space-5);
+}
+
+/*
+ * Gravity by weight and a rule, never by hue. In forced-colours mode the border
+ * survives and the label still says what the control does, so the distinction does
+ * not depend on a colour being rendered at all.
+ */
+.athoor-portal .athoor-settings__action--grave {
+  font-weight: 500;
+  border-width: 2px;
+}
+
+/*
+ * A disabled action stays legible. `--athoor-disabled` is a background token and
+ * never a text colour (§18.4), and the adjacent live region states why — a control
+ * that is merely greyed out reads as a bug.
+ */
+.athoor-portal .athoor-settings__action .athoor-portal__action:disabled,
+.athoor-portal .athoor-settings__group .athoor-portal__action:disabled {
+  color: var(--athoor-muted-text);
+  cursor: default;
+  opacity: 1;
+}

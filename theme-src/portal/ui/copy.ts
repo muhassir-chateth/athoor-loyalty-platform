@@ -122,6 +122,35 @@ const REDEMPTION_STATUS: Readonly<Record<string, string>> = {
   failed: "Not issued — your points have been returned",
 };
 
+/**
+ * Marketing consent state (Requirement 13.3, task 26.1).
+ *
+ * Three keys, not two. `never_set` exists because N9 reports `updatedAt` as the
+ * EMPTY STRING for a customer whose consent has never been set, and rendering
+ * "withdrawn on " with nothing after it would state a date that does not exist.
+ * `{date}` is resolved by the caller.
+ */
+const CONSENT: Readonly<Record<string, string>> = {
+  subscribed: "You are subscribed. Last changed {date}",
+  withdrawn: "You are not subscribed. Last changed {date}",
+  never_set: "You have not set a preference yet",
+};
+
+/**
+ * The privacy actions (Requirement 13.8, task 26.3).
+ *
+ * `erasure_recorded` is worded to state that a person will action it. A right this
+ * consequential spans nine tables, is irreversible and must be coordinated with
+ * Shopify's own erasure, so it is operator-run — and a sentence implying the data
+ * has already gone would be false at the moment it was read.
+ */
+const PRIVACY: Readonly<Record<string, string>> = {
+  export_ready: "Your data is downloading.",
+  export_waiting: "Your last copy was just prepared. You can request another shortly.",
+  erasure_recorded: "We have recorded your request. A member of our team will action it and contact you. Quote {reference} if you get in touch.",
+  erasure_waiting: "You have already asked us to delete your data. We are working on it.",
+};
+
 /** §18.9 — birthday eligibility. `{date}` is resolved by the caller's argument. */
 const BIRTHDAY: Readonly<Record<string, string>> = {
   not_set: "Not yet added",
@@ -470,8 +499,54 @@ export function formatDate(iso: string): string {
   return `${String(day)} ${month} ${year}`;
 }
 
+/**
+ * Marketing consent, with its date resolved (Requirement 13.3).
+ *
+ * `updatedAt` is an ISO instant from Shopify, or the empty string when consent has
+ * never been set — which is a different statement from "withdrawn" and gets its own
+ * sentence rather than a subscribed/withdrawn line with an empty date.
+ */
+export function consentState(subscribed: boolean, updatedAt?: string | null): string {
+  if (!updatedAt) {
+    return lookup(CONSENT, "never_set") ?? "You have not set a preference yet";
+  }
+  const mapped = lookup(CONSENT, subscribed ? "subscribed" : "withdrawn");
+  if (mapped === undefined) return "";
+  return fill(mapped, { date: formatDate(updatedAt) });
+}
+
+/** Wording for a privacy action, `{reference}` resolved where the table uses it. */
+export function privacyAction(identifier: string, reference?: string | null): string {
+  const mapped = lookup(PRIVACY, identifier);
+  if (mapped === undefined) return "";
+  if (mapped.indexOf("{reference}") < 0) return mapped;
+  // No reference to quote means the sentence must not invite the customer to quote
+  // one. The acknowledgement still stands on its own.
+  if (!reference) return "We have recorded your request. A member of our team will action it and contact you.";
+  return fill(mapped, { reference });
+}
+
+/**
+ * A wait after a `429`, stated as a duration and never as a limit.
+ *
+ * Design E.2 forbids the phrase "rate limit" and any limiter internals in rendered
+ * output, so this names neither the ceiling nor the window — only how long is left,
+ * which is the one thing the customer can act on. `retryAfterSeconds` absent means
+ * the server sent no countdown, so the sentence stays honest about that too.
+ */
+export function waitFor(seconds?: number | null): string {
+  if (typeof seconds !== "number" || !isFinite(seconds) || seconds <= 0) {
+    return "Please try that again shortly.";
+  }
+  if (seconds < 60) return `Please try again in ${String(Math.ceil(seconds))} seconds.`;
+  const minutes = Math.ceil(seconds / 60);
+  return `Please try again in ${String(minutes)} ${minutes === 1 ? "minute" : "minutes"}.`;
+}
+
 /** The vocabularies, exposed so the totality test can enumerate them. */
 export const COPY_TABLES = {
+  consent: CONSENT,
+  privacy: PRIVACY,
   activityByReason: ACTIVITY_BY_REASON,
   referralStages: REFERRAL_STAGES,
   fulfilment: FULFILMENT,
