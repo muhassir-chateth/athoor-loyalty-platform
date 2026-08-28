@@ -1,14 +1,97 @@
 /*
- * Per-section styles for the `wishlist` Portal_Section.
+ * Wishlist (spec task 21.1, design §18.5, §17.4).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 21.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 7.4, 7.11, 16.2, 17.3, 17.4, 18.5, 25.5.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * THE GRID STEPS AT 390 / 750 / 990 (task 21.1). The 390 step is the one that is not
+ * in §18's three breakpoints, and it is here because a 2-up grid of fragrance bottles
+ * is unreadable below it — a product image box narrower than ~160 px stops conveying
+ * the bottle. It is a grid-only step and changes nothing else.
+ *
+ * Every selector is rooted at a portal container, per the standing rule in base.css.
  */
+
+.athoor-portal .athoor-wishlist__grid {
+  display: grid;
+  /* 1-up below 390. */
+  grid-template-columns: 1fr;
+  gap: var(--athoor-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media screen and (min-width: 390px) {
+  .athoor-portal .athoor-wishlist__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (min-width: 750px) {
+  .athoor-portal .athoor-wishlist__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media screen and (min-width: 990px) {
+  .athoor-portal .athoor-wishlist__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--athoor-space-7);
+  }
+}
+
+/* The item is a ruled cell, not a card: only the IMAGE gets a box (§18.5). */
+.athoor-portal .athoor-portal__grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-2);
+  margin: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-portal__item-title {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.athoor-portal .athoor-portal__item-price {
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-portal__item-availability {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--athoor-muted-text);
+}
+
+/* Both controls are real targets with the required separation (Requirement 17.3). */
+.athoor-portal .athoor-portal__item-remove,
+.athoor-portal .athoor-wishlist__add {
+  min-height: var(--athoor-target);
+  align-self: start;
+}
+
+.athoor-portal .athoor-portal__item-remove {
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--athoor-gold-text);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  /* Explicitly labelled and always visible — never a swipe (task 21.1). */
+  text-align: start;
+}
+
+/* The empty state's route to the catalogue, shown only in that state. */
+.athoor-portal .athoor-portal__empty-action {
+  display: none;
+  margin-top: var(--athoor-space-5);
+}
+
+.athoor-portal .athoor-portal__section[data-state="empty"] .athoor-portal__empty-action {
+  display: block;
+}

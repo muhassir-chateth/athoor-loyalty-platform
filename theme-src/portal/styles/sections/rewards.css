@@ -1,14 +1,143 @@
 /*
- * Per-section styles for the `rewards` Portal_Section.
+ * Rewards (spec task 22.1, design §18.2, §18.5, §20.4).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 22.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 8.1, 8.4, 8.5, 8.6, 8.12, 8.13, 17.3, 17.8, 20.4, 25.4.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * THE BALANCE IS THE ONLY NUMERAL USE (§18.2). It is deliberately the largest number
+ * on any page it appears on, because it is the one figure the customer came for.
+ *
+ * THE PROGRESS FILL IS NOT TRANSITIONED (task 22.1): an animated bar on first paint
+ * is motion the customer did not ask for, and it makes the value ambiguous while it
+ * moves.
+ *
+ * Every selector is rooted at a portal container, per the standing rule in base.css.
  */
+
+.athoor-portal .athoor-rewards__summary {
+  margin-bottom: var(--athoor-space-8);
+}
+
+.athoor-portal .athoor-rewards__balance {
+  margin: 0;
+  /* Tabular so a changing balance does not shift the digits beside it. */
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-rewards__tier {
+  margin: var(--athoor-space-2) 0 var(--athoor-space-5);
+}
+
+/* The badge carries its tier as TEXT; the surface is decoration only, so the
+ * information survives forced-colours mode (Requirement 17.8). */
+.athoor-portal .athoor-rewards__badge {
+  display: inline-block;
+  padding: 2px var(--athoor-space-3);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--athoor-ink);
+  background: var(--athoor-surface);
+  border: 1px solid var(--athoor-line);
+  border-radius: var(--athoor-radius-pill);
+}
+
+.athoor-portal .athoor-rewards__progress {
+  height: 4px;
+  margin-bottom: var(--athoor-space-2);
+  background: var(--athoor-surface);
+  border-radius: var(--athoor-radius-badge);
+  overflow: hidden;
+}
+
+.athoor-portal .athoor-rewards__progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  /* Decorative gold: this is a 4 px bar, never text (§18.4). */
+  background: var(--athoor-gold);
+  /* No transition, by design (task 22.1). */
+}
+
+.athoor-portal .athoor-rewards__expiring {
+  margin: var(--athoor-space-3) 0 0;
+  padding: var(--athoor-space-3) var(--athoor-space-4);
+  /* The warm surface is permitted for recognition (§18.4) — this is a courtesy
+   * note, not an alarm, so it gets no semantic red. */
+  background: var(--athoor-surface-warm);
+  border: 1px solid var(--athoor-line-warm);
+  border-radius: var(--athoor-radius-panel);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.athoor-portal .athoor-rewards__catalogue {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--athoor-space-5);
+  margin: 0 0 var(--athoor-space-8);
+  padding: 0;
+  list-style: none;
+}
+
+@media screen and (min-width: 750px) {
+  .athoor-portal .athoor-rewards__catalogue {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (min-width: 990px) {
+  .athoor-portal .athoor-rewards__catalogue {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.athoor-portal .athoor-portal__card-cost {
+  display: block;
+  margin: var(--athoor-space-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-portal__card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--athoor-target);
+  margin-top: var(--athoor-space-4);
+  font: inherit;
+  color: #fff;
+  background: var(--athoor-ink);
+  border: 0;
+  border-radius: var(--athoor-radius-badge);
+  cursor: pointer;
+}
+
+.athoor-portal .athoor-portal__card-action:disabled {
+  color: var(--athoor-muted-text);
+  background: var(--athoor-surface);
+  border: 1px solid var(--athoor-line);
+  cursor: not-allowed;
+}
+
+/* The issued code: 18 px monospace-tabular so a customer can read it aloud or
+ * transcribe it without confusing 0 and O (task 22.3). */
+.athoor-portal .athoor-rewards__code-panel {
+  margin: 0 0 var(--athoor-space-7);
+  padding: var(--athoor-space-5);
+  background: var(--athoor-surface-warm);
+  border: 1px solid var(--athoor-line-warm);
+  border-radius: var(--athoor-radius-panel);
+}
+
+.athoor-portal .athoor-rewards__code {
+  margin: var(--athoor-space-2) 0 var(--athoor-space-4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  word-break: break-all;
+}
+
+.athoor-portal .athoor-rewards__activity-link {
+  text-decoration: none;
+}
