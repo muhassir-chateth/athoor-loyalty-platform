@@ -621,8 +621,15 @@ describe("the real logger is governed by the allowlist", () => {
     const incoming = records.find((r) => r["msg"] === "incoming request");
     const completed = records.find((r) => r["msg"] === "request completed");
 
-    expect(incoming).toMatchObject({ requestId: "req-1", method: "GET", route: "/v1/version" });
-    expect(completed).toMatchObject({ requestId: "req-1", statusCode: 200 });
+    // The id's SHAPE, not a literal. It used to be Fastify's `req-1` counter; the app
+    // now supplies `genReqId` (see `plugins/requestReference.ts`) because that counter
+    // restarts on every boot and the id is quoted by customers to support and used to
+    // build the GDPR erasure reference. Asserting the shape keeps this test about
+    // §24.3's vocabulary rather than about the generator's current output.
+    expect(incoming).toMatchObject({ method: "GET", route: "/v1/version" });
+    expect(completed).toMatchObject({ statusCode: 200 });
+    expect(incoming?.["requestId"]).toMatch(/^[a-z]{12}$/);
+    expect(completed?.["requestId"]).toBe(incoming?.["requestId"]);
     expect(typeof completed?.["durationMs"]).toBe("number");
     // The envelope keys Fastify would otherwise have written.
     expect(incoming).not.toHaveProperty("req");
