@@ -572,3 +572,62 @@ export type ScopeParameterRejectsAString = Expect<
 export type StatementCannotNameACustomer = Expect<
   "customerId" extends keyof ScopedStatement ? false : true
 >;
+
+/* -------------------------------------------------------------------------- *
+ * TASK 29.8 — the same guarantee, for EVERY primitive rather than one
+ * -------------------------------------------------------------------------- */
+
+/**
+ * `ScopeParameterRejectsAString` above covers `scopedSelect`. It is the most-used
+ * primitive, but it is one of four, and a convenience overload added to
+ * `scopedMutate` would be worse than one added to `scopedSelect` — a mutation run
+ * against an unverified id writes to another customer's rows rather than reading
+ * them.
+ *
+ * Requirement 2.1 says no portal repository function can be called with anything but
+ * a `CustomerScope`. "No function", not "no read". So each of the four is asserted
+ * individually below, and `EveryPrimitiveRejectsAString` restates the four as one
+ * value so a primitive added later without an assertion is visible: the count must
+ * match `PRIMITIVE_COUNT`, which `ownership.gate.test.ts` checks against the file.
+ */
+export type ScopedSelectOneRejectsAString = Expect<
+  string extends Parameters<typeof scopedSelectOne>[1] ? false : true
+>;
+
+export type ScopedMutateRejectsAString = Expect<
+  string extends Parameters<typeof scopedMutate>[1] ? false : true
+>;
+
+export type ScopedMutateExpectingRowRejectsAString = Expect<
+  string extends Parameters<typeof scopedMutateExpectingRow>[1] ? false : true
+>;
+
+/**
+ * Each primitive's scope parameter is EXACTLY `CustomerScope` — not a supertype.
+ *
+ * `string extends P ? false : true` catches a widening to `string`. It does not catch
+ * a widening to `object`, to `{ customerId: string }`, or to `unknown`, each of which
+ * would also let an unverified value through while still rejecting a bare string.
+ * This asserts the parameter accepts nothing a `CustomerScope` does not.
+ */
+export type EveryPrimitiveTakesExactlyAScope = Expect<
+  Parameters<typeof scopedSelect>[1] extends CustomerScope
+    ? Parameters<typeof scopedSelectOne>[1] extends CustomerScope
+      ? Parameters<typeof scopedMutate>[1] extends CustomerScope
+        ? Parameters<typeof scopedMutateExpectingRow>[1] extends CustomerScope
+          ? true
+          : false
+        : false
+      : false
+    : false
+>;
+
+/**
+ * The number of SQL-executing primitives this module exports.
+ *
+ * Asserted against the file by `ownership.gate.test.ts`, so adding a fifth primitive
+ * without a corresponding type assertion above fails a test rather than passing
+ * unnoticed. A type-level assertion cannot count its own siblings, which is why this
+ * one number crosses back into a runtime check.
+ */
+export const PRIMITIVE_COUNT = 4 as const;

@@ -83,8 +83,9 @@ const NOT_SECTIONS = new Set(["registration.ts", "register.ts"]);
  * each file against 40 KB separately would report eleven comfortable numbers
  * while the pages they compose could each be over.
  *
- * Task 29.11 makes these build-failing. This script reports them, and says so —
- * see `report()`.
+ * BUILD-FAILING as of task 29.11 — see `budgetViolations()` and `main()`. Both
+ * `build:portal` and `build:portal:check` enforce them, because CI runs the
+ * latter and a budget enforced in only one mode is not enforced.
  */
 const BUDGET_JS_PER_PAGE = 40 * 1024;
 const BUDGET_CSS = 20 * 1024;
@@ -228,9 +229,6 @@ function report(artefacts) {
         ` ${kb(pageGzip)} gzip, ${kb(pageBrotli)} brotli` +
         ` — budget ${kb(BUDGET_JS_PER_PAGE)} JS (Requirement 18.3)`,
     );
-    if (pageGzip > BUDGET_JS_PER_PAGE) {
-      console.log("  OVER THE JS BUDGET.");
-    }
   }
 
   if (css) {
@@ -239,13 +237,67 @@ function report(artefacts) {
       `  stylesheet: ${kb(s.gzip)} gzip, ${kb(s.brotli)} brotli` +
         ` — budget ${kb(BUDGET_CSS)} CSS (Requirement 18.3)`,
     );
-    if (s.gzip > BUDGET_CSS) console.log("  OVER THE CSS BUDGET.");
+  }
+}
+
+/**
+ * The budget gate (task 29.11, Requirement 18.3).
+ *
+ * Returns one message per violation, empty when everything fits. `main()` turns a
+ * non-empty result into a non-zero exit.
+ *
+ * ── EVERY PAGE, NOT ONLY THE WORST ───────────────────────────────────────────
+ * `report()` prints the worst page because that is the useful summary. The GATE
+ * checks all ten, because a message naming only the worst leaves someone fixing
+ * that one and re-running into the next — and because the ten are independent
+ * pages a customer can land on directly.
+ *
+ * ── WHY BOTH gzip AND brotli ─────────────────────────────────────────────────
+ * 29.11 says to measure both. In practice brotli is always the smaller, so gzip is
+ * the binding constraint and brotli never fires — but a gate written to check only
+ * the measure that currently binds is a gate that stops being correct the moment
+ * that stops being true.
+ */
+function budgetViolations(artefacts) {
+  const violations = [];
+  const core = artefacts.find((a) => a.asset === `${ASSET_PREFIX}-core.js`);
+  const css = artefacts.find((a) => a.asset.endsWith(".css"));
+  const sections = artefacts.filter((a) => a.asset.endsWith(".js") && a !== core);
+
+  if (!core) {
+    violations.push("the core bundle is missing, so no page size can be computed");
+  } else {
+    const coreSize = compressed(core.contents);
+    for (const section of sections) {
+      const sectionSize = compressed(section.contents);
+      for (const codec of ["gzip", "brotli"]) {
+        const total = coreSize[codec] + sectionSize[codec];
+        if (total > BUDGET_JS_PER_PAGE) {
+          violations.push(
+            `${section.asset}: page is ${kb(total)} ${codec}` +
+              ` (core ${kb(coreSize[codec])} + section ${kb(sectionSize[codec])})` +
+              ` — over the ${kb(BUDGET_JS_PER_PAGE)} JS budget by ${kb(total - BUDGET_JS_PER_PAGE)}`,
+          );
+        }
+      }
+    }
   }
 
-  // Stated rather than implied, so nobody reads this table as a gate.
-  console.log(
-    "\n  Sizes are REPORTED, not enforced. The build-failing budget gate is task 29.11.",
-  );
+  if (!css) {
+    violations.push("the stylesheet is missing, so the CSS budget cannot be checked");
+  } else {
+    const size = compressed(css.contents);
+    for (const codec of ["gzip", "brotli"]) {
+      if (size[codec] > BUDGET_CSS) {
+        violations.push(
+          `${css.asset}: ${kb(size[codec])} ${codec}` +
+            ` — over the ${kb(BUDGET_CSS)} CSS budget by ${kb(size[codec] - BUDGET_CSS)}`,
+        );
+      }
+    }
+  }
+
+  return violations;
 }
 
 async function emit(artefacts) {
@@ -312,6 +364,25 @@ async function main() {
   ];
 
   report(artefacts);
+
+  // Task 29.11 — build-failing, and BEFORE the write. An over-budget artefact is
+  // not written to `theme/assets/`, so a failing build cannot leave a bundle on
+  // disk that the scoped push of §25.5 would then approve.
+  const violations = budgetViolations(artefacts);
+  if (violations.length > 0) {
+    console.error(
+      "\n  OVER THE PERFORMANCE BUDGET (Requirement 18.3, task 29.11):\n" +
+        violations.map((v) => `    - ${v}`).join("\n") +
+        "\n\n  A Portal_Section page must stay within 40 KB compressed JavaScript and" +
+        "\n  20 KB compressed CSS. The store's existing pages already ship 87 KB of" +
+        "\n  base.css and a synchronous GSAP script; the portal's budget is what keeps" +
+        "\n  it from adding to that. Split the section, move shared code into core, or" +
+        "\n  remove something — do not raise the budget.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   if (checkOnly) await check(artefacts);
   else await emit(artefacts);
 }

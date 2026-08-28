@@ -240,6 +240,171 @@ describe("Property 11: referral economics change without a theme change", () => 
     }
   });
 
+  /* ======================================================================== *
+   * TASK 29.5 — completing the referral literal gate
+   * ======================================================================== */
+
+  /**
+   * All FIVE identifiers 29.5 names, over the referral-owned sources.
+   *
+   * The property test above already proves none of the five can be RENDERED. This
+   * asserts none of them is PRESENT — a different claim, and the one that catches a
+   * constant name typed into a comment or a dead branch, both of which ship.
+   *
+   * Three of the five were already covered here; `REFERRAL_SIGNUP_POINTS` and
+   * `REFERRAL_PURCHASE_POINTS` were checked only against rendered copy, which a
+   * source-level occurrence would pass.
+   */
+  const FORBIDDEN_IDENTIFIERS: readonly string[] = [
+    "earn_referral",
+    "REFERRAL_SIGNUP_POINTS",
+    "REFERRAL_PURCHASE_POINTS",
+    "signup_rewarded",
+    "purchase_rewarded",
+  ];
+
+  it("task 29.5 — no referral-owned source contains ANY of the five identifiers", () => {
+    const offenders: string[] = [];
+    for (const source of referralOwnedSources()) {
+      for (const token of FORBIDDEN_IDENTIFIERS) {
+        if (source.text.includes(token)) offenders.push(`${source.name}: ${token}`);
+      }
+    }
+    expect(offenders, `internal referral identifiers in shipped sources:\n  ${offenders.join("\n  ")}`).toEqual(
+      [],
+    );
+  });
+
+  /**
+   * The layout allowlist for numeric literals.
+   *
+   * 29.5 forbids "a numeric reward literal outside an allowlist of layout values". A
+   * blanket ban on digits is impossible — a stylesheet is nothing but numbers, and a
+   * bundle is full of array indices — so the rule is applied to numbers in POSITIONS
+   * where a reward figure could plausibly be written, with genuine layout numbers
+   * excluded by context.
+   *
+   * The allowlist is the design system's own scale (§18.3's spacing steps, the radii,
+   * the breakpoints, the 44 px target) plus the small integers any code uses. A
+   * reward figure is a two-or-three-digit points value or a pounds amount, and none
+   * of those is in the scale.
+   */
+  /**
+   * ── THE ALLOWLIST IS ONE VALUE, AND THAT IS DELIBERATE ─────────────────────
+   * The first draft of this listed forty numbers: §18.3's spacing scale, the radii,
+   * the breakpoints, the type scale. Every one of them turned out to be unnecessary,
+   * because each appears in the sources with a UNIT — `24px`, `750px`, `6px` — and the
+   * scan's `(?![\w%.]|px|em|…)` guard already excludes a number carrying a unit.
+   *
+   * Allowlisting them anyway would have been actively harmful: it would have permitted
+   * a literal `1000 points` or `300 points`, since `1000` and `300` were on the list as
+   * a container width and an image dimension. A gate is only as strong as its narrowest
+   * allowlist, and this one is now a single entry with everything else excluded by the
+   * position it occupies rather than by its value.
+   */
+  const LAYOUT_ALLOWLIST: ReadonlySet<number> = new Set([
+    // Zero. Initialisation and comparison — `let capturedAt = 0`, `capturedAt > 0`.
+    // Not a reward figure in any framing: nobody advertises earning zero points.
+    0,
+  ]);
+
+  it("task 29.5 — no numeric reward literal appears outside the layout allowlist", () => {
+    const offenders: string[] = [];
+    for (const source of referralOwnedSources()) {
+      // The compiled bundle is minified and full of machine-generated integers; the
+      // configured figures are already asserted absent from it above, and scanning
+      // arbitrary minified integers produces noise rather than findings.
+      if (source.name.endsWith(".js")) continue;
+
+      const text = source.text
+        // Comments discuss the figures they forbid, which is documentation.
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/[^\n]*/g, "$1")
+        .replace(/\{%-?\s*comment\s*-?%\}[\s\S]*?\{%-?\s*endcomment\s*-?%\}/g, "")
+        // ── Two CONTEXT exclusions, not value exclusions ──────────────────────
+        // Both were found by running this gate, and neither is a reward figure. They
+        // are excluded by the position the number occupies rather than by its value,
+        // so the same digits still fail anywhere a reward could be written. Adding
+        // 30, 60, 400 and 1000 to the allowlist instead would have let a literal
+        // `1000 points` through, which is the opposite of the intent.
+        //
+        // 1. A named duration: `const REF_TTL_MS = 30 * 24 * 60 * 60 * 1000`. The
+        //    numbers are time units composing the 30-day referral-capture expiry.
+        .replace(/const\s+\w*(?:_MS|_SECONDS|_MINUTES|_HOURS|_DAYS|Ms|Seconds|Minutes|Hours|Days)\s*=\s*[^;]+;/g, "")
+        // 2. A CSS font weight. `400` is a weight keyword's numeric form, and the
+        //    `(?!px)` guard cannot exclude it because a weight carries no unit.
+        .replace(/font-weight:\s*\d+/g, "")
+        // 3. A named bound: `const CODE_MAX = 64` is the referral code's maximum
+        //    length, a validation limit rather than an economic figure. Excluded by
+        //    the name so that raising it to 128 is not a spurious failure — and so
+        //    that the value 64 is not blanket-permitted elsewhere.
+        .replace(/const\s+\w*(?:_MAX|_MIN|_LIMIT|_LENGTH)\s*=\s*\d+\s*;/g, "")
+        // 4. An HTML bound or geometry attribute: `maxlength="64"`, `width="80"`. The
+        //    same class of value as (3), expressed in markup rather than TypeScript.
+        .replace(/\b(?:maxlength|minlength|width|height|size|rows|cols|tabindex|colspan|rowspan)="\d+"/g, "");
+
+      for (const match of text.matchAll(/(?<![\w.#-])(\d{1,5})(?![\w%.]|px|em|rem|ch|vh|vw)/g)) {
+        const value = Number(match[1]);
+        if (LAYOUT_ALLOWLIST.has(value)) continue;
+        offenders.push(`${source.name}: bare numeric literal ${String(value)}`);
+      }
+    }
+    expect(offenders, `numeric literals outside the layout allowlist:\n  ${offenders.join("\n  ")}`).toEqual([]);
+  });
+
+  it("task 29.5 is NON-VACUOUS: the literal scan finds a reward figure when present", () => {
+    // Proves the scan would catch the defect it exists to catch — the `150` a
+    // developer might type when the API is slow to return, which is exactly the
+    // regression Requirement 10.12 was written against.
+    const scan = (text: string): number[] =>
+      [...text.matchAll(/(?<![\w.#-])(\d{1,5})(?![\w%.]|px|em|rem|ch|vh|vw)/g)]
+        .map((m) => Number(m[1]))
+        .filter((value) => !LAYOUT_ALLOWLIST.has(value));
+
+    // The two configured figures, in the shapes they would realistically appear.
+    expect(scan("const fallback = 150;")).toContain(150);
+    expect(scan("You earn 250 points")).toContain(250);
+    expect(scan("<span>150 points</span>")).toContain(150);
+    // Genuine layout values must NOT be flagged, or the gate is unusable.
+    expect(scan("padding: 24px 16px;")).toEqual([]);
+    expect(scan("min-height: 44px;")).toEqual([]);
+    expect(scan("@media screen and (min-width: 750px)")).toEqual([]);
+    expect(scan("border-radius: 6px;")).toEqual([]);
+    // And the real sources really are clean, so the assertion above is meaningful
+    // rather than passing because the scan matches nothing at all.
+    expect(LAYOUT_ALLOWLIST.has(150)).toBe(false);
+    expect(LAYOUT_ALLOWLIST.has(250)).toBe(false);
+
+    // ── The two context exclusions must be narrow ──────────────────────────────
+    // Each removes a specific declaration shape, NOT a value. So the same digits
+    // still fail when they appear where a reward figure would.
+    const strip = (text: string): string =>
+      text
+        .replace(/const\s+\w*(?:_MS|_SECONDS|_MINUTES|_HOURS|_DAYS|Ms|Seconds|Minutes|Hours|Days)\s*=\s*[^;]+;/g, "")
+        .replace(/font-weight:\s*\d+/g, "")
+        .replace(/const\s+\w*(?:_MAX|_MIN|_LIMIT|_LENGTH)\s*=\s*\d+\s*;/g, "")
+        .replace(/\b(?:maxlength|minlength|width|height|size|rows|cols|tabindex|colspan|rowspan)="\d+"/g, "");
+
+    // Excluded: the named duration and the font weight.
+    expect(scan(strip("const REF_TTL_MS = 30 * 24 * 60 * 60 * 1000;"))).toEqual([]);
+    expect(scan(strip("font-weight: 400;"))).toEqual([]);
+    // NOT excluded: the same numbers in a reward position.
+    expect(scan(strip("const bonus = 1000;"))).toContain(1000);
+    // A container width WITH its unit is excluded by the unit guard, not by a value
+    // allowlist — which is why the allowlist could shrink to one entry.
+    expect(scan(strip("--athoor-container: 1000px;"))).toEqual([]);
+    expect(scan(strip("padding: 24px 16px; border-radius: 6px;"))).toEqual([]);
+    // A named bound is excluded; the same value in a reward position is not.
+    expect(scan(strip("const CODE_MAX = 64;"))).toEqual([]);
+    expect(scan(strip("You earn 64 points"))).toContain(64);
+    expect(scan(strip("You earn 400 points"))).toContain(400);
+    expect(scan(strip("const REWARD_POINTS = 30 * 5;"))).toContain(30);
+    // And a duration-named constant cannot smuggle a reward through by being renamed
+    // — the exclusion requires the suffix, so `const REWARD_MS` would be a deliberate
+    // and visible lie rather than an accident.
+    expect(scan(strip("const points = 150; const T_MS = 60 * 1000;"))).toEqual([150]);
+  });
+
   it("the built referral bundle carries no points table of its own", () => {
     const bundle = readFileSync(join(THEME_ASSETS, "athoor-portal-referrals.js"), "utf8");
     // The wording lives in the shared copy map inside core, and the figures come

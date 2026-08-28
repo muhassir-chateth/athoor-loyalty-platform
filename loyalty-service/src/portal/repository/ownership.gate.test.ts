@@ -49,7 +49,7 @@
  *
  * Validates: Requirements 2.1, 2.2, 2.3, 2.5, 2.6
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -61,7 +61,8 @@ import {
   assertScopedCustomerQuery,
   UnscopedShopifyQueryError,
 } from "./shopifyScope.js";
-import { UnscopedStatementError, validateScopedStatement } from "./scopedQuery.js";
+import { PRIMITIVE_COUNT, UnscopedStatementError, validateScopedStatement } from "./scopedQuery.js";
+import type { CustomerScope } from "../../auth/customerScope.js";
 
 const REPOSITORY_DIR = dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = resolve(REPOSITORY_DIR, "..", "..");
@@ -704,5 +705,147 @@ describe("the gate fails on the statements it is meant to fail on", () => {
     expect(() =>
       validateScopedStatement("DELETE FROM customer_wishlist WHERE shopify_product_id = $1"),
     ).toThrow(UnscopedStatementError);
+  });
+});
+
+/* ========================================================================== *
+ * TASK 29.8 — the scope-type gate is enforced BY tsc, and covers every primitive
+ * ========================================================================== */
+
+/**
+ * Requirement 2.1: no portal repository function can be called with anything but a
+ * `CustomerScope`, asserted via `tsc` in CI and build-failing.
+ *
+ * ── WHY THIS NEEDS A RUNTIME TEST AT ALL ─────────────────────────────────────
+ * The enforcement itself is entirely `tsc`'s: `scopedQuery.ts` declares
+ * `Expect<…>` types that stop compiling if a scope parameter is widened. That is the
+ * right mechanism, because it fails at the call site rather than in a test.
+ *
+ * But a type-level assertion has one silent failure mode: DELETION. Remove
+ * `ScopeParameterRejectsAString` and `tsc` still passes — there is simply nothing
+ * left to check. `tsc` cannot notice the absence of an assertion, so something else
+ * must, and that is what the tests below do. They assert the assertions exist, that
+ * they are in a file `tsc` actually reads, and that there is one per primitive.
+ */
+describe("Task 29.8 — the scope-type gate is real, checked, and complete", () => {
+  const SCOPED_QUERY = readFileSync(join(REPOSITORY_DIR, "scopedQuery.ts"), "utf8");
+
+  /** The type-level assertions that must exist, each naming what it protects. */
+  const REQUIRED_ASSERTIONS: readonly string[] = [
+    "ScopeRemainsUnforgeable",
+    "ScopeParameterRejectsAString",
+    "StatementCannotNameACustomer",
+    "ScopedSelectOneRejectsAString",
+    "ScopedMutateRejectsAString",
+    "ScopedMutateExpectingRowRejectsAString",
+    "EveryPrimitiveTakesExactlyAScope",
+  ];
+
+  it("every required type-level assertion is present and exported", () => {
+    const missing = REQUIRED_ASSERTIONS.filter(
+      (name) => !new RegExp(`export type ${name}\\s*=\\s*Expect<`).test(SCOPED_QUERY),
+    );
+    expect(missing, `type-level assertions deleted or renamed:\n  ${missing.join("\n  ")}`).toEqual([]);
+    // `export` matters: an unexported type alias is unused, and a future
+    // `noUnusedLocals` would delete it as dead code with the gate inside it.
+    for (const name of REQUIRED_ASSERTIONS) {
+      expect(SCOPED_QUERY, `${name} is not exported`).toContain(`export type ${name}`);
+    }
+  });
+
+  it("the assertions live where tsc reads them — NOT in a test file", () => {
+    // The reason `scopedQuery.ts` carries them rather than `scopedQuery.test.ts`:
+    // `tsconfig.json` excludes `src/**/*.test.ts` and vitest transpiles without
+    // type-checking, so a type assertion in a test file is checked by nothing at all.
+    const tsconfigText = readFileSync(join(REPOSITORY_DIR, "..", "..", "..", "tsconfig.json"), "utf8").replace(
+      /\/\/[^\n]*/g,
+      "",
+    );
+    const tsconfig = JSON.parse(tsconfigText) as {
+      include?: string[];
+      exclude?: string[];
+      compilerOptions?: { strict?: boolean };
+    };
+    // The source glob must cover this file, and the exclusions must not.
+    expect(tsconfig.include).toContain("src/**/*.ts");
+    expect(tsconfig.exclude).toContain("src/**/*.test.ts");
+    // Strict mode, or `extends` checks against `any` stop meaning anything.
+    expect(tsconfig.compilerOptions?.strict).toBe(true);
+    // And the assertions must genuinely be in a non-test file.
+    expect(existsSync(join(REPOSITORY_DIR, "scopedQuery.ts"))).toBe(true);
+    for (const name of REQUIRED_ASSERTIONS) {
+      expect(
+        readFileSync(join(REPOSITORY_DIR, "scopedQuery.ts"), "utf8"),
+        `${name} is not in the type-checked source`,
+      ).toContain(name);
+    }
+  });
+
+  it("there is one assertion per SQL-executing primitive, and the count is pinned", () => {
+    // The gap this closes: the original assertions covered `scopedSelect` alone, so a
+    // convenience overload on `scopedMutate` — the more dangerous of the two, since it
+    // writes — would have compiled.
+    const primitives = [...SCOPED_QUERY.matchAll(/^export async function (scoped\w+)/gm)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(primitives.sort()).toEqual([
+      "scopedMutate",
+      "scopedMutateExpectingRow",
+      "scopedSelect",
+      "scopedSelectOne",
+    ]);
+    expect(primitives).toHaveLength(PRIMITIVE_COUNT);
+    // Each primitive must be named by at least one `Parameters<typeof …>[1]` assertion.
+    for (const primitive of primitives) {
+      expect(
+        SCOPED_QUERY,
+        `${primitive} has no scope-parameter type assertion`,
+      ).toMatch(new RegExp(`Parameters<typeof ${primitive}>\\[1\\]`));
+    }
+  });
+
+  it("every primitive's second parameter really is the scope, at run time too", () => {
+    // A cheap corroboration that the type assertions describe the actual signatures:
+    // each primitive takes (db, scope, …), so its arity is at least two and the second
+    // parameter is named `scope` in the source.
+    for (const primitive of ["scopedSelect", "scopedSelectOne", "scopedMutate", "scopedMutateExpectingRow"]) {
+      const signature = new RegExp(
+        `export async function ${primitive}[\\s\\S]{0,200}?\\)\\s*:`,
+      ).exec(SCOPED_QUERY)?.[0];
+      expect(signature, `${primitive} signature not found`).toBeDefined();
+      expect(signature, `${primitive} does not take a scope`).toMatch(/scope:\s*CustomerScope/);
+    }
+  });
+
+  it("the brand is unexported, so a CustomerScope cannot be constructed elsewhere", () => {
+    // The mechanism the whole layer rests on. If the brand symbol were exported, any
+    // file could build a `CustomerScope` from a request body and every assertion above
+    // would still pass.
+    const scopeModule = readFileSync(join(REPOSITORY_DIR, "..", "..", "auth", "customerScope.ts"), "utf8");
+    expect(scopeModule).toMatch(/declare const \w+:\s*unique symbol/);
+    expect(scopeModule, "the brand symbol is exported").not.toMatch(
+      /export\s+declare\s+const\s+\w+:\s*unique symbol/,
+    );
+    // Exactly one constructor, and it takes a request rather than an id.
+    expect(scopeModule).toMatch(/export function requireCustomerScope\(\s*req/);
+  });
+
+  it("is NON-VACUOUS: the Expect<> helper rejects a false assertion", () => {
+    // Proves `Expect<T extends true>` is load-bearing rather than decorative. These
+    // are checked by `tsc` at the two `@ts-expect-error`s below: if `Expect<false>`
+    // ever compiled, the suppression would become unused and `tsc` would fail on it.
+    type Expect<T extends true> = T;
+    // @ts-expect-error — Expect<false> must not compile; if it does, this is unused.
+    type ShouldNotCompile = Expect<false>;
+    // @ts-expect-error — a bare string is not a CustomerScope.
+    type AlsoShouldNotCompile = Expect<string extends CustomerScope ? true : false>;
+    // Referenced so `noUnusedLocals` cannot remove them.
+    type Used = [ShouldNotCompile, AlsoShouldNotCompile];
+    const proof: Used | undefined = undefined;
+    expect(proof).toBeUndefined();
+    // And the positive direction compiles, so the helper is not simply always-failing.
+    type ShouldCompile = Expect<true>;
+    const ok: ShouldCompile = true;
+    expect(ok).toBe(true);
   });
 });

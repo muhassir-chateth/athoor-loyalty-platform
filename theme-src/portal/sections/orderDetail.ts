@@ -317,7 +317,11 @@ registerSection("order-detail", (root) => {
     if (addressNode) {
       const address = order.shippingAddress;
       if (!address) {
-        addressNode.remove();
+        // Remove the WHOLE block, heading included. Removing `addressNode` alone left
+        // `<h3>Delivered to</h3>` standing over nothing on every digital-only order —
+        // a heading that promises content that is not there. The template's own
+        // comment has always said this must not happen; task 29.2 found that it did.
+        (addressNode.closest("[data-portal-address-block]") ?? addressNode).remove();
       } else {
         const lines = [
           [address.firstName, address.lastName].filter(Boolean).join(" "),
