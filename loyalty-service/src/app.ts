@@ -7,6 +7,7 @@ import {
   type LogDestination,
 } from "./observability/logRedaction.js";
 import { registerVersioning } from "./plugins/versioning.js";
+import { generateRequestId, registerRequestReference } from "./plugins/requestReference.js";
 import { webhookRoutes } from "./plugins/webhooks.js";
 import type { WebhookEventStore } from "./webhooks/eventStore.js";
 import type { WebhookEnqueuer } from "./webhooks/enqueue.js";
@@ -404,10 +405,21 @@ export function buildApp(config: AppConfig, deps: AppDependencies = {}): Fastify
     // Trust the HTTPS-terminating proxy/edge in front of the service so
     // request protocol/ip are read from forwarded headers (Requirement 11.11).
     trustProxy: true,
+    // §24.2 — the request id is returned to the client and quoted by a customer to
+    // support, and `routes/privacy.ts` derives the GDPR erasure reference from it.
+    // Fastify's default is a per-process counter (`req-1`), which restarts from 1 on
+    // every boot and cannot identify a request across the log history. See
+    // `plugins/requestReference.ts` for why the charset is letters only: `requestId`
+    // appears on every log line, and the log-capture gate fails the build on a
+    // digit-run, hex-digest, UUID or postcode shape.
+    genReqId: generateRequestId,
   });
 
   // Version identifier on every response + statelessness guarantees.
   registerVersioning(app);
+  // §24.2 — `x-request-id` on every response, so a customer can quote a reference
+  // from any failure state rather than only from a 500.
+  registerRequestReference(app);
 
   // NOT-FOUND HANDLER, replacing Fastify's own for a PRIVACY reason (task 5.8,
   // Req 2.8, design §24.3).

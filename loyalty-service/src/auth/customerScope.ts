@@ -247,9 +247,23 @@ export function registerCustomerScopeErrorHandler(app: FastifyInstance): void {
 /**
  * The response header carrying the request reference (design §22.9, §24.2).
  *
- * Set on the 500 path, which is the class E.2 requires to carry a reference.
- * §24.2 also describes returning it on every response; that is a broader
- * observability change and is deliberately not made here.
+ * ── THIS COMMENT USED TO SAY THE OPPOSITE, AND THE REASON MATTERS ────────────
+ * It read: "Set on the 500 path, which is the class E.2 requires to carry a
+ * reference. §24.2 also describes returning it on every response; that is a broader
+ * observability change and is deliberately not made here."
+ *
+ * That deferral was correct at the time, and for a better reason than the comment
+ * gave. Returning the header everywhere is only useful if the id can identify a
+ * request, and Fastify's default `req.id` is a per-process counter (`req-1`) that
+ * restarts on every boot — so shipping it would have made §24.2's promise ("quote
+ * eight characters and support can find the exact request") false.
+ *
+ * Both halves are now done in `plugins/requestReference.ts`: a 12-character random id
+ * with no digits, and an `onRequest` hook that returns it on EVERY response.
+ *
+ * The write below is therefore redundant rather than wrong, and it stays. The 500 path
+ * is the one that returns no body a customer can act on, so it is where the reference
+ * matters most, and two independent writes of the same value cost nothing.
  */
 export const REQUEST_REFERENCE_HEADER = "x-request-id";
 
