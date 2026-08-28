@@ -24,7 +24,8 @@
     "migrate:down:check": "npm run build && node scripts/migration/migrate-down-guard.mjs",
     "cutover:m0": "node scripts/migration/m0-export.mjs",
     "cutover:m1": "node scripts/migration/m1-backfill.mjs",
-    "cutover:rollback": "node scripts/migration/metafield-rollback.mjs"
+    "cutover:rollback": "node scripts/migration/metafield-rollback.mjs",
+    "theme:push:preview": "node scripts/theme/portal-preview-push.mjs"
   },
   "dependencies": {
     "@types/node": "^22.0.0",
