@@ -423,6 +423,12 @@ declare global {
     redemptionStatus(identifier: string): string;
     /** Wording for a birthday eligibility state, `{date}` resolved. */
     birthdayEligibility(identifier: string, allowedFrom?: string | null): string;
+    /** Marketing consent state with its date resolved (Requirement 13.3). */
+    consentState(subscribed: boolean, updatedAt?: string | null): string;
+    /** Wording for a privacy action, `{reference}` resolved. */
+    privacyAction(identifier: string, reference?: string | null): string;
+    /** A `429` wait, stated as a duration and never as a limit (design E.2). */
+    waitFor(seconds?: number | null): string;
     /** Wording for a preference's provenance. */
     provenance(identifier: string): string;
     /** Wording for an inferred insight, `{family}` resolved. */

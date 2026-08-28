@@ -838,5 +838,142 @@
       <p class="athoor-portal__empty-action" data-portal-empty-action>
         Share your code and you will both be rewarded when your friend joins.
       </p>
+    {%- when 'settings' -%}
+      {%- comment -%}
+        Task 26.1.
+
+        WHAT THIS ARM DOES *NOT* CONTAIN, AND WHY. Task 26.1 describes
+        "communication, notification and privacy preferences as toggles". Only
+        communication exists on the wire: `PortalCommunicationPreferences` is four
+        booleans, `push_enabled` is a reserved column that appears in no contract and
+        is explicitly refused a wire name, and privacy in this design is not a toggle
+        at all — it is the two ACTIONS below (request a copy, request deletion).
+        Inventing a notification toggle would mean inventing a field name the design
+        declines to specify, so there is one toggle group here, not three.
+
+        NO CREDENTIAL CONTROL (Requirement 13.7). No password entry, change or reset,
+        and no email input — the store uses Shopify's new customer accounts, which
+        authenticate by emailed code, so both route to Shopify's own experience.
+
+        Every preference states its PURPOSE at the point of collection
+        (Requirement 23.8): the purpose is beside the toggle, not in a policy page
+        the customer has to go and find.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-comms aria-labelledby="AthoorSettingsCommsTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsCommsTitle">What we send you</h2>
+        <ul class="athoor-settings__list" role="list" data-portal-comms-list></ul>
+      </section>
+
+      <template data-portal-row="setting">
+        <li class="athoor-settings__item">
+          <label class="athoor-settings__switch">
+            <input type="checkbox" data-portal-comms-toggle>
+            <span class="athoor-settings__switch-text">
+              <span class="athoor-settings__switch-label" data-slot="label"></span>
+              {%- comment -%}
+                The purpose, at the point of collection (Requirement 23.8). Linked by
+                `aria-describedby` so it is read with the control rather than after it.
+              {%- endcomment -%}
+              <span class="athoor-portal__row-meta" data-slot="purpose"></span>
+            </span>
+          </label>
+        </li>
+      </template>
+
+      {%- comment -%}
+        Marketing consent is SEPARATE from the toggles above, and deliberately so:
+        it is Shopify's to store, it is written through its own endpoint, and its
+        state carries a date the others do not have (Requirement 13.3). Presenting it
+        inside the same list would imply one store behind all five controls.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-consent aria-labelledby="AthoorSettingsConsentTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsConsentTitle">Marketing email</h2>
+        <p class="athoor-portal__row-meta" id="AthoorSettingsConsentPurpose">
+          Offers, new arrivals and private-client invitations. You can withdraw at any time.
+        </p>
+        <label class="athoor-settings__switch">
+          <input type="checkbox" data-portal-consent-toggle aria-describedby="AthoorSettingsConsentPurpose AthoorSettingsConsentState">
+          <span class="athoor-settings__switch-label">Send me marketing email</span>
+        </label>
+        <p class="athoor-portal__row-status" id="AthoorSettingsConsentState" data-portal-consent-state></p>
+      </section>
+
+      {%- comment -%}
+        Requirement 13.5 as task 26.1 scopes it: the address COUNT and a route to the
+        editor. The editor itself lives in Profile — a second copy here would be two
+        implementations of one form, and the one that drifts is the one nobody tests.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-addresses aria-labelledby="AthoorSettingsAddressesTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsAddressesTitle">Delivery addresses</h2>
+        <p class="athoor-portal__row-meta" data-portal-address-count></p>
+        <a class="athoor-portal__action" href="/pages/my-athoor-profile" data-portal-address-route>
+          Manage your addresses
+        </a>
+      </section>
+
+      {%- comment -%}
+        Requirement 13.8 — a route to request a copy of the data, and a route to
+        request deletion. Both are rate limited server-side, so both render a designed
+        wait state rather than failing silently or inviting a second press.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-privacy aria-labelledby="AthoorSettingsPrivacyTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsPrivacyTitle">Your data</h2>
+
+        <div class="athoor-settings__action">
+          <p class="athoor-portal__row-meta" id="AthoorSettingsExportPurpose">
+            A machine-readable copy of everything this account holds about you.
+          </p>
+          <button
+            class="athoor-portal__action"
+            type="button"
+            data-portal-export
+            aria-describedby="AthoorSettingsExportPurpose AthoorSettingsExportResult"
+          >Request a copy of your data</button>
+          <p class="athoor-portal__row-meta" id="AthoorSettingsExportResult" data-portal-export-result aria-live="polite" hidden></p>
+        </div>
+
+        <div class="athoor-settings__action">
+          <p class="athoor-portal__row-meta" id="AthoorSettingsErasurePurpose">
+            Ask us to delete your account data. A member of our team will action this and contact you.
+          </p>
+          <button
+            class="athoor-portal__action athoor-settings__action--grave"
+            type="button"
+            data-portal-erasure-open
+            aria-describedby="AthoorSettingsErasurePurpose"
+          >Request deletion of your data</button>
+          <p class="athoor-portal__row-status" data-portal-erasure-result aria-live="polite" hidden></p>
+        </div>
+      </section>
+
+      {%- comment -%}
+        Deletion is confirmed in the ONE sheet implementation of task 18.5. It is not
+        reversible from the customer's side once the request is recorded, so it does
+        not happen on a single press.
+      {%- endcomment -%}
+      <dialog class="athoor-portal__sheet" data-portal-erasure-sheet aria-labelledby="AthoorErasureSheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorErasureSheetTitle" data-portal-sheet-heading>Request deletion</h2>
+          <p>We will remove your account data and contact you when it is done. Your order records are kept where the law requires it.</p>
+          <p class="athoor-portal__row-meta">This cannot be undone from here.</p>
+          <button class="athoor-portal__action athoor-settings__action--grave" type="button" data-portal-erasure-confirm>
+            Yes, request deletion
+          </button>
+          <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        Requirement 13.6 — the logout control, ending the Shopify session and
+        returning to the storefront. `routes.account_logout_url` is Shopify's own
+        indirection: hardcoding `/account/logout` would be wrong under new customer
+        accounts, which is exactly the mode this store runs.
+      {%- endcomment -%}
+      <section class="athoor-settings__group athoor-settings__group--last" aria-labelledby="AthoorSettingsSessionTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsSessionTitle">This device</h2>
+        <a class="athoor-portal__action" href="{{ routes.account_logout_url }}" data-portal-logout rel="nofollow">
+          Sign out
+        </a>
+      </section>
   {%- endcase -%}
 </section>
