@@ -217,6 +217,13 @@ const FIELD_ERRORS: Readonly<Record<string, string>> = {
   invalid_email: "Please check the email address.",
   invalid_date: "Please check the date.",
   out_of_range: "Please choose a value in range.",
+  // The birthday write's own two codes (`profile/birthday.ts`'s
+  // `BirthdayFieldError`). Without them a rejected 31 February fell through to the
+  // fallback, "Please check this." — safe, but it does not tell the customer that
+  // the day does not exist in the month they chose, which is the one thing they
+  // need to know to correct it.
+  not_an_integer: "Please choose a day and a month.",
+  invalid_day_for_month: "That day does not exist in that month.",
   not_allowed: "This cannot be changed here.",
   rejected: "Please check this.",
   unknown_key: "Please check the details and try again.",
