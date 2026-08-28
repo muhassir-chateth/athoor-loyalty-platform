@@ -120,6 +120,29 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+        with:
+          # ---------------------------------------------------------------------
+          # FULL HISTORY, for the dependency gate of 29.10 and nothing else.
+          #
+          # `actions/checkout` defaults to `fetch-depth: 1` — the tip commit only.
+          # 29.10 asks that the production dependency set be byte-identical "before
+          # and after the portal", and the only trustworthy record of "before" is the
+          # commit that precedes the portal's first dependency change (`32eaca0`, the
+          # parent of `8fe248a`). The gate reads that commit's `package.json` and
+          # `package-lock.json` with `git show` and compares them package by package.
+          #
+          # The alternative was to transcribe the pre-portal manifest into the test as
+          # a constant. Rejected: an allowlist can be edited to make a red gate green,
+          # and an allowlist edited for that reason proves nothing. A commit already in
+          # the history cannot be edited, which is what makes the comparison worth
+          # running at all.
+          #
+          # In a shallow clone the gate FAILS with an explanatory message rather than
+          # skipping — a build-failing gate that silently passes when it cannot run is
+          # not build-failing. So this line is load-bearing: remove it and `npm test`
+          # goes red on `portalDependencyGate.test.ts`, by design.
+          # ---------------------------------------------------------------------
+          fetch-depth: 0
 
       # ---------------------------------------------------------------------
       # Node is pinned to the EXACT version the project runs, not a floating

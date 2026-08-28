@@ -50,13 +50,44 @@ interface Manifest {
   readonly devDependencies: Readonly<Record<string, string>>;
 }
 
-/** Read a file as it existed at a commit. Read-only; never checks anything out. */
+/**
+ * Read a file as it existed at a commit. Read-only; never checks anything out.
+ *
+ * ── ON A SHALLOW CLONE THIS FAILS LOUDLY, AND THAT IS THE DESIGN ─────────────
+ * `actions/checkout` defaults to `fetch-depth: 1`, which fetches the tip commit and
+ * no history — so `git show 32eaca0:…` reports "exists on disk, but not in
+ * 32eaca0…" and this gate cannot run. `portal-ci.yml` therefore sets
+ * `fetch-depth: 0`, and the message below names that as the fix.
+ *
+ * The tempting alternative is to catch the error and skip the comparison. Rejected:
+ * 29.10 requires a build-failing gate, and a gate that passes whenever it is unable
+ * to check anything is the precise failure mode these tasks exist to prevent. A gate
+ * that cannot run must be red, not green.
+ */
 function showAtCommit(commit: string, path: string): string {
-  return execFileSync("git", ["show", `${commit}:${path}`], {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  try {
+    return execFileSync("git", ["show", `${commit}:${path}`], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Task 29.10 cannot read the pre-portal baseline ${commit}:${path}.\n` +
+        `\n` +
+        `This is almost always a SHALLOW CLONE: the commit's tree is not present.\n` +
+        `  - In CI: 'portal-ci.yml' must keep 'fetch-depth: 0' on actions/checkout.\n` +
+        `  - Locally: run 'git fetch --unshallow' (or 'git fetch --depth=1000').\n` +
+        `\n` +
+        `The gate deliberately FAILS rather than skipping. 29.10 is specified as\n` +
+        `build-failing, and a dependency gate that passes when it cannot compare\n` +
+        `anything would let a new runtime dependency through unnoticed.\n` +
+        `\n` +
+        `git reported: ${detail}`,
+    );
+  }
 }
 
 function parseManifest(text: string): Manifest {
@@ -71,6 +102,21 @@ const CURRENT = parseManifest(readFileSync(join(REPO_ROOT, "loyalty-service", "p
 const BEFORE = parseManifest(showAtCommit(PRE_PORTAL_COMMIT, "loyalty-service/package.json"));
 
 describe("Task 29.10 — the dependency gate (Requirements 19.2, 19.8, 19.10)", () => {
+  it("CI checks out full history, without which this gate cannot run", () => {
+    // The coupling is real and easy to break by accident: someone tidying the
+    // workflow removes `fetch-depth: 0`, CI goes red on a confusing `git show`
+    // error, and the quickest way to green looks like deleting this file. Asserting
+    // the workflow line here means the dependency is documented at both ends.
+    const workflow = readFileSync(
+      join(REPO_ROOT, ".github", "workflows", "portal-ci.yml"),
+      "utf8",
+    );
+    expect(workflow, "portal-ci.yml no longer requests full history").toMatch(/fetch-depth:\s*0/);
+    // And it must be on the checkout step, not somewhere incidental.
+    const checkoutBlock = /uses:\s*actions\/checkout@v4([\s\S]*?)(?=\n {6}- name:)/.exec(workflow)?.[1] ?? "";
+    expect(checkoutBlock, "fetch-depth: 0 is not on the checkout step").toMatch(/fetch-depth:\s*0/);
+  });
+
   it("the pre-portal baseline is readable, so the comparison below is real", () => {
     // If `git show` failed or returned an empty manifest, every comparison after this
     // would compare against `{}` and pass trivially.
