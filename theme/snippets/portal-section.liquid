@@ -193,20 +193,106 @@
           <span class="athoor-portal__item-title" data-slot="title"></span>
           <span class="athoor-portal__item-price" data-slot="price"></span>
           <span class="athoor-portal__item-availability" data-slot="availability"></span>
-          <button class="athoor-portal__item-remove" type="button" data-slot="remove"></button>
+          {%- comment -%}
+            An EXPLICITLY LABELLED remove control, never a swipe (task 21.1): a swipe
+            is undiscoverable, impossible with a keyboard, and destructive. It stays
+            live in every state, including for a product Shopify has lost, or a
+            deleted product could never be cleared (Requirement 7.6).
+          {%- endcomment -%}
+          <button class="athoor-portal__item-remove" type="button" data-portal-wishlist-remove data-slot="remove"></button>
+          <button class="athoor-portal__action athoor-wishlist__add" type="button" data-portal-wishlist-add data-slot="add"></button>
         </li>
       </template>
+
+      {%- comment -%}
+        Requirement 7.11 — the empty state's route to the catalogue. Server-rendered
+        so it works before any script runs.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        <a class="athoor-portal__action" href="{{ routes.all_products_collection_url }}">Browse fragrances</a>
+      </p>
 
     {%- when 'activity' -%}
       <template data-portal-row="activity">
-        <li class="athoor-portal__row">
+        <li class="athoor-portal__row athoor-activity__row">
           <span class="athoor-portal__row-description" data-slot="description"></span>
           <span class="athoor-portal__row-points" data-slot="points"></span>
           <span class="athoor-portal__row-meta" data-slot="date"></span>
+          {%- comment -%}
+            Requirement 9.5 — a route to the order for an order-related entry. The
+            module REMOVES this when the entry has no order reference, rather than
+            rendering a link to nothing.
+          {%- endcomment -%}
+          <a class="athoor-activity__order-link" data-slot="order-link" href="#" hidden></a>
         </li>
       </template>
 
+      <button class="athoor-portal__more" type="button" data-portal-more-activity hidden>
+        Show earlier activity
+      </button>
+
+      {%- comment -%}
+        Requirement 9.10 — the empty state describes how points are earned, rather
+        than only stating that there is nothing.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        You earn points on every order, and on your first purchase. Points appear here
+        as soon as an order is paid.
+      </p>
+
     {%- when 'rewards' -%}
+      {%- comment -%}
+        Task 22.1. The balance is the only Numeral use on the page, and the progress
+        bar carries `role="progressbar"` WITH an adjacent text statement — because
+        `aria-valuenow` is not a sentence a sighted customer can read (§20.4).
+
+        The tier badge carries its tier as TEXT, not as a colour, so it survives
+        forced-colours mode and colour blindness (Requirement 17.8).
+      {%- endcomment -%}
+      <header class="athoor-rewards__summary">
+        <p class="athoor-portal__eyebrow">Your points</p>
+        <p class="athoor-rewards__balance athoor-portal__row-points" data-slot="balance">0</p>
+        <p class="athoor-rewards__tier"><span class="athoor-rewards__badge" data-slot="tier"></span> <span data-slot="multiplier"></span></p>
+
+        <div class="athoor-rewards__progress" data-portal-progress>
+          <span class="athoor-rewards__progress-fill" data-portal-progress-fill></span>
+        </div>
+        <p class="athoor-portal__row-meta" data-slot="progress-text"></p>
+        <p class="athoor-rewards__expiring" data-portal-expiring hidden></p>
+      </header>
+
+      {%- comment -%}
+        The issued code panel. 18 px monospace-tabular with a 44 px copy control and
+        how to use it (task 22.3). Hidden until a redemption succeeds.
+      {%- endcomment -%}
+      <div class="athoor-rewards__code-panel" data-portal-code-panel hidden>
+        <p class="athoor-portal__eyebrow">Your reward</p>
+        <p class="athoor-rewards__code" data-portal-code></p>
+        <button class="athoor-portal__action" type="button" data-portal-copy-code hidden>Copy code</button>
+        <p class="athoor-portal__row-meta">Enter this at checkout to apply your reward.</p>
+      </div>
+
+      <p class="athoor-rewards__wait athoor-portal__row-meta" data-portal-wait hidden></p>
+
+      <a class="athoor-portal__action athoor-rewards__activity-link" href="/pages/my-athoor-activity">
+        Points activity
+      </a>
+
+      {%- comment -%}
+        Confirmation reuses the ONE sheet implementation of task 18.5 — native
+        `<dialog>`, focus to the heading, focus returned on close, `Esc` and a
+        visible dismiss control (Requirement 25.8). No second modal system.
+      {%- endcomment -%}
+      <dialog class="athoor-portal__sheet" data-portal-redeem-sheet aria-labelledby="AthoorRedeemTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorRedeemTitle" data-portal-sheet-heading>Confirm your reward</h2>
+          <p data-slot="sheet-cost"></p>
+          <p class="athoor-portal__row-meta" data-slot="sheet-after"></p>
+          <button class="athoor-portal__action" type="button" data-portal-redeem-confirm>Confirm</button>
+          <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+        </div>
+      </dialog>
+
       <template data-portal-row="reward">
         {%- comment -%}
           A card, and one of only three §18.5 permits: a reward is a discrete offer
@@ -215,6 +301,11 @@
         <li class="athoor-portal__card">
           <span class="athoor-portal__card-value" data-slot="value"></span>
           <span class="athoor-portal__card-cost" data-slot="cost"></span>
+          {%- comment -%}
+            The server's own `additionalPointsRequired`, rendered as given. This
+            module performs no threshold comparison (task 22.2).
+          {%- endcomment -%}
+          <span class="athoor-portal__row-meta" data-slot="eligibility"></span>
           <button class="athoor-portal__card-action" type="button" data-slot="redeem"></button>
         </li>
       </template>
