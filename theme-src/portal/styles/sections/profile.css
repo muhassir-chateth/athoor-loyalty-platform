@@ -1,14 +1,238 @@
 /*
- * Per-section styles for the `profile` Portal_Section.
+ * Per-section styles for the `profile` Portal_Section (spec task 25.1).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 25.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 5.7, 13.7, 17.4, 17.6, 17.7, 17.8, 25.5, 25.6, 25.7 (design §19.7).
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * ── §19.7's FORM RULES, AND WHY EACH ONE IS HERE ────────────────────────────
+ * A persistent visible label above every input, never a placeholder standing in for
+ * one — a placeholder disappears the moment the customer starts typing, which is
+ * exactly when they need to know what the field is. Validation below the input and
+ * never replacing the label. 44 px minimum targets. A bottom hairline rather than a
+ * box, because a boxed input in a luxury layout reads as a form and not as a page.
+ *
+ * `font-size: 16px` on every control is not a style choice: iOS Safari zooms the
+ * viewport on focus for anything smaller, which shifts the whole page under the
+ * customer mid-typing.
+ *
+ * NO `100vh` ANYWHERE. On iOS `100vh` is wrong by the keyboard's height, and it is a
+ * classic source of a layout jump precisely when a validation message needs to stay
+ * visible. `scroll-margin-block-end` keeps the focused input and its message clear of
+ * the fixed bottom bar (Requirement 25.7).
+ *
+ * Every selector is rooted at `.athoor-portal`, because §25.6 requires everything
+ * outside the portal's own containers to stay byte-identical. Tokens live in the
+ * shared layer — a token redeclared per section is a token that drifts.
  */
+
+/* ── Groups ──────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-profile__group {
+  margin: 0;
+  padding: var(--athoor-space-7) 0;
+  border: 0;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+/*
+ * Form actions sit IN FLOW at the end of the form with bottom padding equal to the
+ * bar height, so the submit control is never underneath the fixed bar (§19.7).
+ */
+.athoor-portal .athoor-profile__form {
+  padding-bottom: var(--athoor-bar-height);
+}
+
+.athoor-portal .athoor-profile__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-3);
+  align-items: flex-start;
+  padding-top: var(--athoor-space-5);
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-1);
+  margin-top: var(--athoor-space-5);
+  /*
+   * Requirement 25.7 — the focused input and its validation message stay visible
+   * when the mobile keyboard opens. Sized to the bar plus room for the tallest
+   * message, so a browser scrolling this element into view clears both.
+   */
+  scroll-margin-block-end: calc(var(--athoor-bar-height) + var(--athoor-space-9));
+}
+
+/* Persistent, visible, and above the input. Never a placeholder. */
+.athoor-portal .athoor-profile__label {
+  font-family: var(--athoor-body-face);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--athoor-muted-text);
+}
+
+/* Help text ABOVE the input, because it states the field's purpose (§19.7). */
+.athoor-portal .athoor-profile__help {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--athoor-muted-text);
+}
+
+.athoor-portal .athoor-profile__input {
+  min-height: var(--athoor-target);
+  padding: var(--athoor-space-2) 0;
+  font-family: var(--athoor-body-face);
+  /* 16 px minimum: anything smaller makes iOS Safari zoom the viewport on focus. */
+  font-size: 16px;
+  color: var(--athoor-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--athoor-line);
+  border-radius: 0;
+}
+
+.athoor-portal .athoor-profile__input:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/*
+ * The read-only email. `readonly` rather than `disabled`, so it stays reachable by
+ * keyboard and its value is announced — a customer must be able to read the address
+ * they sign in with. The muted treatment says "not editable here" without hiding it,
+ * and the adjacent help text says where to change it (Requirement 5.8).
+ */
+.athoor-portal .athoor-profile__input--locked {
+  color: var(--athoor-muted-text);
+  border-bottom-style: dashed;
+}
+
+/* ── Validation ──────────────────────────────────────────────────────────── */
+
+/*
+ * BELOW the input, and it never replaces the label (§19.7). Colour is not the only
+ * carrier: the message is a sentence, and the control also gets `aria-invalid`, so
+ * the state survives forced-colours mode and colour blindness (Requirement 17.8).
+ */
+.athoor-portal .athoor-profile__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--athoor-ink);
+}
+
+.athoor-portal .athoor-profile__input[aria-invalid="true"] {
+  border-bottom-width: 2px;
+  border-bottom-color: currentcolor;
+}
+
+/*
+ * The error summary. Focusable and above the fields it links to, for the case where
+ * a rejection names no field this asset can point at.
+ */
+.athoor-portal .athoor-profile__summary {
+  margin-bottom: var(--athoor-space-5);
+  padding: var(--athoor-space-5);
+  background: var(--athoor-surface-warm);
+  border-radius: var(--athoor-radius-panel);
+}
+
+.athoor-portal .athoor-profile__summary:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+.athoor-portal .athoor-profile__summary-title {
+  margin: 0 0 var(--athoor-space-2);
+  font-family: var(--athoor-display-face);
+  font-size: 16px;
+  color: var(--athoor-ink);
+}
+
+.athoor-portal .athoor-profile__summary-list {
+  margin: 0;
+  padding-left: var(--athoor-space-5);
+}
+
+/* ── Birthday ────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-profile__birthday-pair {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/*
+ * Day and month side by side, and they stack below 390 px rather than squeezing two
+ * selects into a width that clips the month names.
+ */
+.athoor-portal .athoor-profile__birthday-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--athoor-space-4);
+  margin-top: var(--athoor-space-3);
+}
+
+@media (min-width: 390px) {
+  .athoor-portal .athoor-profile__birthday-controls {
+    grid-template-columns: minmax(5rem, 1fr) 2fr;
+  }
+}
+
+/* ── Addresses ───────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-profile__addresses {
+  margin: var(--athoor-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-profile__addresses > .athoor-portal__row + .athoor-portal__row {
+  border-top: 1px solid var(--athoor-line);
+}
+
+.athoor-portal .athoor-profile__address-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--athoor-space-3);
+  margin-top: var(--athoor-space-2);
+}
+
+/* ── Communication toggles ───────────────────────────────────────────────── */
+
+.athoor-portal .athoor-profile__comms {
+  margin: var(--athoor-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-profile__comms-item + .athoor-profile__comms-item {
+  margin-top: var(--athoor-space-3);
+}
+
+/*
+ * The whole label is the target, so the 44 px minimum applies to the row and not
+ * just to the checkbox — a 13 px checkbox is not a touch target.
+ */
+.athoor-portal .athoor-profile__switch {
+  display: flex;
+  gap: var(--athoor-space-3);
+  align-items: center;
+  min-height: var(--athoor-target);
+  font-size: 15px;
+  color: var(--athoor-ink);
+  cursor: pointer;
+}
+
+.athoor-portal .athoor-profile__switch input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--athoor-gold);
+}
+
+.athoor-portal .athoor-profile__switch input:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}

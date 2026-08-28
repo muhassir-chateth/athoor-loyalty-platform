@@ -310,6 +310,293 @@
         </li>
       </template>
 
+    {%- when 'profile' -%}
+      {%- comment -%}
+        Task 25.1 — identity, birthday, addresses and communication preferences in ONE
+        view (Requirement 5.6), with Shopify-owned values and Loyalty_Service-owned
+        values side by side.
+
+        THERE IS NO PASSWORD CONTROL ANYWHERE IN THIS ARM, and there must never be
+        one (Requirement 5.7). The store uses Shopify's new customer accounts, which
+        authenticate by emailed code — there is no password to change, so a control
+        offering to change one would be inventing a credential. The same reasoning
+        makes the email read-only: `emailEditable` is the literal `false` in the DTO,
+        and changing the authentication address is Shopify's own flow
+        (Requirement 5.8).
+
+        Form layout follows §19.7: a persistent visible label ABOVE every input —
+        never a placeholder standing in for one, which disappears exactly when it is
+        needed — help text above the input where it states purpose, validation below
+        it and `aria-describedby`-linked, `autocomplete` on every field so the browser
+        rather than the customer re-supplies what it already knows (WCAG 2.2 3.3.7),
+        and the submit control in flow at the end rather than under the fixed bar.
+      {%- endcomment -%}
+      {%- comment -%}
+        The error summary. Rendered FIRST in the DOM so it precedes the fields it
+        links to, and focusable so validation can move focus here when a rejection
+        names no field it can point at.
+      {%- endcomment -%}
+      <div
+        class="athoor-profile__summary"
+        data-portal-error-summary
+        role="alert"
+        tabindex="-1"
+        hidden
+      >
+        <p class="athoor-profile__summary-title">Please check the following</p>
+        <ul class="athoor-profile__summary-list" data-portal-error-summary-list role="list"></ul>
+      </div>
+
+      <form class="athoor-profile__form" data-portal-identity-form novalidate>
+        <fieldset class="athoor-profile__group">
+          <legend class="athoor-fragrance__heading">Your details</legend>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfileFirstName">First name</label>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfileFirstName"
+              name="firstName"
+              type="text"
+              autocomplete="given-name"
+              maxlength="64"
+              aria-describedby="AthoorProfileFirstNameError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfileFirstNameError" data-portal-field-error="firstName" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfileLastName">Last name</label>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfileLastName"
+              name="lastName"
+              type="text"
+              autocomplete="family-name"
+              maxlength="64"
+              aria-describedby="AthoorProfileLastNameError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfileLastNameError" data-portal-field-error="lastName" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfilePhone">Phone</label>
+            {%- comment -%}
+              Help text ABOVE the input, because it states the field's purpose and a
+              customer who reads it after typing has read it too late (§19.7).
+              `inputmode="tel"` brings up the phone keypad without claiming a format.
+            {%- endcomment -%}
+            <p class="athoor-profile__help" id="AthoorProfilePhoneHelp">For delivery questions about an order.</p>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfilePhone"
+              name="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              maxlength="64"
+              aria-describedby="AthoorProfilePhoneHelp AthoorProfilePhoneError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfilePhoneError" data-portal-field-error="phone" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            {%- comment -%}
+              READ-ONLY, unconditionally. `emailEditable` is typed as the literal
+              `false`, so a branch on it would be dead code. `readonly` rather than
+              `disabled`: a disabled input is skipped by keyboard navigation and its
+              value is not announced, so the customer cannot read their own address.
+            {%- endcomment -%}
+            <label class="athoor-profile__label" for="AthoorProfileEmail">Email</label>
+            <input
+              class="athoor-profile__input athoor-profile__input--locked"
+              id="AthoorProfileEmail"
+              name="email"
+              type="email"
+              autocomplete="email"
+              readonly
+              aria-describedby="AthoorProfileEmailHelp"
+            >
+            <p class="athoor-profile__help" id="AthoorProfileEmailHelp">
+              Your email is also how you sign in.
+              <a class="athoor-portal__row-link" href="/account" data-portal-email-route>Change it in your Shopify account</a>
+            </p>
+          </div>
+        </fieldset>
+
+        {%- comment -%}
+          Actions IN FLOW at the end of the form, never under the fixed bar (§19.7).
+          The stylesheet gives the form bottom padding equal to the bar height.
+        {%- endcomment -%}
+        <div class="athoor-profile__actions">
+          <button class="athoor-portal__action" type="submit" data-portal-identity-submit>Save details</button>
+          <p class="athoor-portal__row-meta" data-portal-identity-result hidden></p>
+        </div>
+      </form>
+
+      {%- comment -%}
+        ── THE BIRTHDAY PANEL (task 25.3) ───────────────────────────────────────
+        Two `<select>` elements, month and day. NOT a date input: a date input demands
+        a year, which Requirement 11.2 excludes outright, and its native picker cannot
+        be constrained to month and day (§19.7). There is no year field anywhere in
+        this arm.
+
+        The purpose statement sits ABOVE the field and before first submission
+        (Requirement 11.10), and names both what is stored and what it is for —
+        because "when is your birthday" without either is a request for personal data
+        with no stated reason.
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-birthday aria-labelledby="AthoorProfileBirthdayTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileBirthdayTitle">Your birthday</h2>
+        <p class="athoor-profile__help" data-portal-birthday-purpose>
+          We store the day and month only — never the year — so we can send you a gift near your birthday.
+        </p>
+        <p class="athoor-portal__row-meta" data-portal-birthday-stored></p>
+        <p class="athoor-portal__row-status" data-portal-birthday-eligibility></p>
+        <p class="athoor-portal__row-meta" data-portal-birthday-lock hidden></p>
+        <button class="athoor-portal__action" type="button" data-portal-birthday-open>Add your birthday</button>
+      </section>
+
+      <dialog class="athoor-portal__sheet" data-portal-birthday-sheet aria-labelledby="AthoorBirthdaySheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorBirthdaySheetTitle" data-portal-sheet-heading>Your birthday</h2>
+          <form data-portal-birthday-form novalidate>
+            {%- comment -%}
+              A `<fieldset>` with a `<legend>`, so a screen reader announces the pair
+              as one thing rather than two unrelated selects (§19.7).
+            {%- endcomment -%}
+            <fieldset class="athoor-profile__birthday-pair">
+              <legend class="athoor-profile__label">Day and month</legend>
+              <div class="athoor-profile__birthday-controls">
+                <span class="athoor-profile__field">
+                  <label class="athoor-profile__label" for="AthoorBirthdayDay">Day</label>
+                  <select class="athoor-profile__input" id="AthoorBirthdayDay" name="day" autocomplete="bday-day" data-portal-birthday-day></select>
+                </span>
+                <span class="athoor-profile__field">
+                  <label class="athoor-profile__label" for="AthoorBirthdayMonth">Month</label>
+                  <select class="athoor-profile__input" id="AthoorBirthdayMonth" name="month" autocomplete="bday-month" data-portal-birthday-month></select>
+                </span>
+              </div>
+              <p class="athoor-profile__error" id="AthoorBirthdayError" data-portal-field-error="birthday" hidden></p>
+            </fieldset>
+            <button class="athoor-portal__action" type="submit" data-portal-birthday-submit>Save birthday</button>
+            <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+          </form>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        ── SAVED ADDRESSES (task 25.2) ──────────────────────────────────────────
+        The address editor lives HERE, and Settings routes to it rather than carrying
+        a second copy. Each address is its own mutation server-side, so a failure can
+        name the address that failed instead of reporting "some addresses did not
+        save".
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-addresses aria-labelledby="AthoorProfileAddressesTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileAddressesTitle">Saved addresses</h2>
+        <ul class="athoor-profile__addresses" role="list" data-portal-address-list></ul>
+        <p class="athoor-portal__row-meta" data-portal-address-empty hidden>You have no saved addresses yet.</p>
+        <button class="athoor-portal__action" type="button" data-portal-address-add>Add an address</button>
+      </section>
+
+      <template data-portal-row="address">
+        <li class="athoor-portal__row" data-portal-address>
+          <span class="athoor-portal__row-description" data-slot="lines"></span>
+          <span class="athoor-portal__row-status" data-slot="default"></span>
+          <span class="athoor-profile__address-actions">
+            <button class="athoor-portal__action" type="button" data-portal-address-edit data-slot="edit"></button>
+            <button class="athoor-portal__action" type="button" data-portal-address-default data-slot="make-default"></button>
+            <button class="athoor-portal__action" type="button" data-portal-address-delete data-slot="delete"></button>
+          </span>
+          <span class="athoor-portal__row-meta" data-portal-address-error hidden></span>
+        </li>
+      </template>
+
+      <dialog class="athoor-portal__sheet" data-portal-address-sheet aria-labelledby="AthoorAddressSheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorAddressSheetTitle" data-portal-sheet-heading>Address</h2>
+          <form data-portal-address-form novalidate>
+            <fieldset class="athoor-profile__group">
+              <legend class="athoor-profile__label">Delivery address</legend>
+              {%- comment -%}
+                `autocomplete` tokens throughout, so the browser re-supplies an
+                address the customer has already given it (WCAG 2.2 3.3.7).
+                `countryCode` is a two-letter code server-side, so the control is a
+                select over an explicit list rather than free text that would be
+                rejected.
+              {%- endcomment -%}
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressFirstName">First name</label>
+                <input class="athoor-profile__input" id="AthoorAddressFirstName" name="firstName" type="text" autocomplete="given-name" maxlength="255" aria-describedby="AthoorAddressFirstNameError">
+                <p class="athoor-profile__error" id="AthoorAddressFirstNameError" data-portal-field-error="firstName" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLastName">Last name</label>
+                <input class="athoor-profile__input" id="AthoorAddressLastName" name="lastName" type="text" autocomplete="family-name" maxlength="255" aria-describedby="AthoorAddressLastNameError">
+                <p class="athoor-profile__error" id="AthoorAddressLastNameError" data-portal-field-error="lastName" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLine1">Address</label>
+                <input class="athoor-profile__input" id="AthoorAddressLine1" name="address1" type="text" autocomplete="address-line1" maxlength="255" aria-describedby="AthoorAddressLine1Error">
+                <p class="athoor-profile__error" id="AthoorAddressLine1Error" data-portal-field-error="address1" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLine2">Apartment, suite (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressLine2" name="address2" type="text" autocomplete="address-line2" maxlength="255" aria-describedby="AthoorAddressLine2Error">
+                <p class="athoor-profile__error" id="AthoorAddressLine2Error" data-portal-field-error="address2" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressCity">City</label>
+                <input class="athoor-profile__input" id="AthoorAddressCity" name="city" type="text" autocomplete="address-level2" maxlength="255" aria-describedby="AthoorAddressCityError">
+                <p class="athoor-profile__error" id="AthoorAddressCityError" data-portal-field-error="city" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressProvince">County or state (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressProvince" name="province" type="text" autocomplete="address-level1" maxlength="255" aria-describedby="AthoorAddressProvinceError">
+                <p class="athoor-profile__error" id="AthoorAddressProvinceError" data-portal-field-error="province" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressZip">Postcode</label>
+                <input class="athoor-profile__input" id="AthoorAddressZip" name="zip" type="text" inputmode="text" autocomplete="postal-code" maxlength="64" aria-describedby="AthoorAddressZipError">
+                <p class="athoor-profile__error" id="AthoorAddressZipError" data-portal-field-error="zip" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressCountry">Country</label>
+                <select class="athoor-profile__input" id="AthoorAddressCountry" name="countryCode" autocomplete="country" aria-describedby="AthoorAddressCountryError" data-portal-address-country></select>
+                <p class="athoor-profile__error" id="AthoorAddressCountryError" data-portal-field-error="countryCode" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressPhone">Phone (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="64" aria-describedby="AthoorAddressPhoneError">
+                <p class="athoor-profile__error" id="AthoorAddressPhoneError" data-portal-field-error="phone" hidden></p>
+              </div>
+            </fieldset>
+            <p class="athoor-profile__error" data-portal-address-form-error hidden></p>
+            <button class="athoor-portal__action" type="submit" data-portal-address-save>Save address</button>
+            <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+          </form>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        Requirement 5.6 — Loyalty_Service preference values ALONGSIDE the
+        Shopify-owned identity values, in the same view. These four are the
+        communication block from N12. Marketing consent is deliberately NOT here: it
+        is Shopify's, and it has its own endpoint and its own legal meaning.
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-communication aria-labelledby="AthoorProfileCommsTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileCommsTitle">What we send you</h2>
+        <ul class="athoor-profile__comms" role="list" data-portal-comms-list></ul>
+      </section>
+
+      <template data-portal-row="communication">
+        <li class="athoor-profile__comms-item">
+          <label class="athoor-profile__switch">
+            <input type="checkbox" data-portal-comms-toggle>
+            <span data-slot="label"></span>
+          </label>
+        </li>
+      </template>
     {%- when 'fragrance' -%}
       {%- comment -%}
         Task 24.1 — §12.5's provenance separation, structurally rather than as a
