@@ -1,14 +1,87 @@
 /*
- * Per-section styles for the `orders` Portal_Section.
+ * Orders (spec task 20.1, design §18.5, §18.7, §20.3).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 20.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 6.1, 6.2, 16.1, 18.5, 18.6, 18.7.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * THE ROW IS A RULED ROW, NOT A CARD (§18.5). A hairline and air. §18.5 lists an
+ * order row explicitly under "do not solve it with a card", and the reason is that a
+ * page of bordered boxes reads as an admin panel rather than a printed page.
+ *
+ * Every selector is rooted at a portal container, per the standing rule in base.css.
  */
+
+.athoor-portal .athoor-orders__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Base: stacked, with the 64 px thumbnail leading and the total right-aligned on
+ * the order number's baseline (task 20.1). */
+.athoor-portal .athoor-orders__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "thumb number total"
+    "thumb date   status"
+    "thumb items  items";
+  column-gap: var(--athoor-space-4);
+  row-gap: var(--athoor-space-1);
+  align-items: baseline;
+}
+
+.athoor-portal .athoor-orders__thumb {
+  grid-area: thumb;
+  width: 64px;
+  height: 64px;
+  align-self: start;
+}
+
+.athoor-portal .athoor-orders__row .athoor-portal__row-number {
+  grid-area: number;
+  font-weight: 600;
+}
+
+.athoor-portal .athoor-orders__row .athoor-portal__row-total {
+  grid-area: total;
+  text-align: end;
+  /* Figures align on the decimal down a column of orders. */
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-orders__row .athoor-portal__row-meta:nth-of-type(1) {
+  grid-area: date;
+}
+
+.athoor-portal .athoor-orders__row .athoor-portal__row-status {
+  grid-area: status;
+  text-align: end;
+}
+
+/* The row link covers the row without becoming a second focus stop for each
+ * child: one target per row, ≥44 px, as Requirement 17.3 asks. */
+.athoor-portal .athoor-orders__link {
+  grid-area: number;
+  align-self: stretch;
+  min-height: var(--athoor-target);
+}
+
+/* Desktop: four hairline-ruled columns (task 20.1). */
+@media screen and (min-width: 990px) {
+  .athoor-portal .athoor-orders__row {
+    grid-template-columns: 80px minmax(0, 2fr) minmax(0, 1fr) auto auto;
+    grid-template-areas: "thumb number date total status";
+    align-items: center;
+    column-gap: var(--athoor-space-5);
+  }
+
+  .athoor-portal .athoor-orders__thumb {
+    width: 80px;
+    height: 80px;
+    align-self: center;
+  }
+
+  .athoor-portal .athoor-orders__row .athoor-portal__row-meta:nth-of-type(2) {
+    display: none;
+  }
+}

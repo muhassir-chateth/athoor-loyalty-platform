@@ -1,14 +1,144 @@
 /*
- * Per-section styles for the `order-detail` Portal_Section.
+ * Order detail (spec task 20.3, design §18.5, §20.3).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 20.3
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 6.3, 6.4, 6.5, 6.8, 6.9, 17.8.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * ONE COLUMN AT EVERY WIDTH (task 20.3). An order is a document: number, status,
+ * totals, address, lines, read top to bottom. A two-column order at desktop puts the
+ * totals beside the address, and a customer checking what they paid has to work out
+ * which column is which.
+ *
+ * Every selector is rooted at a portal container, per the standing rule in base.css.
  */
+
+.athoor-portal .athoor-order__header {
+  margin-bottom: var(--athoor-space-6);
+}
+
+.athoor-portal .athoor-order__number {
+  margin: 0 0 var(--athoor-space-2);
+  font-family: var(--athoor-display-face);
+  /* Title S: 22 / 1.3 / 0.08em (§18.2). */
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  font-weight: 400;
+}
+
+.athoor-portal .athoor-order__date,
+.athoor-portal .athoor-order__fulfilment {
+  margin: 0 0 var(--athoor-space-2);
+}
+
+.athoor-portal .athoor-order__tracking {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--athoor-target);
+  color: var(--athoor-gold-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The totals table. Tabular data, so a real table with a caption (§20.3). */
+.athoor-portal .athoor-order__totals {
+  width: 100%;
+  max-width: 26rem;
+  margin: 0 0 var(--athoor-space-7);
+  border-collapse: collapse;
+}
+
+.athoor-portal .athoor-order__totals th,
+.athoor-portal .athoor-order__totals td {
+  padding: var(--athoor-space-2) 0;
+  text-align: start;
+  font-weight: 400;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+.athoor-portal .athoor-order__totals td {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-order__totals tr:last-child th,
+.athoor-portal .athoor-order__totals tr:last-child td {
+  font-weight: 600;
+  border-bottom: 0;
+}
+
+.athoor-portal .athoor-order__delivery {
+  margin-bottom: var(--athoor-space-7);
+}
+
+.athoor-portal .athoor-order__address {
+  margin: var(--athoor-space-2) 0 0;
+}
+
+.athoor-portal .athoor-order__address-line {
+  display: block;
+}
+
+.athoor-portal .athoor-order__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-order__line {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "thumb title        total"
+    "thumb quantity     quantity"
+    "thumb availability availability"
+    "thumb action       action";
+  column-gap: var(--athoor-space-4);
+  row-gap: var(--athoor-space-1);
+}
+
+.athoor-portal .athoor-order__thumb {
+  grid-area: thumb;
+  width: 80px;
+  height: 80px;
+  align-self: start;
+}
+
+.athoor-portal .athoor-order__line-link,
+.athoor-portal .athoor-order__line-title {
+  grid-area: title;
+}
+
+/* When the product still exists the module renders the link and the plain title
+ * both; the link wins the cell, so the title is hidden to avoid reading twice. */
+.athoor-portal .athoor-order__line-link:not([hidden]) ~ .athoor-order__line-title {
+  display: none;
+}
+
+.athoor-portal .athoor-order__line-link {
+  min-height: var(--athoor-target);
+  display: inline-flex;
+  align-items: center;
+  color: var(--athoor-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.athoor-portal .athoor-order__line-total {
+  grid-area: total;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.athoor-portal .athoor-order__line-availability {
+  grid-area: availability;
+  /* §7.5's four states are words, so they survive forced-colours and colour
+   * blindness alike (Requirement 17.8). */
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--athoor-muted-text);
+}
+
+.athoor-portal .athoor-order__buy-again {
+  grid-area: action;
+  justify-self: start;
+}

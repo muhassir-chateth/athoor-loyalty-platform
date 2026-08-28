@@ -345,6 +345,7 @@ export const PORTAL_ORDER_DETAIL_QUERY = /* GraphQL */ `
           }
           lineItems(first: $lineItemLimit) {
             nodes {
+              id
               title
               quantity
               unfulfilledQuantity
@@ -403,6 +404,15 @@ interface ShopifyPreviewLineItemNode {
 }
 
 interface ShopifyDetailLineItemNode extends ShopifyPreviewLineItemNode {
+  /**
+   * Shopify's own line-item id.
+   *
+   * Added for task 20.4: N3 selects a subset with `lineItemIds`, which match this
+   * id, and without it Buy Again for a single line (Requirement 6.6) is not
+   * reachable at all — the only alternative would be reordering the whole order
+   * from a control that says "buy this one again".
+   */
+  id?: string | null;
   unfulfilledQuantity?: number | null;
   originalUnitPriceSet?: ShopifyMoneyBag | null;
   discountedTotalSet?: ShopifyMoneyBag | null;
@@ -771,6 +781,10 @@ export function projectOrderLineItem(node: ShopifyDetailLineItemNode): PortalOrd
   const variant = node.variant ?? null;
 
   return {
+    // Shopify's line-item id, numeric to match `productId` and `variantId`. This is
+    // the handle N3's `lineItemIds` selects on, and the only reason the client can
+    // offer Buy Again for one line rather than the whole order (Requirement 6.6).
+    lineItemId: numericIdFromGid(node.id ?? "") ?? null,
     title: node.title ?? "",
     quantity: typeof node.quantity === "number" ? node.quantity : 0,
     originalUnitPriceGBP: moneyFromBag(node.originalUnitPriceSet),

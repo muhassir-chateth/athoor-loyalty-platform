@@ -377,6 +377,7 @@ function lineItemNode(overrides: Record<string, unknown> = {}) {
     title: "Oud Royale 50ml",
     quantity: 1,
     unfulfilledQuantity: 0,
+    id: "gid://shopify/LineItem/9911",
     originalUnitPriceSet: { shopMoney: { amount: "184.00" } },
     discountedTotalSet: { shopMoney: { amount: "165.60" } },
     image: { url: "https://cdn/oud.jpg", width: 800, height: 800 },
@@ -385,6 +386,30 @@ function lineItemNode(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("projectOrderLineItem — the line-item id Buy Again depends on (task 20.4)", () => {
+  it("projects Shopify's line-item id, numerically", () => {
+    // WHY THIS IS ASSERTED SEPARATELY. `PortalReorderPlanRequest.lineItemIds`
+    // selects on this id, and it is the only thing that lets the client ask for a
+    // plan covering ONE line — the Buy Again case of Requirement 6.6. Drop it and
+    // the client has no id, so it disables the control: the feature disappears
+    // silently rather than failing. A non-vacuity proof for task 20 removed this
+    // field and no client test noticed, because the client's own fixtures supply
+    // it. This is the assertion that does notice.
+    expect(projectOrderLineItem(lineItemNode()).lineItemId).toBe("9911");
+  });
+
+  it("is null when Shopify omits it, rather than inventing one", () => {
+    expect(projectOrderLineItem(lineItemNode({ id: null })).lineItemId).toBeNull();
+    expect(projectOrderLineItem(lineItemNode({ id: "not-a-gid" })).lineItemId).toBeNull();
+  });
+
+  it("the N2 document actually SELECTS the id it projects", () => {
+    // The projection and the query are separate places; a field projected but not
+    // selected is always `null` in production and never in a unit test.
+    expect(PORTAL_ORDER_DETAIL_QUERY).toMatch(/lineItems\(first: \$lineItemLimit\) \{\s*nodes \{\s*id/);
+  });
+});
 
 describe("projectOrderLineItem — the four-state product table (§7.5, Req 6.8/6.9)", () => {
   it("published + in stock → id, handle, available true", () => {

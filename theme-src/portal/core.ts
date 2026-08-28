@@ -57,6 +57,7 @@ import {
 } from "./ui/announce.js";
 import { currentSessionRef, proxyFetch } from "./transport/proxyClient.js";
 import { bindChrome } from "./ui/chrome.js";
+import { addToCart, isAdding } from "./transport/cartClient.js";
 import { degradeSection, installErrorBoundary } from "./sections/register.js";
 
 /** Marks a root as booted so a second `boot()` call is a no-op for it. */
@@ -231,6 +232,14 @@ const runtime: AthoorPortalRuntime = {
     error: copy.error,
     fieldError: copy.fieldError,
     state: copy.state,
+    formatDate: copy.formatDate,
+  },
+
+  // 20.4 — the only caller of Shopify's `/cart/add.js`. In core rather than in the
+  // orders bundle so the "core is the only bundle with a fetch" invariant holds.
+  cart: {
+    addToCart,
+    isAdding,
   },
 };
 
