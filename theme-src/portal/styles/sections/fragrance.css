@@ -1,14 +1,196 @@
 /*
- * Per-section styles for the `fragrance` Portal_Section.
+ * Per-section styles for the `fragrance` Portal_Section (spec task 24.1).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 24.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 12.7, 12.8, 17.4, 17.8, 25.5, 25.6.
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * ── THE PROVENANCE DIFFERENCE IS NOT CARRIED BY COLOUR ──────────────────────
+ * §12.5 and Requirement 17.8 require the declared/derived distinction to survive
+ * forced-colours mode and colour blindness. So it is carried by STRUCTURE — two
+ * separate `<section>` elements with their own headings and accessible names — and
+ * the styling here only reinforces what the markup already says. The derived block
+ * gets a warm surface and a rule, not a hue that means something on its own.
+ *
+ * Every selector is rooted at `.athoor-portal`, because §25.6 requires everything
+ * outside the portal's own containers to stay byte-identical. Tokens live in the
+ * shared layer — a token redeclared per section is a token that drifts.
  */
+
+/* ── Blocks ──────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-fragrance__block {
+  padding: var(--athoor-space-7) 0;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+/*
+ * The derived block reads as a quieter, separate voice. A warm surface and an inset
+ * are permitted for recognition (§18.4) and are used here for the one block whose
+ * content is ours rather than the customer's.
+ */
+.athoor-portal .athoor-fragrance__block--derived {
+  padding: var(--athoor-space-6);
+  background: var(--athoor-surface-warm);
+  border-bottom: 0;
+  border-radius: var(--athoor-radius-panel);
+}
+
+.athoor-portal .athoor-fragrance__heading {
+  margin: 0 0 var(--athoor-space-2);
+  font-family: var(--athoor-display-face);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--athoor-ink);
+}
+
+/* ── Declared: dimensions and pills ──────────────────────────────────────── */
+
+.athoor-portal .athoor-fragrance__dimensions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-6);
+  margin-top: var(--athoor-space-5);
+}
+
+/* A `<fieldset>` for the grouping semantics, with none of its default chrome. */
+.athoor-portal .athoor-fragrance__dimension {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.athoor-portal .athoor-fragrance__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--athoor-space-2);
+  margin-top: var(--athoor-space-3);
+}
+
+/*
+ * 44 px minimum on both axes — the whole pill is the target, not the text inside it
+ * (Requirement 17.4). `min-height` rather than a fixed height so a long value that
+ * wraps grows instead of clipping.
+ */
+.athoor-portal .athoor-fragrance__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--athoor-target);
+  padding: var(--athoor-space-2) var(--athoor-space-4);
+  font-family: var(--athoor-body-face);
+  font-size: 14px;
+  color: var(--athoor-ink);
+  text-align: start;
+  background: var(--athoor-surface);
+  border: 1px solid var(--athoor-line);
+  border-radius: var(--athoor-radius-pill);
+  cursor: pointer;
+}
+
+/*
+ * The SELECTED state carries a border weight and a fill, not colour alone. In
+ * forced-colours mode the border survives and the fill is replaced by the system
+ * palette, so the state is still visible — which is the whole point of not relying
+ * on a hue.
+ */
+.athoor-portal .athoor-fragrance__pill[aria-pressed="true"] {
+  color: var(--athoor-gold-text);
+  background: var(--athoor-surface-warm);
+  border-color: var(--athoor-gold);
+  box-shadow: inset 0 0 0 1px var(--athoor-gold);
+}
+
+.athoor-portal .athoor-fragrance__pill:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/* A write in flight: the control is not disabled, so it keeps its focus and name. */
+.athoor-portal .athoor-fragrance__pill[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+/* ── Derived groups ──────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-fragrance__derived {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-5);
+  margin-top: var(--athoor-space-5);
+}
+
+/*
+ * The group wrapper keeps its heading and its list together as one flex item, so the
+ * parent's `gap` separates GROUPS rather than separating a heading from its own list.
+ */
+.athoor-portal .athoor-fragrance__derived-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.athoor-portal .athoor-fragrance__derived-list {
+  margin: var(--athoor-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-fragrance__derived-list > .athoor-portal__row + .athoor-portal__row {
+  border-top: 1px solid var(--athoor-line);
+}
+
+.athoor-portal .athoor-fragrance__insight {
+  margin: var(--athoor-space-3) 0 0;
+  font-family: var(--athoor-display-face);
+  font-size: 16px;
+  color: var(--athoor-ink);
+}
+
+/* ── Recently viewed ─────────────────────────────────────────────────────── */
+
+/*
+ * A horizontally scrolling strip on narrow screens, with scroll snapping so an item
+ * does not come to rest half off-screen. `scrollbar-width: none` is not used: a
+ * hidden scrollbar on a scrollable region removes the only affordance some customers
+ * have that it scrolls at all.
+ */
+.athoor-portal .athoor-fragrance__recent {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(9rem, 1fr);
+  gap: var(--athoor-space-4);
+  margin: var(--athoor-space-5) 0 0;
+  padding: 0 0 var(--athoor-space-3);
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+
+.athoor-portal .athoor-fragrance__recent-item {
+  scroll-snap-align: start;
+}
+
+.athoor-portal .athoor-fragrance__recent-item a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-2);
+  font-size: 14px;
+  color: var(--athoor-ink);
+  text-decoration: none;
+}
+
+.athoor-portal .athoor-fragrance__recent-item a:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/*
+ * From 750 px the strip becomes a wrapping grid: there is room for the whole set, and
+ * a scrolling region a customer does not need is a region they can lose content in.
+ */
+@media (min-width: 750px) {
+  .athoor-portal .athoor-fragrance__recent {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    overflow-x: visible;
+  }
+}
