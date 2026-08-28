@@ -838,6 +838,146 @@
       <p class="athoor-portal__empty-action" data-portal-empty-action>
         Share your code and you will both be rewarded when your friend joins.
       </p>
+    {%- when 'overview' -%}
+      {%- comment -%}
+        Task 27.1 — the Portal_Home.
+
+        ── THE GREETING IS SERVER-RENDERED, AND IS THE LCP ──────────────────────
+        It comes from Liquid's `customer.first_name` with NO script dependency
+        (Requirement 4.1), so the largest contentful paint happens in the HTML
+        response and does not wait on a bundle, a token or an App Proxy round trip.
+        It is a `<p>` and not a heading because the chrome already owns the page's
+        one `<h1>`; a second would break the outline for the sake of a font size.
+
+        ── OMIT, DO NOT EMPTY — AND DO NOT REVEAL ───────────────────────────────
+        §21.6 sets two absolute rules that look contradictory until you read the
+        third: content is never inserted above existing content, no element appears
+        on hydration that the server render lacked, and a tile that turns out to be
+        empty is REMOVED rather than revealed. So every tile below is server-rendered
+        with a skeleton at its exact final geometry, and the module either fills that
+        same box or deletes it. Nothing is ever added.
+
+        ── NOT A GRID OF CARDS ─────────────────────────────────────────────────
+        §18.5 names the anti-card rule and lists the only three permitted cards. A
+        balance is a numeral and a badge on the page; an order is a ruled row; a
+        wishlist item is an image and text in a grid cell. Exactly one thing here is
+        a card, and that is the reward — a discrete offer with a price and an action.
+
+        ── NO CUSTOMER IDENTIFIER IS EMITTED ────────────────────────────────────
+        No `customerId` in a config block, a data attribute or a query string. The
+        App Proxy signs the customer into every request; an id in the DOM would be a
+        second, forgeable channel for the one fact that must not be client-supplied.
+      {%- endcomment -%}
+      <p class="athoor-overview__greeting" data-portal-greeting>
+        {%- if customer.first_name != blank -%}
+          Welcome back, {{ customer.first_name }}
+        {%- else -%}
+          Welcome back
+        {%- endif -%}
+      </p>
+
+      {%- comment -%}
+        Balance, tier and progress (Requirements 4.2, 4.3). The numeral line and its
+        label reserve their own height, and the 6 px progress track is rendered
+        server-side so the fill can be set once without transitioning a width.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="loyalty" aria-labelledby="AthoorOverviewLoyaltyTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewLoyaltyTitle">Your points</h2>
+        <p class="athoor-overview__numeral athoor-portal__row-points" data-slot="balance"></p>
+        <p class="athoor-overview__tier"><span class="athoor-rewards__badge" data-slot="tier"></span></p>
+        <div class="athoor-overview__progress" data-portal-progress>
+          <span class="athoor-overview__progress-fill" data-portal-progress-fill></span>
+        </div>
+        <p class="athoor-portal__row-meta" data-slot="progress-text"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-rewards">Your rewards</a>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.5 — ONE reward the customer can redeem now. The one permitted
+        card on this page.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="reward" aria-labelledby="AthoorOverviewRewardTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewRewardTitle">Ready to redeem</h2>
+        <div class="athoor-portal__card athoor-overview__reward">
+          <span class="athoor-portal__card-value" data-slot="value"></span>
+          <span class="athoor-portal__card-cost" data-slot="cost"></span>
+          <a class="athoor-portal__card-action" href="/pages/my-athoor-rewards" data-slot="redeem-route">Redeem</a>
+        </div>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.4 — the most recent order with its date and a route to its
+        detail. A ruled row, and the 64 px thumbnail box reserves its geometry.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="order" aria-labelledby="AthoorOverviewOrderTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewOrderTitle">Your last order</h2>
+        <a class="athoor-portal__row athoor-overview__order" href="#" data-portal-order-link>
+          <span class="athoor-portal__row-description" data-slot="name"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+          <span class="athoor-portal__row-total" data-slot="total"></span>
+          <span class="athoor-portal__row-status" data-slot="status"></span>
+        </a>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-orders">All your orders</a>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.6 — a preview of up to three wishlist items. A grid cell with an
+        image box and text; no border, per §18.5.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="wishlist" aria-labelledby="AthoorOverviewWishlistTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewWishlistTitle">Saved for later</h2>
+        <ul class="athoor-overview__wishlist" role="list" data-portal-wishlist-list></ul>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-wishlist">Everything you have saved</a>
+      </section>
+
+      <template data-portal-row="overview-wishlist">
+        <li class="athoor-overview__wishlist-item">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span class="athoor-portal__row-description" data-slot="title"></span>
+          </a>
+        </li>
+      </template>
+
+      {%- comment -%}
+        ── BELOW THE FOLD, DEFERRED ────────────────────────────────────────────
+        These three tiles are fetched on intersection rather than on boot (§21.5).
+        Three parallel reads instead of six: the free Render instance is
+        single-threaded per request, so fanning out every tile turns one cold start
+        into six queued ones. Deferring costs nothing because they are below the fold,
+        and removal below the fold is not a shift.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="referral" data-portal-defer aria-labelledby="AthoorOverviewReferralTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewReferralTitle">Your invitations</h2>
+        <p class="athoor-portal__row-description" data-slot="referral-count"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-referrals">Invite a friend</a>
+      </section>
+
+      <section class="athoor-overview__tile" data-portal-tile="birthday" data-portal-defer aria-labelledby="AthoorOverviewBirthdayTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewBirthdayTitle">Your birthday</h2>
+        <p class="athoor-portal__row-status" data-slot="birthday-state"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-profile">Your details</a>
+      </section>
+
+      <section class="athoor-overview__tile" data-portal-tile="fragrance" data-portal-defer aria-labelledby="AthoorOverviewFragranceTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewFragranceTitle">Your taste</h2>
+        <p class="athoor-overview__insight" data-slot="insight"></p>
+        <ul class="athoor-overview__recent" role="list" data-portal-recent-list></ul>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-fragrance">Your fragrance profile</a>
+      </section>
+
+      <template data-portal-row="overview-recent">
+        <li class="athoor-overview__recent-item">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span class="athoor-portal__row-meta" data-slot="title"></span>
+          </a>
+        </li>
+      </template>
     {%- when 'settings' -%}
       {%- comment -%}
         Task 26.1.

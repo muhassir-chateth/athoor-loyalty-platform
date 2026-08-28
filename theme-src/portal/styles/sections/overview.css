@@ -1,14 +1,203 @@
 /*
- * Per-section styles for the `overview` Portal_Section.
+ * Per-section styles for the `overview` Portal_Home (spec task 27.1).
  *
- * TASK 7.1 OWNS THIS FILE'S EXISTENCE AND ITS PLACE IN THE BUNDLE; TASK 27.1
- * OWNS ITS CONTENT. It is imported by `../athoor-portal.css` and is deliberately
- * empty — see that file's header for why the partials are wired ahead of being
- * written.
+ * Requirements 4.10, 4.11, 17.4, 17.8, 25.5, 25.6, 18.5 (§18.5, §21.6).
  *
- * Two rules for whatever is added here. Every selector must be rooted at this
- * section's own container, because design §25.6 requires everything outside the
- * portal's containers to stay byte-identical. And the shared layer — tokens,
- * typographic scale, spacing scale, colour, states — belongs in task 19.5's
- * file, not here: a token redeclared per section is a token that drifts.
+ * ── AT MOST THREE ELEMENTS AT THE HIGHEST EMPHASIS (Requirement 4.10) ───────
+ * Exactly three things carry the top level: the greeting, the balance numeral, and
+ * the one reward card. Everything else is an eyebrow, a ruled row or body text. The
+ * cap is a design constraint rather than a suggestion — a page where eight tiles all
+ * shout is a page with no hierarchy, and the customer reads none of it.
+ *
+ * ── RULED SECTIONS, NOT A CARD GRID (§18.5) ─────────────────────────────────
+ * A balance is a numeral and a badge on the page. An order is a ruled row. A wishlist
+ * item is an image and text in a grid cell with no border. The ONE card here is the
+ * reward, which §18.5 permits because it is a discrete offer with a price and an
+ * action and needs a boundary to be a unit.
+ *
+ * ── GEOMETRY IS RESERVED, NOT ANIMATED (§21.6) ──────────────────────────────
+ * Every tile that will be filled by script reserves its final height here, so filling
+ * it shifts nothing. The progress track is a fixed 6 px rendered server-side and its
+ * fill width is never transitioned — an animating bar makes the value ambiguous and
+ * is motion the customer did not ask for.
+ *
+ * Every selector is rooted at `.athoor-portal`, because §25.6 requires everything
+ * outside the portal's own containers to stay byte-identical. Tokens live in the
+ * shared layer — a token redeclared per section is a token that drifts.
  */
+
+/* ── The greeting: the LCP element ────────────────────────────────────────── */
+
+/*
+ * Server-rendered and the largest text on the page, so the largest contentful paint
+ * happens in the HTML response and never waits on a bundle. `text-wrap: balance` is
+ * progressive — where it is unsupported the line simply wraps normally.
+ */
+.athoor-portal .athoor-overview__greeting {
+  margin: 0 0 var(--athoor-space-7);
+  font-family: var(--athoor-display-face);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--athoor-ink);
+  text-wrap: balance;
+}
+
+@media (min-width: 750px) {
+  .athoor-portal .athoor-overview__greeting {
+    font-size: 34px;
+  }
+}
+
+/* ── Tiles ───────────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-overview__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-2);
+  align-items: flex-start;
+  padding: var(--athoor-space-6) 0;
+  border-bottom: 1px solid var(--athoor-line);
+}
+
+/*
+ * A tile is REMOVED when it has no data (Requirement 4.11), so there is no
+ * empty-state styling here on purpose — an empty tile cannot be styled because it
+ * cannot exist. The last remaining tile drops its rule, whichever one that turns out
+ * to be, which is why this is `:last-of-type` rather than a modifier class the module
+ * would have to maintain.
+ */
+.athoor-portal .athoor-overview__tile:last-of-type {
+  border-bottom: 0;
+}
+
+/* ── Balance and tier ────────────────────────────────────────────────────── */
+
+/*
+ * The 32 px numeral line and its label reserve their own height (§21.6), so the
+ * balance arriving from the API shifts nothing. `tabular-nums` keeps the digits
+ * aligned rather than shifting under proportional spacing.
+ */
+.athoor-portal .athoor-overview__numeral {
+  min-height: 38px;
+  margin: 0;
+  font-family: var(--athoor-display-face);
+  font-size: 32px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--athoor-ink);
+}
+
+.athoor-portal .athoor-overview__tier {
+  min-height: 1.4em;
+  margin: 0;
+}
+
+/* A fixed 6 px track, rendered server-side so the fill can be set once. */
+.athoor-portal .athoor-overview__progress {
+  width: 100%;
+  max-width: 22rem;
+  height: 6px;
+  margin: var(--athoor-space-2) 0;
+  overflow: hidden;
+  background: var(--athoor-line);
+  border-radius: 3px;
+}
+
+/*
+ * Deliberately NOT transitioned. The existing theme CSS avoids transitioning `width`
+ * for the same reason and the portal keeps that.
+ */
+.athoor-portal .athoor-overview__progress-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--athoor-gold);
+}
+
+/* ── The one card ────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-overview__reward {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-2);
+  align-items: flex-start;
+  width: 100%;
+  max-width: 22rem;
+  /* Reserves the card's height so filling its value and cost shifts nothing. */
+  min-height: 7rem;
+}
+
+/* ── The order row ───────────────────────────────────────────────────────── */
+
+/*
+ * A ruled row, not a card. The reserved height is two text lines plus a meta line at
+ * the known line-height, so the row does not grow when it is filled.
+ */
+.athoor-portal .athoor-overview__order {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--athoor-space-1) var(--athoor-space-4);
+  width: 100%;
+  min-height: 3.5rem;
+  padding: var(--athoor-space-2) 0;
+  color: var(--athoor-ink);
+  text-decoration: none;
+}
+
+.athoor-portal .athoor-overview__order:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/* ── Wishlist preview and the recently-viewed strip ──────────────────────── */
+
+/*
+ * Up to three across, and the square image box reserves its aspect ratio from the
+ * column width (§21.6) so the images arriving cause no shift.
+ */
+.athoor-portal .athoor-overview__wishlist {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--athoor-space-3);
+  width: 100%;
+  margin: var(--athoor-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-overview__recent {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--athoor-space-3);
+  width: 100%;
+  margin: var(--athoor-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athoor-portal .athoor-overview__wishlist-item a,
+.athoor-portal .athoor-overview__recent-item a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--athoor-space-1);
+  font-size: 13px;
+  color: var(--athoor-ink);
+  text-decoration: none;
+}
+
+.athoor-portal .athoor-overview__wishlist-item a:focus-visible,
+.athoor-portal .athoor-overview__recent-item a:focus-visible {
+  outline: 2px solid var(--athoor-gold);
+  outline-offset: 2px;
+}
+
+/* ── The insight ─────────────────────────────────────────────────────────── */
+
+.athoor-portal .athoor-overview__insight {
+  margin: 0;
+  font-family: var(--athoor-display-face);
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--athoor-ink);
+}
