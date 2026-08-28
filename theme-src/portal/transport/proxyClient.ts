@@ -320,6 +320,48 @@ async function attempt<T>(
     if (!response.ok) {
       return { ok: false, error: failureFromBody(response.status, requestId, body) };
     }
+    // ── A SUCCESS STATUS IS NOT A USABLE ANSWER ON ITS OWN ────────────────────
+    // The `catch` above is right for a FAILURE status: a 500 carrying an HTML
+    // error page tells us what to render from the status alone. It is wrong for a
+    // success status. `body` is still `null` there, and `null as T` hands the
+    // section a value its DTO forbids — so `paintBirthday` reads `.day` off
+    // nothing and throws.
+    //
+    // That throw is not caught. Every section's boot ends in `void load()`, so the
+    // rejection surfaces AFTER the task-18.7 error boundary's `try` has already
+    // returned. The section is left in `loading` for ever: no error state, no
+    // retry, no announcement. A blank panel that never resolves is the worst of
+    // §18.8's outcomes, because it is the one the customer cannot act on.
+    //
+    // The check is on the VALUE, not on whether parsing threw. `JSON.parse("null")`
+    // returns `null` without throwing, and a bare `"text"` or `42` parses cleanly
+    // while satisfying no response contract. Every portal response DTO is an
+    // `interface` — a JSON object — so a non-object success body is unusable by
+    // definition. Verified: no portal route answers 204 or an empty body, and no
+    // response type is aliased to an array or a primitive.
+    if (body === null || typeof body !== "object") {
+      return {
+        ok: false,
+        error: {
+          // The established code for "we could not obtain the data" — the same one
+          // `codeForStatus` gives a 5xx. Its wording ("That part of your account is
+          // not available just now.") is true here: we reached the service, and we
+          // still have nothing to show.
+          code: "upstream_unavailable",
+          // The REAL status, not `null`. `stateForFailure` maps `null` to `offline`
+          // when `navigator.onLine` is false, which would tell a customer they are
+          // offline immediately after we demonstrably reached the server. Reporting
+          // 200 keeps the claim true and yields the `error` state instead.
+          status: response.status,
+          requestId,
+          // Not derived from the status: `isRetryable` would return false for 200.
+          // A truncated or proxy-substituted body is plausibly transient, and every
+          // mutation already carries an Idempotency-Key, so offering the retry is
+          // both useful and safe.
+          retryable: true,
+        },
+      };
+    }
     return { ok: true, value: body as T, requestId };
   } catch (err) {
     // `loyaltyWarm` is DELIBERATELY NOT SET HERE. §22.3 sets it "on the first

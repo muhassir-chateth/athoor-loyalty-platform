@@ -49,7 +49,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { sectionHtml } from "./portalFixtures.js";
+import { STATE_NAMES, sectionHtml } from "./portalFixtures.js";
 
 /** `loyalty-service/src/theme` -> repository root. */
 const REPO_ROOT = join(import.meta.dirname ?? new URL(".", import.meta.url).pathname, "..", "..", "..");
@@ -590,5 +590,106 @@ describe("Task 29.12 — each bundle boots against the shipped section fixture",
     });
     runtime?.boot();
     expect(root?.getAttribute("data-portal-booted")).toBe("failed");
+  });
+});
+
+/* ========================================================================== *
+ * END-TO-END: a 200 with an unusable body degrades, it does not hang
+ * ========================================================================== */
+
+/**
+ * The customer-visible proof of the `proxyClient` response-shape fix.
+ *
+ * `portalTransport.dom.test.ts` asserts the transport now returns a failure for a
+ * success status with a non-object body. That is the unit-level claim. This asserts
+ * the consequence that actually matters: the section reaches a designed state with a
+ * retry, instead of sitting in `loading` for ever.
+ *
+ * It runs against the BUILT bundles for a specific reason. The defect's mechanism was
+ * that the rejection escaped after the boot boundary's `try` had returned — a timing
+ * property of `void load()` that only exists once the module is really booted. A
+ * source-level test of `paintBirthday` could not see it.
+ */
+describe("a 200 carrying an unusable body degrades the section", () => {
+  /** A 200 whose body will not parse — an App Proxy HTML page, or a truncation. */
+  function stubUnparseable200(): void {
+    (globalThis as { fetch?: unknown }).fetch = () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON at position 0")),
+        text: () => Promise.resolve("<html>Proxy error</html>"),
+      });
+  }
+
+  /** Let the section's `void load()` settle. */
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+  }
+
+  it.each(SECTIONS)("$name leaves the loading state and offers a way forward", async ({ asset, name }) => {
+    stubUnparseable200();
+    document.body.innerHTML = sectionHtml(name);
+    const root = document.querySelector<HTMLElement>(`[data-portal-section="${name}"]`);
+
+    loadBundle(readAsset(CORE_ASSET));
+    loadBundle(readAsset(asset));
+    await settle();
+
+    // The defect: `data-state` stayed `loading` for ever, with no message and no
+    // retry, because the rejection escaped the boot boundary unhandled.
+    const state = root?.getAttribute("data-state");
+    expect(state, `${name} is still in the loading state — the section has hung`).not.toBe("loading");
+
+    // And it must be a DESIGNED state, not an empty or invented one.
+    expect(STATE_NAMES, `${name} reached an undesigned state "${String(state)}"`).toContain(state);
+
+    // The customer is told something. An empty message is a blank panel.
+    const message = root?.querySelector("[data-portal-state-message]")?.textContent ?? "";
+    expect(message.trim(), `${name} degraded with no prose`).not.toBe("");
+  });
+
+  it("the message is the approved wording, and never a raw parse error", async () => {
+    stubUnparseable200();
+    document.body.innerHTML = sectionHtml("rewards");
+    const root = document.querySelector<HTMLElement>('[data-portal-section="rewards"]');
+
+    loadBundle(readAsset(CORE_ASSET));
+    loadBundle(readAsset("athoor-portal-rewards.js"));
+    await settle();
+
+    const html = root?.innerHTML ?? "";
+    // `upstream_unavailable`'s wording from the copy map.
+    expect(root?.querySelector("[data-portal-state-message]")?.textContent ?? "").toContain(
+      "not available just now",
+    );
+    // None of the transport's internals reach the customer.
+    expect(html).not.toContain("Unexpected token");
+    expect(html).not.toContain("SyntaxError");
+    expect(html).not.toContain("upstream_unavailable");
+    // Requirement 16.8's forbidden strings, on this path too.
+    for (const forbidden of ["Loading...", "Something went wrong", "undefined", "null", "NaN"]) {
+      expect(html, `rendered "${forbidden}"`).not.toContain(forbidden);
+    }
+  });
+
+  it("is NON-VACUOUS: the harness can observe a section that never leaves loading", async () => {
+    // Proves `settle()` really does let the load complete, so the assertions above
+    // would catch a hang rather than passing because nothing had run yet. A stub that
+    // never resolves is the shape of the original defect.
+    (globalThis as { fetch?: unknown }).fetch = () => new Promise(() => undefined);
+    document.body.innerHTML = sectionHtml("rewards");
+    const root = document.querySelector<HTMLElement>('[data-portal-section="rewards"]');
+
+    loadBundle(readAsset(CORE_ASSET));
+    loadBundle(readAsset("athoor-portal-rewards.js"));
+    await settle();
+
+    // With no answer at all the section is legitimately still loading — which is
+    // exactly the observation the tests above rely on being possible.
+    expect(root?.getAttribute("data-state")).toBe("loading");
   });
 });
