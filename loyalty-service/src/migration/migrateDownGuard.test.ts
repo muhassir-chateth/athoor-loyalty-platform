@@ -424,7 +424,9 @@ describe("the operator CLI keeps the leak-proofing decisions", () => {
   const cli = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
   it("never prints an error object or its message, stack or input", () => {
-    // The exact leak _shared.mjs's runMain would introduce.
+    // This CLI prints no error field at all — stricter than `runMain`, which now
+    // redacts every field it prints but still prints them. On the most destructive
+    // script in the set, printing nothing is the stronger guarantee.
     expect(cli).not.toMatch(/console\.(error|log)\(\s*err/);
     expect(cli).not.toContain("err.message");
     expect(cli).not.toContain("err.stack");
@@ -432,7 +434,22 @@ describe("the operator CLI keeps the leak-proofing decisions", () => {
     expect(cli).not.toContain(".input");
   });
 
-  it("does not use runMain, whose redact does not mask a connection string", () => {
+  it("does not use runMain — defence in depth, now that redact masks a connection string", () => {
+    // ── THIS TITLE CHANGED, AND THE REASON MATTERS ──────────────────────────────
+    // It used to read "whose redact does not mask a connection string". That was
+    // true: `_shared.mjs`'s `redact` masked only a Shopify token shape and an email
+    // address, so a password leaked in full whenever the host had no dot
+    // (`localhost`, a Docker service name) and leaked as a prefix whenever it
+    // contained a character outside `[\w.+-]`.
+    //
+    // That gap is now closed at the source — `redact` masks URI userinfo, database
+    // URIs, `Bearer`/`Basic` values and private keys, and `runMain` redacts the
+    // message and code as well as the stack. So avoiding `runMain` is no longer the
+    // ONLY thing protecting this script.
+    //
+    // The assertion stays anyway. Two independent guards on the one script that can
+    // drop production tables is the right amount, and a fix in a shared helper is
+    // exactly the kind of thing a later refactor can undo without noticing.
     expect(cli).not.toContain("runMain");
   });
 

@@ -184,9 +184,14 @@ export function positiveInt(value, name, usageText, fallback) {
 }
 
 /**
- * Deep-copies a structure with every `email` field removed and any token-looking
+ * Deep-copies a structure with every `email` field removed and every secret-shaped
  * string masked, so printed output can never carry a customer email address or a
  * secret. Customers are referenced by Shopify id only.
+ *
+ * The masked shapes are listed in {@link SECRET_PATTERNS}: private keys, URI
+ * userinfo (`user:password@host` — the connection-string case), database URIs,
+ * Shopify credential prefixes, `Bearer`/`Basic` header values and email addresses.
+ * Identifiers are deliberately left intact; see the note on that list.
  */
 export function redact(value) {
   if (Array.isArray(value)) {
@@ -203,12 +208,91 @@ export function redact(value) {
     return out;
   }
   if (typeof value === "string") {
-    // Mask anything shaped like a Shopify token or an email address.
-    return value
-      .replace(/shp[a-z]{2}_[A-Za-z0-9]+/g, "[redacted-token]")
-      .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted-email]");
+    return redactString(value);
   }
   return value;
+}
+
+/**
+ * The secret shapes this redactor masks, in the order they must be applied.
+ *
+ * ── WHY THIS LIST GREW ───────────────────────────────────────────────────────
+ * It used to be two rules: a Shopify token shape and an email address. That left a
+ * gap the repository had already noticed and worked around rather than closed.
+ * `migrateDownGuard.test.ts` says so in as many words — "does not use runMain,
+ * whose redact does not mask a connection string" — and `migrate-down-guard.mjs`
+ * was deliberately written without `runMain` for that reason.
+ *
+ * The workaround covered ONE of four exposed scripts. `m0-export.mjs`,
+ * `m1-backfill.mjs` and `m1-recovery.mjs` all call `runMain` and all connect with
+ * `DATABASE_URL`, so on any unexpected throw they printed an error message through a
+ * redactor that could not mask a connection string. Those are the production cutover
+ * scripts. Fixing the redactor closes all four at once and makes the workaround a
+ * belt-and-braces measure rather than the only thing standing in the way.
+ *
+ * ── ALIGNED WITH THE SERVICE'S OWN DEFINITION, NOT AN INVENTED ONE ───────────
+ * Every pattern below is taken from `src/observability/logCapture.gate.test.ts`,
+ * which is the repository's existing statement of what counts as secret-shaped in a
+ * log line. Two implementations of "redact" with different ideas of what a secret is
+ * was the underlying problem; this removes the divergence for the secret kinds.
+ *
+ * ── WHAT IS DELIBERATELY NOT MASKED ─────────────────────────────────────────
+ * The gate test also forbids long digit runs, UUIDs, hex digests and postcodes. Those
+ * are NOT masked here, and that is a decision rather than an omission: these scripts
+ * exist to report cohort membership by Shopify customer id, and `redact`'s own
+ * contract says "Customers are referenced by Shopify id only". Masking ids would
+ * destroy the tooling's purpose while protecting nothing that is secret. The split is
+ * between SECRETS, which are masked, and IDENTIFIERS, which this output is for.
+ */
+const SECRET_PATTERNS = [
+  // A private key block, before anything else — it contains base64 that later
+  // patterns could partially rewrite, and it is the most damaging single leak.
+  {
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+    replacement: "[redacted-private-key]",
+  },
+  // A URI carrying userinfo — the `scheme://user:password@host` form. THIS is the
+  // connection-string leak: it masks the credentials while leaving the host and
+  // path readable, which is what makes a failure diagnosable. `databaseFingerprint`
+  // prints host and database as bare strings, so its intentional output is
+  // unaffected.
+  {
+    pattern: /(\/\/)[^\s/@:]+:[^\s/@]+@/g,
+    replacement: "$1[redacted-credentials]@",
+  },
+  // A database URI with no inline credentials. The scheme and host are not secret,
+  // but a full connection string is exactly what must never be pasted into a
+  // ticket, so the whole URI is replaced.
+  {
+    pattern: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/\S+/gi,
+    replacement: "[redacted-database-uri]",
+  },
+  // Shopify credential prefixes: admin/custom-app tokens, shared secrets,
+  // storefront and customer-account tokens. Widened from `shp[a-z]{2}_` to the
+  // explicit set the gate test names, and to include `_` in the body.
+  {
+    pattern: /\bshp(?:at|ss|pa|ca|us)_[A-Za-z0-9_]+/gi,
+    replacement: "[redacted-token]",
+  },
+  // An HTTP authentication header value.
+  {
+    pattern: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+    replacement: "$1 [redacted-credential]",
+  },
+  // An email address.
+  {
+    pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+    replacement: "[redacted-email]",
+  },
+];
+
+/** Applies every secret pattern to one string. Exported so it can be tested directly. */
+export function redactString(value) {
+  let out = value;
+  for (const { pattern, replacement } of SECRET_PATTERNS) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
 }
 
 /** Prints a labelled, redacted JSON block. */
@@ -240,12 +324,22 @@ export async function runMain(main) {
   try {
     await main();
   } catch (err) {
-    console.error(`\nUNEXPECTED FAILURE: ${err instanceof Error ? err.message : String(err)}`);
+    // EVERY branch goes through `redactString`. Previously `err.stack` was redacted
+    // and `err.message` was not — which is self-contradictory, because a V8 stack
+    // BEGINS with `${name}: ${message}`. The same text was masked on one line and
+    // printed raw on the line above it.
+    //
+    // `err.code` and the `String(err)` fallback are redacted for the same reason: a
+    // thrown non-Error can carry anything, and a driver's `code` field is not
+    // guaranteed to be a short enum.
+    console.error(
+      `\nUNEXPECTED FAILURE: ${redactString(err instanceof Error ? err.message : String(err))}`,
+    );
     if (err && typeof err === "object" && "code" in err) {
-      console.error(`code: ${String(err.code)}`);
+      console.error(`code: ${redactString(String(err.code))}`);
     }
     if (err instanceof Error && err.stack) {
-      console.error(redact(err.stack));
+      console.error(redactString(err.stack));
     }
     process.exit(EXIT_ERROR);
   }
