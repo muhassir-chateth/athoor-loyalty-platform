@@ -310,6 +310,135 @@
         </li>
       </template>
 
+    {%- when 'fragrance' -%}
+      {%- comment -%}
+        Task 24.1 — §12.5's provenance separation, structurally rather than as a
+        caption bolted on afterwards.
+
+        TWO SEPARATE `<section>` ELEMENTS, never interleaved. A declared preference
+        is a statement the customer made and can correct; a derived signal is our
+        reading of their behaviour and may simply be wrong — a gift bought for
+        someone else looks exactly like a purchase for oneself. Mixing them in one
+        list would present our arithmetic as their words.
+
+        Each block carries its provenance in its ACCESSIBLE NAME as well as its
+        heading, so the difference is not colour or layout alone (Requirement 17.8),
+        and every item carries `data-provenance` so the separation can be asserted
+        mechanically rather than reviewed by eye (task 24.3).
+
+        The derived block has NO edit control anywhere in this arm. Editing an
+        inference is meaningless: the customer would be correcting our arithmetic
+        instead of stating a preference. The promotion control is the honest
+        alternative — it moves the value into the declared store, where it becomes
+        their statement and is thereafter stable (§12.5 rule 4).
+      {%- endcomment -%}
+      <section
+        class="athoor-fragrance__block"
+        data-portal-declared
+        aria-labelledby="AthoorFragranceDeclaredTitle"
+        hidden
+      >
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceDeclaredTitle">You told us</h2>
+        <p class="athoor-portal__row-meta">Select what you like. Your choices are saved as you make them.</p>
+        <div class="athoor-fragrance__dimensions" data-portal-dimensions></div>
+      </section>
+      {%- comment -%}
+        One dimension's pill set. The LEGEND carries the dimension name, so a screen
+        reader announces which group a pill belongs to — a bare list of pills is
+        unusable without it. `<fieldset>` because these are grouped controls.
+
+        Per-dimension empty states are invitations, never errors and never a hidden
+        block (Requirement 12.7): a dimension with nothing selected still renders its
+        options with a prompt.
+      {%- endcomment -%}
+      <template data-portal-row="dimension">
+        <fieldset class="athoor-fragrance__dimension">
+          <legend class="athoor-portal__eyebrow" data-slot="legend"></legend>
+          <p class="athoor-portal__row-meta" data-slot="prompt"></p>
+          <div class="athoor-fragrance__pills" data-slot="pills" role="group"></div>
+        </fieldset>
+      </template>
+      {%- comment -%}
+        One selectable value. `aria-pressed` rather than a checkbox, because the
+        control's own label is the value and a toggle button states its state without
+        needing a second visible label. 44 px minimum.
+      {%- endcomment -%}
+      <template data-portal-row="pill">
+        <button
+          class="athoor-fragrance__pill"
+          type="button"
+          data-portal-pill
+          data-provenance="declared"
+          aria-pressed="false"
+        ><span data-slot="label"></span></button>
+      </template>
+      {%- comment -%}
+        The derived block. Absent ENTIRELY when there is no behavioural history
+        rather than shown empty (§12.6), which is why the module reveals it instead
+        of the template rendering it visible.
+
+        The accessible name names the SOURCE, not just the fact of derivation
+        (§12.5 rule 2), and the one-line basis explanation beneath it names the
+        inputs (§12.5 rule 3).
+      {%- endcomment -%}
+      <section
+        class="athoor-fragrance__block athoor-fragrance__block--derived"
+        data-portal-derived
+        aria-labelledby="AthoorFragranceDerivedTitle"
+        hidden
+      >
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceDerivedTitle">
+          From your own activity — your orders, saved items and recent views
+        </h2>
+        <p class="athoor-portal__row-meta" data-portal-basis></p>
+        <p class="athoor-fragrance__insight" data-portal-insight hidden></p>
+        <div class="athoor-fragrance__derived" data-portal-derived-groups></div>
+      </section>
+      {%- comment -%}
+        One derived value. Read-only text plus an OPTIONAL promotion control, which
+        the module removes when the value is already declared or is not in the
+        server's vocabulary — a control that would be rejected is worse than none.
+      {%- endcomment -%}
+      <template data-portal-row="derived">
+        <li class="athoor-portal__row" data-provenance="derived">
+          <span class="athoor-portal__row-description" data-slot="value"></span>
+          <span class="athoor-portal__row-meta" data-slot="evidence"></span>
+          <button class="athoor-portal__action" type="button" data-portal-promote data-slot="promote"></button>
+        </li>
+      </template>
+      <template data-portal-row="derived-group">
+        <div class="athoor-fragrance__derived-group">
+          <h3 class="athoor-portal__eyebrow" data-slot="legend"></h3>
+          <ul class="athoor-fragrance__derived-list" role="list" data-slot="list"></ul>
+        </div>
+      </template>
+      {%- comment -%}
+        The recently-viewed strip. Its own block, and derived by nature — the ids come
+        from the customer's own view history — so every item carries the derived
+        marker and there is no control on it.
+      {%- endcomment -%}
+      <section class="athoor-fragrance__block" data-portal-recent aria-labelledby="AthoorFragranceRecentTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceRecentTitle">Recently viewed</h2>
+        <ul class="athoor-fragrance__recent" role="list" data-portal-recent-list></ul>
+      </section>
+      <template data-portal-row="recent">
+        <li class="athoor-fragrance__recent-item" data-provenance="derived">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span data-slot="title"></span>
+          </a>
+        </li>
+      </template>
+      {%- comment -%}
+        Requirement 12.6 — no preferences and no history at all. Leads with the
+        three-question quickest path (§12.6): families, intensity, occasions. An
+        invitation, not an apology.
+      {%- endcomment -%}
+      <div class="athoor-portal__empty-action" data-portal-empty-action>
+        <p>Tell us your taste in three answers: which families you like, how strong you wear it, and when.</p>
+      </div>
     {%- when 'referrals' -%}
       {%- comment -%}
         Task 23.1. NOT ONE NUMBER APPEARS IN THIS ARM. Every points figure, stage
