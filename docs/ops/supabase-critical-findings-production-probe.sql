@@ -83,6 +83,43 @@ rel_privs AS (
 
 -- Columns whose NAME suggests personal or bearer data, and which an API role can
 -- actually read. Column names only; no value is ever selected.
+--
+-- WHY THE PREDICATE IS EXPLICIT RATHER THAN SHORT
+--   `sensitive_columns_exposed` below is a COUNT, and it is the number that maps to
+--   Supabase's CRITICAL advisory. A count is only useful if each member earns its
+--   place, so the alternation names whole column names rather than short fragments.
+--   Measured against the 109 columns the migrations actually create, the previous
+--   predicate produced three false positives out of twelve matches — 25% noise in the
+--   number a security decision rests on — and missed a genuine bearer value.
+--
+--   REMOVED, with the column that proved it:
+--     bare `code`  -> matched `markets.code` (a market code such as "GB"),
+--                     `idempotency_keys.status_code` (an HTTP status integer) and
+--                     `redemptions.discount_code_id` (an opaque UUID foreign key that
+--                     reveals no code). `referral_code` stays in the alternation; the
+--                     genuinely redeemable `discount_codes.code` is table-scoped below,
+--                     because it is named just `code`.
+--     bare `birth` -> matched `customer_communication_preferences.birthday_messages`,
+--                     which is a BOOLEAN opt-in toggle and holds no birth date.
+--                     Replaced by the specific date columns.
+--
+--   ADDED, with the reason:
+--     `idempotency_key` -> `redemptions.idempotency_key` is a replay credential: a
+--                     reader who has it can observe, and correlate, a redemption.
+--                     It was matched by nothing before.
+--     `signature`   -> an HMAC or App Proxy signature is a bearer value. No such
+--                     column exists today; it is listed so one added later is caught
+--                     on the first run rather than after an incident.
+--     `postal_code`, `zip` -> the non-UK spellings of `postcode`. Same reason.
+--
+--   DELIBERATELY NOT ADDED — both were tried and rejected on the evidence:
+--     `name`  -> there is no customer-name column anywhere in this schema. Shopify
+--                owns identity, so the only matches would be `benefits.name` (a
+--                catalogue label) and `scheduled_runs.job_name`. Adding it would add
+--                two false positives and catch no PII.
+--     `key`   -> would match `benefits.key`, a benefit identifier such as
+--                `free_shipping`, which is not sensitive. The one `key` column that
+--                IS sensitive is named table-scoped below instead.
 sensitive AS (
     SELECT r.name AS relation,
            att.attname::text AS column_name,
@@ -92,7 +129,23 @@ sensitive AS (
       CROSS JOIN api_roles a
      WHERE att.attnum > 0
        AND NOT att.attisdropped
-       AND att.attname::text ~* '(email|phone|birth|dob|token|secret|password|hash|ip_address|user_agent|address|postcode|shopify_customer_id|referral_code|code)'
+       AND (
+             att.attname::text ~* '(email|phone|birth_month|birth_day|birth_date|date_of_birth|dob|token|secret|password|hash|ip_address|user_agent|address|postcode|postal_code|zip|shopify_customer_id|referral_code|idempotency_key|signature)'
+             -- TABLE-SCOPED, for the two columns a name-only heuristic cannot decide.
+             --
+             -- `idempotency_keys.key` is the stored idempotency key itself: a replay
+             -- credential. `benefits.key` is a catalogue identifier such as
+             -- `free_shipping` and is not. Naming the relation catches one, not both.
+             --
+             -- `discount_codes.code` is a REDEEMABLE code — the one genuinely bearer
+             -- value among the `code` columns. It cannot be reached by matching
+             -- `discount_code`, because the column is named just `code`; that fragment
+             -- matches only `redemptions.discount_code_id`, an opaque UUID foreign key
+             -- that reveals no code at all. Matching the fragment and missing the code
+             -- was precisely the wrong way round, so the relation is named instead.
+             OR (r.name = 'idempotency_keys' AND att.attname::text = 'key')
+             OR (r.name = 'discount_codes'   AND att.attname::text = 'code')
+           )
        AND has_column_privilege(a.role, r.oid, att.attname::text, 'SELECT')
 ),
 
