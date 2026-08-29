@@ -65,6 +65,7 @@ portal-preview-push.mjs — push the portal's new theme files to a NON-LIVE them
                                      required; cross-checked against --store
   --confirm-production-store=<exact> required when --store is production
   --theme-id=<id>                    required; must NOT be the live (role=main) theme
+  --confirm-theme-id=<exact id>      required to write/rollback against production
   --from=<commit>                    commit to deploy from (default HEAD)
   --apply                            perform the writes (default: plan only)
   --rollback                         delete the pushed keys instead of pushing
@@ -165,13 +166,27 @@ async function main() {
     usageText: USAGE,
   });
 
-  // Same explicit-environment discipline as the cutover scripts. No database is
-  // involved in a theme push, so the DB signal is simply absent.
+  // Same explicit-environment discipline as the cutover scripts: `--environment`
+  // is mandatory and is cross-checked against the store domain.
+  //
+  // `writes` is FALSE even under `--apply`, and that is not a loosening. In
+  // `assertEnvironmentIdentity`, `writes: true` triggers `--confirm-db-fingerprint`,
+  // whose whole purpose is to make an operator prove they looked at which DATABASE
+  // they are about to write to. A theme push opens no database connection, so there
+  // is no fingerprint to type — the guard reported exactly that ("No DATABASE_URL is
+  // configured, so there is nothing to confirm") and became unsatisfiable, blocking
+  // every production apply. Passing `writes: true` was a category error: the gate
+  // protects a resource this script never touches.
+  //
+  // The deliberate-confirmation principle it embodies is kept, and pointed at the
+  // resource actually at risk — see the `--confirm-theme-id` gate below. Production
+  // confirmation is unaffected either way: `resolveTargetStore` already requires
+  // `--confirm-production-store=<exact domain>`.
   assertEnvironmentIdentity({
     args,
     store,
     phase: "theme-push",
-    writes: Boolean(args.apply),
+    writes: false,
     databaseUrl: undefined,
     fail: (message) => usage(message, USAGE),
   });
@@ -181,6 +196,30 @@ async function main() {
   const commit = args.from && args.from !== true ? String(args.from) : "HEAD";
   const apply = Boolean(args.apply);
   const rollback = Boolean(args.rollback);
+
+  /*
+   * Deliberate confirmation of the THEME, for any write against production.
+   *
+   * This replaces the database-fingerprint gate that cannot apply here, and keeps
+   * its reasoning verbatim: typing it is the point, because a value that can be
+   * inherited from the environment confirms nothing. The theme id is the resource a
+   * mistake actually destroys — this store has five themes, four of them
+   * unpublished, and two are named as backups. A digit wrong in `--theme-id` is the
+   * realistic accident, and it is silent: every other guard would still pass.
+   */
+  if ((apply || rollback) && store === "myathoorlondon.myshopify.com") {
+    const confirmed = args["confirm-theme-id"];
+    if (String(confirmed ?? "") !== String(themeId)) {
+      usage(
+        "REFUSING TO WRITE to a PRODUCTION theme without explicit confirmation.\n" +
+          `  Re-run with --confirm-theme-id=${themeId} (exact match required)` +
+          `${confirmed === undefined ? "" : `; got "${String(confirmed)}"`}.\n\n` +
+          "Check the id against `GET /admin/api/2024-10/themes.json` first: a wrong\n" +
+          "digit targets a different theme and no other guard would notice.",
+        USAGE,
+      );
+    }
+  }
 
   /* ---- 1. the target must not be the live theme ------------------------- */
   const themes = await shopify({ store, token, method: "GET", path: "/themes.json" });

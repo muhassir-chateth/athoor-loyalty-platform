@@ -73,6 +73,14 @@ web_modules/
 # Kiro MCP settings (contains API tokens)
 .kiro/settings/mcp.json
 
+# Local Shopify MCP helper scripts. These hardcode a production Admin API token
+# with write_themes / write_products / write_orders / write_customers, and this
+# repository is PUBLIC. Nothing here is tracked today, so ignoring the directory
+# removes nothing from the index — it only stops a `git add .` from publishing a
+# live credential. Found while locating the theme token for task 30.1: 27 files
+# under this path contained it.
+shopify-mcp-local/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
