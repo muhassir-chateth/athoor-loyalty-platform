@@ -2,7 +2,7 @@
   "name": "athoor-loyalty-service",
   "version": "1.0.0",
   "private": true,
-  "description": "Athoor London loyalty microservice — immutable ledger, versioned /v1 API (Node.js + TypeScript).",
+  "description": "Athoor London loyalty microservice \u2014 immutable ledger, versioned /v1 API (Node.js + TypeScript).",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
@@ -25,7 +25,8 @@
     "cutover:m0": "node scripts/migration/m0-export.mjs",
     "cutover:m1": "node scripts/migration/m1-backfill.mjs",
     "cutover:rollback": "node scripts/migration/metafield-rollback.mjs",
-    "theme:push:preview": "node scripts/theme/portal-preview-push.mjs"
+    "theme:push:preview": "node scripts/theme/portal-preview-push.mjs",
+    "theme:pages": "node scripts/theme/portal-pages.mjs"
   },
   "dependencies": {
     "@types/node": "^22.0.0",

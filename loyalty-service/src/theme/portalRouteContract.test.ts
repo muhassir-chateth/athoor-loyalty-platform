@@ -141,6 +141,25 @@ describe("portal route contract: templates, links and required Page objects", ()
     expect(orphans, "portal templates no shipped theme file links to").toEqual([]);
   });
 
+  it("has the Page-provisioning script derive its list, not hardcode one", () => {
+    // `scripts/theme/portal-pages.mjs` creates/verifies the Page resources these
+    // templates need. If it carried its own hardcoded list, that list and this
+    // repository could disagree, and the failure would be a rendered-but-empty
+    // page rather than an error — the hardest kind to notice.
+    const script = readFileSync(
+      join(REPO_ROOT, "loyalty-service", "scripts", "theme", "portal-pages.mjs"),
+      "utf8",
+    );
+    expect(script).toContain('readdirSync(dir)');
+    expect(script).toContain('f.startsWith("page.my-athoor")');
+    // The handle IS the template suffix. Fixed here from the theme side and there
+    // from the store side; neither may drift.
+    expect(script).toContain("handle: suffix");
+    expect(script).toContain("templateSuffix: suffix");
+    // Pages must be created hidden: they are store data shared with the live theme.
+    expect(script).toContain("published: false");
+  });
+
   it("never links a portal URL that is only a runtime-constructed prefix", () => {
     // `/pages/my-athoor-` with nothing after it means a bundle is building the
     // handle by concatenation. In shipped theme bytes that is a latent 404: the
