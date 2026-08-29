@@ -59,6 +59,26 @@ describe("portal-preview-push.mjs pins match the repository", () => {
     expect(addedThemeFileCount(pinned("PRE_PORTAL_COMMIT"))).toBe(expected);
   });
 
+  it("requires --confirm-theme-id before any production write", () => {
+    const src = script();
+    // The theme id is the resource a mistake destroys: this store has five themes,
+    // four unpublished and two named as backups, so a wrong digit is the realistic
+    // accident and every other guard would still pass.
+    expect(src).toContain("confirm-theme-id");
+    expect(src).toContain("REFUSING TO WRITE to a PRODUCTION theme");
+  });
+
+  it("passes writes:false to assertEnvironmentIdentity, deliberately", () => {
+    const src = script();
+    // `writes: true` triggers --confirm-db-fingerprint, which asks an operator to
+    // prove which DATABASE they are writing to. A theme push opens no database, so
+    // that gate becomes unsatisfiable and blocks every production apply — which is
+    // exactly what happened on the first real attempt. The deliberate-confirmation
+    // principle is preserved by --confirm-theme-id above; this must not be flipped
+    // back without replacing that.
+    expect(src).toMatch(/phase:\s*"theme-push",\s*\n\s*writes:\s*false/);
+  });
+
   it("refuses to write without --apply, and halts on the live theme", () => {
     // Static checks, because exercising these needs a live Shopify token. They
     // assert the guards are still present after an edit; the behaviour itself was

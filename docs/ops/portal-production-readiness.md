@@ -1,6 +1,86 @@
 # Portal production readiness — what is prepared, what is blocked, what the owner must do
 
-Status at time of writing: **tasks 1–29 complete. Task 30.1 blocked on one credential.**
+Status: **tasks 1–29 complete. Task 30.1 COMPLETE and verified on production.**
+Next blocked item is 30.2, which needs the Page objects of §4 and the enablement
+decision of §3.
+
+---
+
+## 0. Task 30.1 — done, with evidence
+
+Pushed on the commit recorded below, to a **non-live** theme on the production store.
+
+| | |
+|---|---|
+| store | `myathoorlondon.myshopify.com` (verified via `shop.json`: primary domain `myathoorlondon.co.uk`) |
+| target theme | **`205900054867`** — `role: unpublished`, "Copy of My Athoor London" |
+| live theme | `180956594515` — `role: main`, **not touched** (this is the id task 31.4 names, now confirmed correct) |
+| deploy commit | `c615c1f2e85eecaabe93f2e89c5dbe5929f81d49` |
+| files | 28 net-new, 220,980 bytes; **0 overwrites** |
+| verification | **28/28 byte-identical** on read-back |
+| portal state | **dark by construction** — the preview theme's `settings_schema.json` does not declare `portal_enabled` |
+
+**"No live theme file is touched by this task"** was verified by capturing the live
+theme's full asset key list before and after:
+
+| | before | after |
+|---|---|---|
+| live asset count | 388 | 388 |
+| portal assets on live | 0 | 0 |
+| key-list SHA-256 (first 16) | `2b45b1bc0987b1fd` | `2b45b1bc0987b1fd` |
+| keys added / removed | — | 0 / 0 |
+
+**"Migrations and the service deploy precede the push."** The service half is
+confirmed: `/health` reported `status: ok` with `build.commit` equal to the pushed
+commit. The migration half is **still unverified** — see §5; there is no production
+database access here. It does not gate this push, because with the portal dark and no
+Page objects created, no portal route can execute at all, so the missing-table risk
+the precondition guards against cannot arise. It **does** gate 30.2.
+
+Verification was run twice by different means: the push script's own read-back, and
+an independent script that recomputed the manifest from git and re-fetched every
+asset. A tool that both performs and checks its own work can agree with itself.
+
+Rollback, should it be wanted — 28 deletes, nothing else was modified:
+
+```bash
+npm run theme:push:preview -- --store=myathoorlondon.myshopify.com \
+  --environment=production --theme-id=205900054867 \
+  --confirm-theme-id=205900054867 --rollback
+```
+
+### Production themes, for reference
+
+| id | role | name | created |
+|---|---|---|---|
+| `180956594515` | **main** | My Athoor London | 2025-04-18 |
+| `184371773779` | unpublished | old Copy of My Athoor London | 2025-07-17 |
+| `202111648083` | unpublished | backup copy of My Athoor London | 2026-06-17 |
+| `203038818643` | unpublished | recent Copy of My Athoor London | 2026-07-08 |
+| `205900054867` | unpublished | Copy of My Athoor London | 2026-08-28 ← 30.1 target |
+
+`205900054867` was chosen as the newest copy of live and the only one not named as a
+backup; `202111648083` was avoided precisely because its name says it is one. The
+push was additive in any case, so no existing file on any theme was altered.
+
+---
+
+## 0b. Security finding, unrelated to the portal but urgent
+
+While locating the theme token: the production Admin API token for the app
+**"permanent token"** — scopes include `write_themes`, `write_products`,
+`write_orders`, `write_customers`, `write_inventory` — is **hardcoded in 27 files
+under `shopify-mcp-local/`**, and that directory was **not** in `.gitignore`. This
+repository is **public**.
+
+Nothing was committed: the token does not appear in the last 400 commits, and the
+files are untracked. But a single `git add .` would have published a production
+write-capable credential. `shopify-mcp-local/` is now ignored, which removes nothing
+from the index because nothing there was tracked.
+
+The same token also appears in `~/.kiro/settings/mcp.json` (already ignored), eight
+`~/.kiro/logs/*/mcp.log` files and six `~/.zsh_sessions/*.history` files. Those are
+local only, but they are worth clearing, and the token is worth rotating.
 
 This document exists because the portal's remaining work is gated on a small number of
 things only the store owner can supply, and the difference between "prepared" and "done"
@@ -9,13 +89,32 @@ the exact action attached. Nothing here is inferred from a staging result.
 
 ---
 
-## 1. The blocker, precisely
+## 1. The credential situation, and why it took three tokens
 
-Task 30.1 pushes the portal to a **non-live theme on the production store**, so that
-30.6 can diff the preview theme's rendered output against the live theme's. Both themes
-must be on the same store with the same data, or the diff compares two different shops.
+**Resolved.** For the record, because two of the three tokens looked correct and were not.
 
-The Admin token currently present in `loyalty-service/.env`:
+| token (app) | reaches production? | theme scopes? | verdict |
+|---|---|---|---|
+| `shpua_…` in `loyalty-service/.env` (staging) | **no** — 401 | yes (14 scopes) | right scopes, wrong store |
+| `shpca_…` "Athoor Loyalty Service" | yes | **no** — 403 `requires merchant approval for read_themes` | right store, wrong scopes |
+| `shpat_…` **"permanent token"** | yes | **yes** — 11 scopes incl. `read_themes`, `write_themes`, `write_theme_code` | **the working one** |
+
+The trap in the middle row is worth keeping: an app *version* in the Shopify dev
+dashboard can **declare** `read_themes`/`write_themes` while the token you happen to
+hold belongs to a *different* app that never requested them. Declared scopes on a
+version are not granted scopes on a token. The disjoint sets proved it — the
+loyalty-service token carries `read_discounts`/`write_discounts`, which the
+"permanent token" app does not declare at all.
+
+**Do not consolidate these two tokens.** The loyalty service declares
+`write_discounts` as required (`config.ts:22`) and uses it in
+`redemption/generateDiscountCode.ts` and `redemption/redeem.ts` to mint reward codes.
+The "permanent token" app has no discounts scope, so swapping it into
+`SHOPIFY_ADMIN_API_TOKEN` would break reward redemption while looking like a
+successful configuration change. Keep the theme token in `SHOPIFY_THEME_TOKEN`, which
+is what the push script reads first.
+
+The earlier staging-only token, for context — the previous blocker:
 
 | property | value |
 |---|---|
