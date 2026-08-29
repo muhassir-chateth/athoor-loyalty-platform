@@ -227,6 +227,46 @@ describe("the feature flag (Requirement 22.1-22.3, §25.2)", () => {
     ).toBe(true);
   });
 
+  it("admits the real 30.2 pilot customer id, and nobody adjacent to it", () => {
+    // The cases above use short synthetic ids. The id actually going into the
+    // preview theme's allowlist for the 30.2 journey is 13 digits, and a staged
+    // rollout that silently admitted the wrong customer would be a Property 1
+    // problem discovered by a real person looking at someone else's orders.
+    //
+    // Pinned here so the value is exercised against the SHIPPED gate before it is
+    // typed into production, rather than trusted.
+    const PILOT = "9395357876563";
+    const on = (ctx: Partial<Ctx>) =>
+      evaluateFlag(CHROME, { ...SIGNED_IN, ...ctx }).portalOn;
+
+    // Sole entry, and inside a list, with and without the spaces a human leaves.
+    expect(on({ customerId: PILOT, portal_allowlist: PILOT })).toBe(true);
+    expect(on({ customerId: PILOT, portal_allowlist: `1234,${PILOT},9999` })).toBe(true);
+    expect(on({ customerId: PILOT, portal_allowlist: ` ${PILOT} ` })).toBe(true);
+
+    // Every prefix and suffix of a 13-digit id is a substring of it. None may match.
+    for (let cut = 1; cut < PILOT.length; cut++) {
+      expect(
+        on({ customerId: PILOT.slice(0, cut), portal_allowlist: PILOT }),
+        `prefix ${PILOT.slice(0, cut)} must not match ${PILOT}`,
+      ).toBe(false);
+      expect(
+        on({ customerId: PILOT.slice(cut), portal_allowlist: PILOT }),
+        `suffix ${PILOT.slice(cut)} must not match ${PILOT}`,
+      ).toBe(false);
+    }
+
+    // And the reverse: the pilot must not be admitted by a longer id that contains it.
+    expect(on({ customerId: PILOT, portal_allowlist: `1${PILOT}` })).toBe(false);
+    expect(on({ customerId: PILOT, portal_allowlist: `${PILOT}1` })).toBe(false);
+
+    // With the allowlist empty the pilot is no more privileged than anyone else.
+    expect(on({ customerId: PILOT, portal_allowlist: "" })).toBe(false);
+
+    // Anonymous is never admitted, whatever the allowlist says.
+    expect(evaluateFlag(CHROME, { ...ANON, portal_allowlist: PILOT }).portalOn).toBe(false);
+  });
+
   it("is evaluated in the SAME way by the header snippet", () => {
     // Two copies of a gate is how an account icon ends up pointing at a portal that
     // is not on. The conditions are asserted equal here, not merely similar.
