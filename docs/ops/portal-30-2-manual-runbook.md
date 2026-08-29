@@ -91,34 +91,97 @@ For each row in §1, in Shopify admin:
 `my-athoor` already exists, a second attempt becomes `my-athoor-1`, which 404s. After
 saving each page, confirm the handle field reads exactly what the table says.
 
-### The one thing that may not be selectable, and what to do about it
+### CONFIRMED: the template is not selectable, and why
 
 Shopify's **Theme template** dropdown lists templates from the **published** theme. The
-ten `page.my-athoor*` templates currently exist **only on the unpublished preview theme
+ten `page.my-athoor*` templates exist **only on the unpublished preview theme
 `205900054867`** — that is exactly what 30.1 was for.
 
-So there are two possible outcomes when you open that dropdown, and 30 seconds settles it:
+This was checked on the live store (Online Store → Pages → an existing page → Theme
+template). The dropdown offered exactly twelve entries:
 
-- **The `my-athoor*` options appear** → select them and you are finished. No API scope,
-  no token, nothing further needed.
-- **They do not appear** → the template suffix cannot be set from the page editor while
-  the templates live only on an unpublished theme.
+```
+Default page, about, account-landing, compare, contact, faq,
+fragrances, loyalty, rewards, service, travel-sets, wishlist
+```
 
-If it is the second, do **not** publish the preview theme and do **not** copy the
-templates to the live theme. The remaining options, in order of preference:
+That is a **byte-for-byte match** with the repository's twelve *non-portal* page
+templates, and **none** of the ten `my-athoor*` templates appear. So the cause is
+established rather than inferred: the dropdown enumerates the live theme, and these ten
+templates are not in it. It is not a permissions, caching or naming problem.
 
-1. **Shopify's theme editor route.** Customise theme `205900054867` → navigate to one of
-   the pages → some Shopify versions allow assigning a template from that context.
-   Worth trying before anything else, still zero-credential.
-2. **`write_content`, one field per page.** The Admin API accepts `template_suffix` as an
-   arbitrary string, so it can set a suffix the live theme does not have. This is the one
-   acceptance-criterion-driven operation in 30.2 that may genuinely have no manual
-   equivalent — see §4.
-3. Defer the ten Pages until task 31.4 has pushed the templates to the live theme, and
-   verify the routes then. This trades 30.2 coverage for zero new permissions, and means
-   30.2's journey is run after the live push rather than before it — which Requirement
-   26.8 explicitly does not allow ("before the portal reaches the live theme"). Recorded
-   for completeness; not recommended.
+### The `?view=` mechanism — verified on this store
+
+Shopify honours a `view` query parameter that selects an alternate template **at request
+time, with no `template_suffix` involved**. Confirmed against the live storefront with
+read-only GETs:
+
+| URL | bytes | `loyalty-dashboard` | `dtx-wishlist` |
+|---|---|---|---|
+| `/pages/rewards` | 301,260 | 2 | 0 |
+| `/pages/rewards?view=compare` | 301,595 | **0** | **2** |
+| `/pages/rewards?view=wishlist` | 304,122 | 0 | 0 |
+
+Different views produced materially different HTML, so the parameter is honoured here.
+
+**Consequence: 30.2's journey does not need `template_suffix` at all.** With the ten
+Pages created manually (handle, blank body, Hidden, template left as *Default page*),
+every portal section is reachable as:
+
+```
+/pages/<handle>?view=<suffix>&preview_theme_id=205900054867
+```
+
+What this covers, and what it does not:
+
+- **Covered** — authentication, every section rendering, all data, all persistence,
+  logout and re-authentication. The substance of Requirements 26.1 and 26.2.
+- **Not covered** — *clicking* between sections. The portal's nav links point at bare
+  `/pages/my-athoor-orders`, so without `template_suffix` a nav click lands on the empty
+  default template. Nav *correctness* is still verifiable (`portalRouteContract.test.ts`
+  asserts every href has a matching template, and the hrefs are readable in the rendered
+  page); it is nav *traversal* that defers to 31.5.
+
+**Caveat.** A non-existent view falls back silently rather than erroring —
+`?view=does-not-exist-xyz` returned HTTP 200 with a different body again. So a typo does
+not announce itself. Confirm each page shows its expected heading from the §1 headings
+table; that heading is what distinguishes the right template from a fallback.
+
+`?view=` carries no live risk: the live theme has none of these templates, so
+`?view=my-athoor-orders` against live simply falls back to a normal page.
+
+### What `template_suffix` is still needed for, and the exact scope
+
+Neither publishing the preview theme nor copying templates into the live theme is on the
+table: the first puts the portal's theme live ahead of tasks 31.1–31.4 (backups, scoped
+diff, owner approval), and the second is 31.4's own job.
+
+So `template_suffix` can only be set through the Admin API, and **`write_content` is the
+only scope that permits it** — Shopify names the read half itself in the 403
+(`requires merchant approval for read_content scope`), and write scopes subsume read, so
+one scope covers both setting and verifying. No theme, customer, order or product scope
+is involved.
+
+What it buys, beyond what `?view=` already gives: nav traversal between sections, and
+journey URLs identical to production. What it costs: one scope covering pages, blogs and
+articles.
+
+The **minimum** shape of the operation — the owner creates the Pages manually, so the
+API only ever writes one field on ten known ids:
+
+```
+GET /admin/api/2024-10/pages.json?fields=id,handle,template_suffix,published_at
+PUT /admin/api/2024-10/pages/{id}.json
+    {"page": {"id": <id>, "template_suffix": "<suffix>"}}
+```
+
+Ten `PUT`s, one field each. No title, body, handle or visibility touched; no page
+created or deleted; nothing outside those ten ids; no blog or article touched.
+
+Deferring instead until 31.4 has pushed the templates to live would make the dropdown
+work, but it runs 30.2's journey *after* the portal reaches the live theme, which
+Requirement 26.8 explicitly does not allow ("before the portal reaches the live theme").
+Recorded for completeness; not recommended.
 
 ---
 
