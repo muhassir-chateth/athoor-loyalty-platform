@@ -26,7 +26,8 @@
     "cutover:m1": "node scripts/migration/m1-backfill.mjs",
     "cutover:rollback": "node scripts/migration/metafield-rollback.mjs",
     "theme:push:preview": "node scripts/theme/portal-preview-push.mjs",
-    "theme:pages": "node scripts/theme/portal-pages.mjs"
+    "theme:pages": "node scripts/theme/portal-pages.mjs",
+    "theme:settings": "node scripts/theme/portal-settings-apply.mjs"
   },
   "dependencies": {
     "@types/node": "^22.0.0",
