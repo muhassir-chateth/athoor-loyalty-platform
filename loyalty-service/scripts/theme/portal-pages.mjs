@@ -161,7 +161,21 @@ export function diffPageWrite(before, after, expectedSuffix) {
       ok: suffixOk,
     },
     updatedAtMoved,
-    publishedAtStillNull: (after?.published_at ?? null) === null,
+    // UNCHANGED, not "still null". The first version asserted
+    // `published_at === null`, written on the assumption the page would be Hidden.
+    // The real page is published, so that gate would have reported
+    // `halted_verification_failed` on a perfectly correct write — and the natural
+    // next move would have been to relax it under time pressure, immediately after
+    // a production write, which is the worst possible moment to edit a safety check.
+    //
+    // What matters is that this write does not CHANGE the publication state,
+    // whatever it currently is. That is covered field-by-field in
+    // PROTECTED_PAGE_FIELDS; this flag surfaces it separately because it is the
+    // consequence a reader most needs to see.
+    publishedAtUnchanged:
+      JSON.stringify(before?.published_at ?? null) ===
+      JSON.stringify(after?.published_at ?? null),
+    publishedAtAfter: after?.published_at ?? null,
   };
 }
 
@@ -368,14 +382,15 @@ async function main() {
     return finish({
       phase: "portal-pages",
       result: {
-        status: diff.ok && diff.publishedAtStillNull
+        status: diff.ok && diff.publishedAtUnchanged
           ? "template_suffix_set"
           : "halted_verification_failed",
         pageId: before.id,
         handle: after?.handle,
         title: after?.title,
         templateSuffix: diff.templateSuffix,
-        publishedAtStillNull: diff.publishedAtStillNull,
+        publishedAtUnchanged: diff.publishedAtUnchanged,
+        publishedAtAfter: diff.publishedAtAfter,
         updatedAtMoved: diff.updatedAtMoved,
         protectedViolations: diff.protectedViolations,
         unexpectedChanges: diff.unexpectedChanges,
