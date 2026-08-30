@@ -1,0 +1,24 @@
+{
+  "task": "31.1",
+  "store": "myathoorlondon.myshopify.com",
+  "theme": {
+    "id": 180956594515,
+    "role": "main",
+    "name": "My Athoor London"
+  },
+  "capturedAt": "2026-08-30T21:38:38.242Z",
+  "derivedFrom": "32eaca022c140bee9c7451813c735cd1c3389878",
+  "headCommit": "57d0b370ad1ac954915ab26ea7007e0f8a0ff42f",
+  "files": [
+    {
+      "key": "config/settings_schema.json",
+      "bytes": 40016,
+      "sha256": "48d01a6d1a115f8d20d8a7dcae1c82577ac6b8c9b83e53413a1c796d746b60e3"
+    },
+    {
+      "key": "sections/header.liquid",
+      "bytes": 85023,
+      "sha256": "6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5"
+    }
+  ]
+}\n
