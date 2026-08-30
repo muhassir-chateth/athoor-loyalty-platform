@@ -1,0 +1,1150 @@
+{%- comment -%}
+  snippets/portal-section.liquid — one section's root, templates, skeleton and live
+  region (spec task 19.4, design §16.2, §18.8, §21.6).
+
+  Requirements 15.1, 16.1, 6.3.
+
+  ── WHY ONE SNIPPET FOR TEN SECTIONS ──────────────────────────────────────────
+  Every section needs the same five things, and each of them is a contract with the
+  task-18 primitives:
+
+    `data-portal-section`        the boot scan's selector (core.ts)
+    `data-portal-live`           the region `ui/announce.ts` finds; it MUST be
+                                 server-rendered, because a region injected at
+                                 announcement time is not reliably announced (§20.6)
+    `data-portal-state-message`  where `render/states.ts` writes the state's prose
+    `data-portal-reference`      where §22.9's shortened request reference goes
+    `data-portal-retry`          the control `render/states.ts` binds and unbinds
+
+  Ten copies of that scaffold would be ten chances for one attribute to be
+  misspelled, and a misspelled `data-portal-live` fails silently — the section works
+  and only a screen reader user notices. One snippet, one vocabulary.
+
+  ── THE SKELETON CARRIES FINAL GEOMETRY (Requirement 16.1, §21.6) ─────────────
+  `data-state="loading"` is set here, in the markup, so the first paint is the
+  designed loading state rather than an empty box that jumps when data arrives. The
+  skeleton rows reserve the same height as real rows, which is what keeps CLS at 0 —
+  the measured desktop layout shift of 0.1044 on the current account page is the
+  defect this pattern exists to avoid repeating.
+
+  ── ROW TEMPLATES ARE MARKUP, NOT STRINGS ─────────────────────────────────────
+  `render/rows.ts` clones a `<template>` and fills `[data-slot]` with
+  `textContent`. The markup therefore lives here, in Liquid, where it is reviewable
+  and where a product title can never become an element (§5.3 records that the
+  current wishlist builds rows with `innerHTML`; NB-14).
+
+  A section whose own task has not landed yet gets the scaffold and no row
+  template. That is deliberate: an empty `<template>` that pretends to be a row
+  shape would be worse than its absence, because `rows.ts` would clone it and
+  render blank rows rather than failing loudly.
+
+  PARAMETERS
+    name        the `data-portal-section` value
+    empty_text  optional override for the empty state's prose
+{%- endcomment -%}
+
+<section
+  class="athoor-portal__section"
+  data-portal-section="{{ name }}"
+  data-state="loading"
+  aria-busy="true"
+>
+  {%- comment -%} The section-scoped polite region (§20.6). {%- endcomment -%}
+  <p class="athoor-portal__live" data-portal-live aria-live="polite"></p>
+
+  <div class="athoor-portal__state">
+    <p class="athoor-portal__state-message" data-portal-state-message>Preparing your account</p>
+    <p class="athoor-portal__state-reference" data-portal-reference hidden></p>
+    <button class="athoor-portal__retry" type="button" data-portal-retry hidden>Try again</button>
+  </div>
+
+  {%- comment -%}
+    The skeleton. Three rows is enough to read as a list without implying a count,
+    and each reserves a real row's height so nothing shifts when data replaces it.
+  {%- endcomment -%}
+  <div class="athoor-portal__skeleton" data-portal-skeleton aria-hidden="true">
+    <div class="athoor-portal__skeleton-row"></div>
+    <div class="athoor-portal__skeleton-row"></div>
+    <div class="athoor-portal__skeleton-row"></div>
+  </div>
+
+  {%- comment -%} Where the section's own module writes its rendered content. {%- endcomment -%}
+  <div class="athoor-portal__section-body" data-portal-body></div>
+
+  {%- case name -%}
+    {%- when 'orders' -%}
+      {%- comment -%}
+        Task 20.1. The row is a RULED ROW, not a card (§18.5): a hairline and air,
+        no border box. Four columns at desktop, stacked with a 64 px thumbnail at
+        base, and the total right-aligned on the number's baseline.
+
+        `width`/`height` are set from N1's intrinsic dimensions by the module, and
+        the placeholders here are the reserved geometry so nothing shifts when the
+        image loads (§21.6) — the measured 0.1044 desktop shift on the current
+        account page is what this pattern exists to avoid repeating.
+      {%- endcomment -%}
+      <template data-portal-row="order">
+        <li class="athoor-portal__row athoor-orders__row">
+          <span class="athoor-portal__image-box athoor-orders__thumb">
+            <img
+              class="athoor-portal__image"
+              data-slot="image"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="64"
+              height="64"
+              sizes="(min-width: 990px) 80px, 64px"
+            >
+          </span>
+          <a class="athoor-portal__row-link athoor-orders__link" data-slot="link" href="#"></a>
+          <span class="athoor-portal__row-number" data-slot="number"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+          <span class="athoor-portal__row-meta" data-slot="items"></span>
+          <span class="athoor-portal__row-total" data-slot="total"></span>
+          <span class="athoor-portal__row-status" data-slot="status"></span>
+        </li>
+      </template>
+
+      {%- comment -%}
+        "Show earlier orders" (task 20.1). Hidden until the module knows there is
+        another page, and it APPENDS — §20.2 requires focus to stay on this control
+        and the new count to be announced instead.
+      {%- endcomment -%}
+      <button class="athoor-portal__more" type="button" data-portal-more-orders hidden>
+        Show earlier orders
+      </button>
+
+    {%- when 'order-detail' -%}
+      {%- comment -%}
+        Task 20.3. ONE COLUMN AT EVERY WIDTH: an order is a document, read top to
+        bottom, and a two-column order confuses the totals with the address.
+
+        The totals are a real `<table>` with a `<caption>`, because they are tabular
+        data and a screen reader user needs the row header read with each figure
+        (§20.3). The caption is visually hidden, not absent.
+      {%- endcomment -%}
+      <header class="athoor-order__header">
+        {%- comment -%}
+          The heading is SERVER-RENDERED with generic wording, and the module replaces
+          it with the order's own number once N2 returns. It cannot be empty here:
+          the order number is not known until the fetch completes, and an empty `<h2>`
+          puts a nameless heading in the outline in every state before that — which is
+          most of them, including `loading`, which is the state this markup ships in.
+          Task 29.2's heading-outline walk caught exactly that.
+
+          Leaving it empty and hiding it instead would be worse, not better: the next
+          heading in this arm is the `<h3>` below, so a hidden `<h2>` turns the outline
+          into h1 → h3, which is the level jump Requirement 17.10 forbids outright.
+        {%- endcomment -%}
+        <h2 class="athoor-order__number" data-slot="number">Your order</h2>
+        <p class="athoor-order__date athoor-portal__row-meta" data-slot="date"></p>
+        <p class="athoor-order__fulfilment" data-slot="fulfilment"></p>
+        <a class="athoor-order__tracking" data-portal-tracking href="#" hidden></a>
+      </header>
+
+      <button class="athoor-portal__action athoor-order__reorder" type="button" data-portal-reorder>
+        Reorder everything available
+      </button>
+
+      <table class="athoor-order__totals">
+        <caption class="athoor-portal__visually-hidden">Order totals</caption>
+        <tbody>
+          <tr><th scope="row">Subtotal</th><td data-slot="subtotal"></td></tr>
+          <tr><th scope="row">Delivery</th><td data-slot="shipping"></td></tr>
+          <tr><th scope="row">Tax</th><td data-slot="tax"></td></tr>
+          <tr><th scope="row">Total</th><td data-slot="total"></td></tr>
+        </tbody>
+      </table>
+
+      {%- comment -%}
+        `data-portal-address-block` is the handle the module removes when an order has
+        no shipping address. It exists because removing `[data-portal-address]` alone
+        removes the PARAGRAPH and leaves this `<h3>` behind — an empty "Delivered to"
+        heading, which is precisely what the comment below has always said must not
+        happen. Task 29.2 found the module doing the narrower removal.
+      {%- endcomment -%}
+      <section class="athoor-order__delivery" data-portal-address-block>
+        <h3 class="athoor-portal__eyebrow">Delivered to</h3>
+        {%- comment -%}
+          Removed entirely by the module when the order has no shipping address —
+          a digital-only order must not render an empty "Delivered to" heading.
+        {%- endcomment -%}
+        <p class="athoor-order__address" data-portal-address></p>
+      </section>
+
+      <template data-portal-row="line-item">
+        <li class="athoor-portal__row athoor-order__line">
+          <span class="athoor-portal__image-box athoor-order__thumb">
+            <img class="athoor-portal__image" data-slot="image" alt="" loading="lazy" decoding="async" width="80" height="80">
+          </span>
+          {%- comment -%}
+            Requirement 6.8/6.9: the link is REMOVED by the module when the product
+            has no handle, and the recorded title and price render regardless — which
+            is what lets a two-year-old order still read correctly.
+          {%- endcomment -%}
+          <a class="athoor-order__line-link" data-slot="link" href="#"></a>
+          <span class="athoor-order__line-title" data-slot="title"></span>
+          <span class="athoor-portal__row-meta" data-slot="quantity"></span>
+          <span class="athoor-portal__row-meta" data-slot="unit-price"></span>
+          <span class="athoor-order__line-total" data-slot="line-total"></span>
+          {%- comment -%}
+            The availability word. §7.5's four states are conveyed in TEXT, never by
+            colour alone (Requirement 17.8).
+          {%- endcomment -%}
+          <span class="athoor-order__line-availability" data-slot="availability"></span>
+          <button class="athoor-portal__action athoor-order__buy-again" type="button" data-portal-buy-again>
+            Buy again
+          </button>
+        </li>
+      </template>
+
+    {%- when 'wishlist' -%}
+      <template data-portal-row="wishlist">
+        <li class="athoor-portal__grid-item">
+          {%- comment -%}
+            The one card-shaped element §18.5 permits in a row: the image needs a
+            defined box for its reserved aspect ratio, and it carries no border.
+          {%- endcomment -%}
+          <span class="athoor-portal__image-box">
+            <img class="athoor-portal__image" data-slot="image" alt="" loading="lazy" decoding="async" width="300" height="300">
+          </span>
+          <span class="athoor-portal__item-title" data-slot="title"></span>
+          <span class="athoor-portal__item-price" data-slot="price"></span>
+          <span class="athoor-portal__item-availability" data-slot="availability"></span>
+          {%- comment -%}
+            An EXPLICITLY LABELLED remove control, never a swipe (task 21.1): a swipe
+            is undiscoverable, impossible with a keyboard, and destructive. It stays
+            live in every state, including for a product Shopify has lost, or a
+            deleted product could never be cleared (Requirement 7.6).
+          {%- endcomment -%}
+          <button class="athoor-portal__item-remove" type="button" data-portal-wishlist-remove data-slot="remove"></button>
+          <button class="athoor-portal__action athoor-wishlist__add" type="button" data-portal-wishlist-add data-slot="add"></button>
+        </li>
+      </template>
+
+      {%- comment -%}
+        Requirement 7.11 — the empty state's route to the catalogue. Server-rendered
+        so it works before any script runs.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        <a class="athoor-portal__action" href="{{ routes.all_products_collection_url }}">Browse fragrances</a>
+      </p>
+
+    {%- when 'activity' -%}
+      <template data-portal-row="activity">
+        <li class="athoor-portal__row athoor-activity__row">
+          <span class="athoor-portal__row-description" data-slot="description"></span>
+          <span class="athoor-portal__row-points" data-slot="points"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+          {%- comment -%}
+            Requirement 9.5 — a route to the order for an order-related entry. The
+            module REMOVES this when the entry has no order reference, rather than
+            rendering a link to nothing.
+          {%- endcomment -%}
+          <a class="athoor-activity__order-link" data-slot="order-link" href="#" hidden></a>
+        </li>
+      </template>
+
+      <button class="athoor-portal__more" type="button" data-portal-more-activity hidden>
+        Show earlier activity
+      </button>
+
+      {%- comment -%}
+        Requirement 9.10 — the empty state describes how points are earned, rather
+        than only stating that there is nothing.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        You earn points on every order, and on your first purchase. Points appear here
+        as soon as an order is paid.
+      </p>
+
+    {%- when 'rewards' -%}
+      {%- comment -%}
+        Task 22.1. The balance is the only Numeral use on the page, and the progress
+        bar carries `role="progressbar"` WITH an adjacent text statement — because
+        `aria-valuenow` is not a sentence a sighted customer can read (§20.4).
+
+        The tier badge carries its tier as TEXT, not as a colour, so it survives
+        forced-colours mode and colour blindness (Requirement 17.8).
+      {%- endcomment -%}
+      <header class="athoor-rewards__summary">
+        <p class="athoor-portal__eyebrow">Your points</p>
+        <p class="athoor-rewards__balance athoor-portal__row-points" data-slot="balance">0</p>
+        <p class="athoor-rewards__tier"><span class="athoor-rewards__badge" data-slot="tier"></span> <span data-slot="multiplier"></span></p>
+
+        <div class="athoor-rewards__progress" data-portal-progress>
+          <span class="athoor-rewards__progress-fill" data-portal-progress-fill></span>
+        </div>
+        <p class="athoor-portal__row-meta" data-slot="progress-text"></p>
+        <p class="athoor-rewards__expiring" data-portal-expiring hidden></p>
+      </header>
+
+      {%- comment -%}
+        The issued code panel. 18 px monospace-tabular with a 44 px copy control and
+        how to use it (task 22.3). Hidden until a redemption succeeds.
+      {%- endcomment -%}
+      <div class="athoor-rewards__code-panel" data-portal-code-panel hidden>
+        <p class="athoor-portal__eyebrow">Your reward</p>
+        <p class="athoor-rewards__code" data-portal-code></p>
+        <button class="athoor-portal__action" type="button" data-portal-copy-code hidden>Copy code</button>
+        <p class="athoor-portal__row-meta">Enter this at checkout to apply your reward.</p>
+      </div>
+
+      <p class="athoor-rewards__wait athoor-portal__row-meta" data-portal-wait hidden></p>
+
+      <a class="athoor-portal__action athoor-rewards__activity-link" href="/pages/my-athoor-activity">
+        Points activity
+      </a>
+
+      {%- comment -%}
+        Confirmation reuses the ONE sheet implementation of task 18.5 — native
+        `<dialog>`, focus to the heading, focus returned on close, `Esc` and a
+        visible dismiss control (Requirement 25.8). No second modal system.
+      {%- endcomment -%}
+      <dialog class="athoor-portal__sheet" data-portal-redeem-sheet aria-labelledby="AthoorRedeemTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorRedeemTitle" data-portal-sheet-heading>Confirm your reward</h2>
+          <p data-slot="sheet-cost"></p>
+          <p class="athoor-portal__row-meta" data-slot="sheet-after"></p>
+          <button class="athoor-portal__action" type="button" data-portal-redeem-confirm>Confirm</button>
+          <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+        </div>
+      </dialog>
+
+      <template data-portal-row="reward">
+        {%- comment -%}
+          A card, and one of only three §18.5 permits: a reward is a discrete offer
+          with a price and an action, so it needs a boundary to be a unit.
+        {%- endcomment -%}
+        <li class="athoor-portal__card">
+          <span class="athoor-portal__card-value" data-slot="value"></span>
+          <span class="athoor-portal__card-cost" data-slot="cost"></span>
+          {%- comment -%}
+            The server's own `additionalPointsRequired`, rendered as given. This
+            module performs no threshold comparison (task 22.2).
+          {%- endcomment -%}
+          <span class="athoor-portal__row-meta" data-slot="eligibility"></span>
+          <button class="athoor-portal__card-action" type="button" data-slot="redeem"></button>
+        </li>
+      </template>
+
+    {%- when 'profile' -%}
+      {%- comment -%}
+        Task 25.1 — identity, birthday, addresses and communication preferences in ONE
+        view (Requirement 5.6), with Shopify-owned values and Loyalty_Service-owned
+        values side by side.
+
+        THERE IS NO PASSWORD CONTROL ANYWHERE IN THIS ARM, and there must never be
+        one (Requirement 5.7). The store uses Shopify's new customer accounts, which
+        authenticate by emailed code — there is no password to change, so a control
+        offering to change one would be inventing a credential. The same reasoning
+        makes the email read-only: `emailEditable` is the literal `false` in the DTO,
+        and changing the authentication address is Shopify's own flow
+        (Requirement 5.8).
+
+        Form layout follows §19.7: a persistent visible label ABOVE every input —
+        never a placeholder standing in for one, which disappears exactly when it is
+        needed — help text above the input where it states purpose, validation below
+        it and `aria-describedby`-linked, `autocomplete` on every field so the browser
+        rather than the customer re-supplies what it already knows (WCAG 2.2 3.3.7),
+        and the submit control in flow at the end rather than under the fixed bar.
+      {%- endcomment -%}
+      {%- comment -%}
+        The error summary. Rendered FIRST in the DOM so it precedes the fields it
+        links to, and focusable so validation can move focus here when a rejection
+        names no field it can point at.
+      {%- endcomment -%}
+      <div
+        class="athoor-profile__summary"
+        data-portal-error-summary
+        role="alert"
+        tabindex="-1"
+        hidden
+      >
+        <p class="athoor-profile__summary-title">Please check the following</p>
+        <ul class="athoor-profile__summary-list" data-portal-error-summary-list role="list"></ul>
+      </div>
+
+      <form class="athoor-profile__form" data-portal-identity-form novalidate>
+        <fieldset class="athoor-profile__group">
+          <legend class="athoor-fragrance__heading">Your details</legend>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfileFirstName">First name</label>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfileFirstName"
+              name="firstName"
+              type="text"
+              autocomplete="given-name"
+              maxlength="64"
+              aria-describedby="AthoorProfileFirstNameError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfileFirstNameError" data-portal-field-error="firstName" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfileLastName">Last name</label>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfileLastName"
+              name="lastName"
+              type="text"
+              autocomplete="family-name"
+              maxlength="64"
+              aria-describedby="AthoorProfileLastNameError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfileLastNameError" data-portal-field-error="lastName" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            <label class="athoor-profile__label" for="AthoorProfilePhone">Phone</label>
+            {%- comment -%}
+              Help text ABOVE the input, because it states the field's purpose and a
+              customer who reads it after typing has read it too late (§19.7).
+              `inputmode="tel"` brings up the phone keypad without claiming a format.
+            {%- endcomment -%}
+            <p class="athoor-profile__help" id="AthoorProfilePhoneHelp">For delivery questions about an order.</p>
+            <input
+              class="athoor-profile__input"
+              id="AthoorProfilePhone"
+              name="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              maxlength="64"
+              aria-describedby="AthoorProfilePhoneHelp AthoorProfilePhoneError"
+            >
+            <p class="athoor-profile__error" id="AthoorProfilePhoneError" data-portal-field-error="phone" hidden></p>
+          </div>
+
+          <div class="athoor-profile__field">
+            {%- comment -%}
+              READ-ONLY, unconditionally. `emailEditable` is typed as the literal
+              `false`, so a branch on it would be dead code. `readonly` rather than
+              `disabled`: a disabled input is skipped by keyboard navigation and its
+              value is not announced, so the customer cannot read their own address.
+            {%- endcomment -%}
+            <label class="athoor-profile__label" for="AthoorProfileEmail">Email</label>
+            <input
+              class="athoor-profile__input athoor-profile__input--locked"
+              id="AthoorProfileEmail"
+              name="email"
+              type="email"
+              autocomplete="email"
+              readonly
+              aria-describedby="AthoorProfileEmailHelp"
+            >
+            <p class="athoor-profile__help" id="AthoorProfileEmailHelp">
+              Your email is also how you sign in.
+              <a class="athoor-portal__row-link" href="/account" data-portal-email-route>Change it in your Shopify account</a>
+            </p>
+          </div>
+        </fieldset>
+
+        {%- comment -%}
+          Actions IN FLOW at the end of the form, never under the fixed bar (§19.7).
+          The stylesheet gives the form bottom padding equal to the bar height.
+        {%- endcomment -%}
+        <div class="athoor-profile__actions">
+          <button class="athoor-portal__action" type="submit" data-portal-identity-submit>Save details</button>
+          <p class="athoor-portal__row-meta" data-portal-identity-result hidden></p>
+        </div>
+      </form>
+
+      {%- comment -%}
+        ── THE BIRTHDAY PANEL (task 25.3) ───────────────────────────────────────
+        Two `<select>` elements, month and day. NOT a date input: a date input demands
+        a year, which Requirement 11.2 excludes outright, and its native picker cannot
+        be constrained to month and day (§19.7). There is no year field anywhere in
+        this arm.
+
+        The purpose statement sits ABOVE the field and before first submission
+        (Requirement 11.10), and names both what is stored and what it is for —
+        because "when is your birthday" without either is a request for personal data
+        with no stated reason.
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-birthday aria-labelledby="AthoorProfileBirthdayTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileBirthdayTitle">Your birthday</h2>
+        <p class="athoor-profile__help" data-portal-birthday-purpose>
+          We store the day and month only — never the year — so we can send you a gift near your birthday.
+        </p>
+        <p class="athoor-portal__row-meta" data-portal-birthday-stored></p>
+        <p class="athoor-portal__row-status" data-portal-birthday-eligibility></p>
+        <p class="athoor-portal__row-meta" data-portal-birthday-lock hidden></p>
+        <button class="athoor-portal__action" type="button" data-portal-birthday-open>Add your birthday</button>
+      </section>
+
+      <dialog class="athoor-portal__sheet" data-portal-birthday-sheet aria-labelledby="AthoorBirthdaySheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorBirthdaySheetTitle" data-portal-sheet-heading>Your birthday</h2>
+          <form data-portal-birthday-form novalidate>
+            {%- comment -%}
+              A `<fieldset>` with a `<legend>`, so a screen reader announces the pair
+              as one thing rather than two unrelated selects (§19.7).
+            {%- endcomment -%}
+            <fieldset class="athoor-profile__birthday-pair">
+              <legend class="athoor-profile__label">Day and month</legend>
+              <div class="athoor-profile__birthday-controls">
+                <span class="athoor-profile__field">
+                  <label class="athoor-profile__label" for="AthoorBirthdayDay">Day</label>
+                  <select class="athoor-profile__input" id="AthoorBirthdayDay" name="day" autocomplete="bday-day" data-portal-birthday-day></select>
+                </span>
+                <span class="athoor-profile__field">
+                  <label class="athoor-profile__label" for="AthoorBirthdayMonth">Month</label>
+                  <select class="athoor-profile__input" id="AthoorBirthdayMonth" name="month" autocomplete="bday-month" data-portal-birthday-month></select>
+                </span>
+              </div>
+              <p class="athoor-profile__error" id="AthoorBirthdayError" data-portal-field-error="birthday" hidden></p>
+            </fieldset>
+            <button class="athoor-portal__action" type="submit" data-portal-birthday-submit>Save birthday</button>
+            <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+          </form>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        ── SAVED ADDRESSES (task 25.2) ──────────────────────────────────────────
+        The address editor lives HERE, and Settings routes to it rather than carrying
+        a second copy. Each address is its own mutation server-side, so a failure can
+        name the address that failed instead of reporting "some addresses did not
+        save".
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-addresses aria-labelledby="AthoorProfileAddressesTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileAddressesTitle">Saved addresses</h2>
+        <ul class="athoor-profile__addresses" role="list" data-portal-address-list></ul>
+        <p class="athoor-portal__row-meta" data-portal-address-empty hidden>You have no saved addresses yet.</p>
+        <button class="athoor-portal__action" type="button" data-portal-address-add>Add an address</button>
+      </section>
+
+      <template data-portal-row="address">
+        <li class="athoor-portal__row" data-portal-address>
+          <span class="athoor-portal__row-description" data-slot="lines"></span>
+          <span class="athoor-portal__row-status" data-slot="default"></span>
+          <span class="athoor-profile__address-actions">
+            <button class="athoor-portal__action" type="button" data-portal-address-edit data-slot="edit"></button>
+            <button class="athoor-portal__action" type="button" data-portal-address-default data-slot="make-default"></button>
+            <button class="athoor-portal__action" type="button" data-portal-address-delete data-slot="delete"></button>
+          </span>
+          <span class="athoor-portal__row-meta" data-portal-address-error hidden></span>
+        </li>
+      </template>
+
+      <dialog class="athoor-portal__sheet" data-portal-address-sheet aria-labelledby="AthoorAddressSheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorAddressSheetTitle" data-portal-sheet-heading>Address</h2>
+          <form data-portal-address-form novalidate>
+            <fieldset class="athoor-profile__group">
+              <legend class="athoor-profile__label">Delivery address</legend>
+              {%- comment -%}
+                `autocomplete` tokens throughout, so the browser re-supplies an
+                address the customer has already given it (WCAG 2.2 3.3.7).
+                `countryCode` is a two-letter code server-side, so the control is a
+                select over an explicit list rather than free text that would be
+                rejected.
+              {%- endcomment -%}
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressFirstName">First name</label>
+                <input class="athoor-profile__input" id="AthoorAddressFirstName" name="firstName" type="text" autocomplete="given-name" maxlength="255" aria-describedby="AthoorAddressFirstNameError">
+                <p class="athoor-profile__error" id="AthoorAddressFirstNameError" data-portal-field-error="firstName" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLastName">Last name</label>
+                <input class="athoor-profile__input" id="AthoorAddressLastName" name="lastName" type="text" autocomplete="family-name" maxlength="255" aria-describedby="AthoorAddressLastNameError">
+                <p class="athoor-profile__error" id="AthoorAddressLastNameError" data-portal-field-error="lastName" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLine1">Address</label>
+                <input class="athoor-profile__input" id="AthoorAddressLine1" name="address1" type="text" autocomplete="address-line1" maxlength="255" aria-describedby="AthoorAddressLine1Error">
+                <p class="athoor-profile__error" id="AthoorAddressLine1Error" data-portal-field-error="address1" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressLine2">Apartment, suite (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressLine2" name="address2" type="text" autocomplete="address-line2" maxlength="255" aria-describedby="AthoorAddressLine2Error">
+                <p class="athoor-profile__error" id="AthoorAddressLine2Error" data-portal-field-error="address2" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressCity">City</label>
+                <input class="athoor-profile__input" id="AthoorAddressCity" name="city" type="text" autocomplete="address-level2" maxlength="255" aria-describedby="AthoorAddressCityError">
+                <p class="athoor-profile__error" id="AthoorAddressCityError" data-portal-field-error="city" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressProvince">County or state (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressProvince" name="province" type="text" autocomplete="address-level1" maxlength="255" aria-describedby="AthoorAddressProvinceError">
+                <p class="athoor-profile__error" id="AthoorAddressProvinceError" data-portal-field-error="province" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressZip">Postcode</label>
+                <input class="athoor-profile__input" id="AthoorAddressZip" name="zip" type="text" inputmode="text" autocomplete="postal-code" maxlength="64" aria-describedby="AthoorAddressZipError">
+                <p class="athoor-profile__error" id="AthoorAddressZipError" data-portal-field-error="zip" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressCountry">Country</label>
+                <select class="athoor-profile__input" id="AthoorAddressCountry" name="countryCode" autocomplete="country" aria-describedby="AthoorAddressCountryError" data-portal-address-country></select>
+                <p class="athoor-profile__error" id="AthoorAddressCountryError" data-portal-field-error="countryCode" hidden></p>
+              </div>
+              <div class="athoor-profile__field">
+                <label class="athoor-profile__label" for="AthoorAddressPhone">Phone (optional)</label>
+                <input class="athoor-profile__input" id="AthoorAddressPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="64" aria-describedby="AthoorAddressPhoneError">
+                <p class="athoor-profile__error" id="AthoorAddressPhoneError" data-portal-field-error="phone" hidden></p>
+              </div>
+            </fieldset>
+            <p class="athoor-profile__error" data-portal-address-form-error hidden></p>
+            <button class="athoor-portal__action" type="submit" data-portal-address-save>Save address</button>
+            <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+          </form>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        Requirement 5.6 — Loyalty_Service preference values ALONGSIDE the
+        Shopify-owned identity values, in the same view. These four are the
+        communication block from N12. Marketing consent is deliberately NOT here: it
+        is Shopify's, and it has its own endpoint and its own legal meaning.
+      {%- endcomment -%}
+      <section class="athoor-profile__group" data-portal-communication aria-labelledby="AthoorProfileCommsTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorProfileCommsTitle">What we send you</h2>
+        <ul class="athoor-profile__comms" role="list" data-portal-comms-list></ul>
+      </section>
+
+      <template data-portal-row="communication">
+        <li class="athoor-profile__comms-item">
+          <label class="athoor-profile__switch">
+            <input type="checkbox" data-portal-comms-toggle>
+            <span data-slot="label"></span>
+          </label>
+        </li>
+      </template>
+    {%- when 'fragrance' -%}
+      {%- comment -%}
+        Task 24.1 — §12.5's provenance separation, structurally rather than as a
+        caption bolted on afterwards.
+
+        TWO SEPARATE `<section>` ELEMENTS, never interleaved. A declared preference
+        is a statement the customer made and can correct; a derived signal is our
+        reading of their behaviour and may simply be wrong — a gift bought for
+        someone else looks exactly like a purchase for oneself. Mixing them in one
+        list would present our arithmetic as their words.
+
+        Each block carries its provenance in its ACCESSIBLE NAME as well as its
+        heading, so the difference is not colour or layout alone (Requirement 17.8),
+        and every item carries `data-provenance` so the separation can be asserted
+        mechanically rather than reviewed by eye (task 24.3).
+
+        The derived block has NO edit control anywhere in this arm. Editing an
+        inference is meaningless: the customer would be correcting our arithmetic
+        instead of stating a preference. The promotion control is the honest
+        alternative — it moves the value into the declared store, where it becomes
+        their statement and is thereafter stable (§12.5 rule 4).
+      {%- endcomment -%}
+      <section
+        class="athoor-fragrance__block"
+        data-portal-declared
+        aria-labelledby="AthoorFragranceDeclaredTitle"
+        hidden
+      >
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceDeclaredTitle">You told us</h2>
+        <p class="athoor-portal__row-meta">Select what you like. Your choices are saved as you make them.</p>
+        <div class="athoor-fragrance__dimensions" data-portal-dimensions></div>
+      </section>
+      {%- comment -%}
+        One dimension's pill set. The LEGEND carries the dimension name, so a screen
+        reader announces which group a pill belongs to — a bare list of pills is
+        unusable without it. `<fieldset>` because these are grouped controls.
+
+        Per-dimension empty states are invitations, never errors and never a hidden
+        block (Requirement 12.7): a dimension with nothing selected still renders its
+        options with a prompt.
+      {%- endcomment -%}
+      <template data-portal-row="dimension">
+        <fieldset class="athoor-fragrance__dimension">
+          <legend class="athoor-portal__eyebrow" data-slot="legend"></legend>
+          <p class="athoor-portal__row-meta" data-slot="prompt"></p>
+          <div class="athoor-fragrance__pills" data-slot="pills" role="group"></div>
+        </fieldset>
+      </template>
+      {%- comment -%}
+        One selectable value. `aria-pressed` rather than a checkbox, because the
+        control's own label is the value and a toggle button states its state without
+        needing a second visible label. 44 px minimum.
+      {%- endcomment -%}
+      <template data-portal-row="pill">
+        <button
+          class="athoor-fragrance__pill"
+          type="button"
+          data-portal-pill
+          data-provenance="declared"
+          aria-pressed="false"
+        ><span data-slot="label"></span></button>
+      </template>
+      {%- comment -%}
+        The derived block. Absent ENTIRELY when there is no behavioural history
+        rather than shown empty (§12.6), which is why the module reveals it instead
+        of the template rendering it visible.
+
+        The accessible name names the SOURCE, not just the fact of derivation
+        (§12.5 rule 2), and the one-line basis explanation beneath it names the
+        inputs (§12.5 rule 3).
+      {%- endcomment -%}
+      <section
+        class="athoor-fragrance__block athoor-fragrance__block--derived"
+        data-portal-derived
+        aria-labelledby="AthoorFragranceDerivedTitle"
+        hidden
+      >
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceDerivedTitle">
+          From your own activity — your orders, saved items and recent views
+        </h2>
+        <p class="athoor-portal__row-meta" data-portal-basis></p>
+        <p class="athoor-fragrance__insight" data-portal-insight hidden></p>
+        <div class="athoor-fragrance__derived" data-portal-derived-groups></div>
+      </section>
+      {%- comment -%}
+        One derived value. Read-only text plus an OPTIONAL promotion control, which
+        the module removes when the value is already declared or is not in the
+        server's vocabulary — a control that would be rejected is worse than none.
+      {%- endcomment -%}
+      <template data-portal-row="derived">
+        <li class="athoor-portal__row" data-provenance="derived">
+          <span class="athoor-portal__row-description" data-slot="value"></span>
+          <span class="athoor-portal__row-meta" data-slot="evidence"></span>
+          <button class="athoor-portal__action" type="button" data-portal-promote data-slot="promote"></button>
+        </li>
+      </template>
+      <template data-portal-row="derived-group">
+        <div class="athoor-fragrance__derived-group">
+          <h3 class="athoor-portal__eyebrow" data-slot="legend"></h3>
+          <ul class="athoor-fragrance__derived-list" role="list" data-slot="list"></ul>
+        </div>
+      </template>
+      {%- comment -%}
+        The recently-viewed strip. Its own block, and derived by nature — the ids come
+        from the customer's own view history — so every item carries the derived
+        marker and there is no control on it.
+      {%- endcomment -%}
+      <section class="athoor-fragrance__block" data-portal-recent aria-labelledby="AthoorFragranceRecentTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorFragranceRecentTitle">Recently viewed</h2>
+        <ul class="athoor-fragrance__recent" role="list" data-portal-recent-list></ul>
+      </section>
+      <template data-portal-row="recent">
+        <li class="athoor-fragrance__recent-item" data-provenance="derived">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span data-slot="title"></span>
+          </a>
+        </li>
+      </template>
+      {%- comment -%}
+        Requirement 12.6 — no preferences and no history at all. Leads with the
+        three-question quickest path (§12.6): families, intensity, occasions. An
+        invitation, not an apology.
+      {%- endcomment -%}
+      <div class="athoor-portal__empty-action" data-portal-empty-action>
+        <p>Tell us your taste in three answers: which families you like, how strong you wear it, and when.</p>
+      </div>
+    {%- when 'referrals' -%}
+      {%- comment -%}
+        Task 23.1. NOT ONE NUMBER APPEARS IN THIS ARM. Every points figure, stage
+        name, qualification sentence and state word is written by the section module
+        from `GET /v1/referral` (Requirements 10.10, 10.11), so a change to the
+        programme's economics reaches the customer without a theme deployment
+        (Requirement 10.13). That is also why there is no "earn N points" heading
+        here, however much more inviting a concrete figure would read — and why this
+        comment states the amount as `N` rather than the number, since the gate
+        inspects the file and is right to.
+
+        No referred person's name, email or identifier has anywhere to go: the stage
+        row has four slots and all four are programme-level, and the DTO carries no
+        such field to begin with (Requirement 10.7).
+      {%- endcomment -%}
+      <header class="athoor-referrals__invite">
+        <p class="athoor-portal__eyebrow">Your code</p>
+        {%- comment -%}
+          The code at 18 px monospace-tabular so it can be read aloud or copied by
+          eye, matching the redemption code panel. Empty until the response lands —
+          never a placeholder that looks like a real code.
+        {%- endcomment -%}
+        <p class="athoor-referrals__code" data-portal-referral-code></p>
+        <p class="athoor-referrals__link athoor-portal__row-meta" data-portal-referral-link hidden></p>
+        <div class="athoor-referrals__controls">
+          {%- comment -%}
+            Copy is always offered; SHARE is revealed by the module only where
+            `navigator.share` exists (Requirement 10.3), because a control that does
+            nothing is worse than no control. Both are 44 px.
+          {%- endcomment -%}
+          <button class="athoor-portal__action" type="button" data-portal-referral-copy hidden>
+            Copy your link
+          </button>
+          <button class="athoor-portal__action" type="button" data-portal-referral-share hidden>
+            Share
+          </button>
+        </div>
+        {%- comment -%}
+          The confirmation is ANNOUNCED as well as shown (task 23.2) — a clipboard
+          write is invisible, and a sighted-only tick tells a screen-reader user
+          nothing.
+        {%- endcomment -%}
+        <p class="athoor-portal__row-meta" data-portal-referral-copy-result hidden></p>
+      </header>
+      {%- comment -%}
+        Programme totals (Requirement 10.4): successful, pending, and points earned.
+        Values are written by the module; the labels are the only fixed text.
+      {%- endcomment -%}
+      <ul class="athoor-referrals__totals" data-portal-referral-totals role="list" hidden>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Successful</span>
+          <span class="athoor-portal__row-points" data-slot="successful"></span>
+        </li>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Pending</span>
+          <span class="athoor-portal__row-points" data-slot="pending"></span>
+        </li>
+        <li class="athoor-referrals__total">
+          <span class="athoor-portal__eyebrow">Points earned</span>
+          <span class="athoor-portal__row-points" data-slot="credited"></span>
+        </li>
+      </ul>
+      <h2 class="athoor-referrals__heading" data-portal-referral-stages-heading hidden>How it works</h2>
+      <template data-portal-row="stage">
+        <li class="athoor-portal__row">
+          <span class="athoor-portal__eyebrow" data-slot="name"></span>
+          <span class="athoor-portal__row-description" data-slot="qualification"></span>
+          <span class="athoor-portal__row-status" data-slot="state"></span>
+          <span class="athoor-portal__row-points" data-slot="points"></span>
+        </li>
+      </template>
+      {%- comment -%}
+        The manual code-entry fallback (Requirement 10.1 / task 23.1). Revealed only
+        on an explicit `wasReferred === false` — never on a missing field, because
+        offering the form to someone who has already been credited invites a
+        rejection we could have avoided asking for.
+
+        A real `<form>` so Enter submits and the control is a submit button. The
+        message region is `aria-live` and linked by `aria-describedby`, so a
+        rejection reaches a screen reader without moving focus away from the input.
+      {%- endcomment -%}
+      <form class="athoor-referrals__claim" data-portal-referral-claim hidden novalidate>
+        <h2 class="athoor-referrals__heading" id="AthoorReferralClaimTitle">Were you invited?</h2>
+        <label class="athoor-referrals__label" for="AthoorReferralClaimInput">Enter your friend's code</label>
+        <input
+          class="athoor-referrals__input"
+          id="AthoorReferralClaimInput"
+          name="referralCode"
+          type="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="64"
+          aria-describedby="AthoorReferralClaimMessage"
+        >
+        <button class="athoor-portal__action" type="submit" data-portal-referral-claim-submit>Apply code</button>
+        <p
+          class="athoor-referrals__message"
+          id="AthoorReferralClaimMessage"
+          data-portal-referral-claim-message
+          aria-live="polite"
+          hidden
+        ></p>
+      </form>
+      {%- comment -%}
+        Requirement 10.8 — the empty state carries the CODE and an invitation, not an
+        apology. Server-rendered so it is present before any script runs; the module
+        reveals it and fills the code.
+      {%- endcomment -%}
+      <p class="athoor-portal__empty-action" data-portal-empty-action>
+        Share your code and you will both be rewarded when your friend joins.
+      </p>
+    {%- when 'overview' -%}
+      {%- comment -%}
+        Task 27.1 — the Portal_Home.
+
+        ── THE GREETING IS SERVER-RENDERED, AND IS THE LCP ──────────────────────
+        It comes from Liquid's `customer.first_name` with NO script dependency
+        (Requirement 4.1), so the largest contentful paint happens in the HTML
+        response and does not wait on a bundle, a token or an App Proxy round trip.
+        It is a `<p>` and not a heading because the chrome already owns the page's
+        one `<h1>`; a second would break the outline for the sake of a font size.
+
+        ── OMIT, DO NOT EMPTY — AND DO NOT REVEAL ───────────────────────────────
+        §21.6 sets two absolute rules that look contradictory until you read the
+        third: content is never inserted above existing content, no element appears
+        on hydration that the server render lacked, and a tile that turns out to be
+        empty is REMOVED rather than revealed. So every tile below is server-rendered
+        with a skeleton at its exact final geometry, and the module either fills that
+        same box or deletes it. Nothing is ever added.
+
+        ── NOT A GRID OF CARDS ─────────────────────────────────────────────────
+        §18.5 names the anti-card rule and lists the only three permitted cards. A
+        balance is a numeral and a badge on the page; an order is a ruled row; a
+        wishlist item is an image and text in a grid cell. Exactly one thing here is
+        a card, and that is the reward — a discrete offer with a price and an action.
+
+        ── NO CUSTOMER IDENTIFIER IS EMITTED ────────────────────────────────────
+        No `customerId` in a config block, a data attribute or a query string. The
+        App Proxy signs the customer into every request; an id in the DOM would be a
+        second, forgeable channel for the one fact that must not be client-supplied.
+      {%- endcomment -%}
+      <p class="athoor-overview__greeting" data-portal-greeting>
+        {%- if customer.first_name != blank -%}
+          Welcome back, {{ customer.first_name }}
+        {%- else -%}
+          Welcome back
+        {%- endif -%}
+      </p>
+
+      {%- comment -%}
+        Balance, tier and progress (Requirements 4.2, 4.3). The numeral line and its
+        label reserve their own height, and the 6 px progress track is rendered
+        server-side so the fill can be set once without transitioning a width.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="loyalty" aria-labelledby="AthoorOverviewLoyaltyTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewLoyaltyTitle">Your points</h2>
+        <p class="athoor-overview__numeral athoor-portal__row-points" data-slot="balance"></p>
+        <p class="athoor-overview__tier"><span class="athoor-rewards__badge" data-slot="tier"></span></p>
+        <div class="athoor-overview__progress" data-portal-progress>
+          <span class="athoor-overview__progress-fill" data-portal-progress-fill></span>
+        </div>
+        <p class="athoor-portal__row-meta" data-slot="progress-text"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-rewards">Your rewards</a>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.5 — ONE reward the customer can redeem now. The one permitted
+        card on this page.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="reward" aria-labelledby="AthoorOverviewRewardTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewRewardTitle">Ready to redeem</h2>
+        <div class="athoor-portal__card athoor-overview__reward">
+          <span class="athoor-portal__card-value" data-slot="value"></span>
+          <span class="athoor-portal__card-cost" data-slot="cost"></span>
+          <a class="athoor-portal__card-action" href="/pages/my-athoor-rewards" data-slot="redeem-route">Redeem</a>
+        </div>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.4 — the most recent order with its date and a route to its
+        detail. A ruled row, and the 64 px thumbnail box reserves its geometry.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="order" aria-labelledby="AthoorOverviewOrderTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewOrderTitle">Your last order</h2>
+        {%- comment -%}
+          The accessible name is SERVER-RENDERED, because the visible slots below are
+          empty until the module fills them — and an anchor whose only text arrives
+          with JavaScript has no discernible name at server-render time. The axe gate
+          of task 29.1 caught exactly that. The link's purpose is known here, so it is
+          stated here.
+        {%- endcomment -%}
+        <a
+          class="athoor-portal__row athoor-overview__order"
+          href="#"
+          data-portal-order-link
+          aria-label="Your last order"
+        >
+          <span class="athoor-portal__row-description" data-slot="name"></span>
+          <span class="athoor-portal__row-meta" data-slot="date"></span>
+          <span class="athoor-portal__row-total" data-slot="total"></span>
+          <span class="athoor-portal__row-status" data-slot="status"></span>
+        </a>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-orders">All your orders</a>
+      </section>
+
+      {%- comment -%}
+        Requirement 4.6 — a preview of up to three wishlist items. A grid cell with an
+        image box and text; no border, per §18.5.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="wishlist" aria-labelledby="AthoorOverviewWishlistTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewWishlistTitle">Saved for later</h2>
+        <ul class="athoor-overview__wishlist" role="list" data-portal-wishlist-list></ul>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-wishlist">Everything you have saved</a>
+      </section>
+
+      <template data-portal-row="overview-wishlist">
+        <li class="athoor-overview__wishlist-item">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span class="athoor-portal__row-description" data-slot="title"></span>
+          </a>
+        </li>
+      </template>
+
+      {%- comment -%}
+        ── BELOW THE FOLD, DEFERRED ────────────────────────────────────────────
+        These three tiles are fetched on intersection rather than on boot (§21.5).
+        Three parallel reads instead of six: the free Render instance is
+        single-threaded per request, so fanning out every tile turns one cold start
+        into six queued ones. Deferring costs nothing because they are below the fold,
+        and removal below the fold is not a shift.
+      {%- endcomment -%}
+      <section class="athoor-overview__tile" data-portal-tile="referral" data-portal-defer aria-labelledby="AthoorOverviewReferralTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewReferralTitle">Your invitations</h2>
+        <p class="athoor-portal__row-description" data-slot="referral-count"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-referrals">Invite a friend</a>
+      </section>
+
+      <section class="athoor-overview__tile" data-portal-tile="birthday" data-portal-defer aria-labelledby="AthoorOverviewBirthdayTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewBirthdayTitle">Your birthday</h2>
+        <p class="athoor-portal__row-status" data-slot="birthday-state"></p>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-profile">Your details</a>
+      </section>
+
+      <section class="athoor-overview__tile" data-portal-tile="fragrance" data-portal-defer aria-labelledby="AthoorOverviewFragranceTitle">
+        <h2 class="athoor-portal__eyebrow" id="AthoorOverviewFragranceTitle">Your taste</h2>
+        <p class="athoor-overview__insight" data-slot="insight"></p>
+        <ul class="athoor-overview__recent" role="list" data-portal-recent-list></ul>
+        <a class="athoor-portal__row-link" href="/pages/my-athoor-fragrance">Your fragrance profile</a>
+      </section>
+
+      <template data-portal-row="overview-recent">
+        <li class="athoor-overview__recent-item">
+          <a data-slot="link" href="#">
+            <span class="athoor-portal__image-box">
+              <img class="athoor-portal__image" data-slot="image" alt="" width="300" height="300" loading="lazy" decoding="async">
+            </span>
+            <span class="athoor-portal__row-meta" data-slot="title"></span>
+          </a>
+        </li>
+      </template>
+    {%- when 'settings' -%}
+      {%- comment -%}
+        Task 26.1.
+
+        WHAT THIS ARM DOES *NOT* CONTAIN, AND WHY. Task 26.1 describes
+        "communication, notification and privacy preferences as toggles". Only
+        communication exists on the wire: `PortalCommunicationPreferences` is four
+        booleans, `push_enabled` is a reserved column that appears in no contract and
+        is explicitly refused a wire name, and privacy in this design is not a toggle
+        at all — it is the two ACTIONS below (request a copy, request deletion).
+        Inventing a notification toggle would mean inventing a field name the design
+        declines to specify, so there is one toggle group here, not three.
+
+        NO CREDENTIAL CONTROL (Requirement 13.7). No password entry, change or reset,
+        and no email input — the store uses Shopify's new customer accounts, which
+        authenticate by emailed code, so both route to Shopify's own experience.
+
+        Every preference states its PURPOSE at the point of collection
+        (Requirement 23.8): the purpose is beside the toggle, not in a policy page
+        the customer has to go and find.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-comms aria-labelledby="AthoorSettingsCommsTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsCommsTitle">What we send you</h2>
+        <ul class="athoor-settings__list" role="list" data-portal-comms-list></ul>
+      </section>
+
+      <template data-portal-row="setting">
+        <li class="athoor-settings__item">
+          <label class="athoor-settings__switch">
+            <input type="checkbox" data-portal-comms-toggle>
+            <span class="athoor-settings__switch-text">
+              <span class="athoor-settings__switch-label" data-slot="label"></span>
+              {%- comment -%}
+                The purpose, at the point of collection (Requirement 23.8). Linked by
+                `aria-describedby` so it is read with the control rather than after it.
+              {%- endcomment -%}
+              <span class="athoor-portal__row-meta" data-slot="purpose"></span>
+            </span>
+          </label>
+        </li>
+      </template>
+
+      {%- comment -%}
+        Marketing consent is SEPARATE from the toggles above, and deliberately so:
+        it is Shopify's to store, it is written through its own endpoint, and its
+        state carries a date the others do not have (Requirement 13.3). Presenting it
+        inside the same list would imply one store behind all five controls.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-consent aria-labelledby="AthoorSettingsConsentTitle" hidden>
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsConsentTitle">Marketing email</h2>
+        <p class="athoor-portal__row-meta" id="AthoorSettingsConsentPurpose">
+          Offers, new arrivals and private-client invitations. You can withdraw at any time.
+        </p>
+        <label class="athoor-settings__switch">
+          <input type="checkbox" data-portal-consent-toggle aria-describedby="AthoorSettingsConsentPurpose AthoorSettingsConsentState">
+          <span class="athoor-settings__switch-label">Send me marketing email</span>
+        </label>
+        <p class="athoor-portal__row-status" id="AthoorSettingsConsentState" data-portal-consent-state></p>
+      </section>
+
+      {%- comment -%}
+        Requirement 13.5 as task 26.1 scopes it: the address COUNT and a route to the
+        editor. The editor itself lives in Profile — a second copy here would be two
+        implementations of one form, and the one that drifts is the one nobody tests.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-addresses aria-labelledby="AthoorSettingsAddressesTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsAddressesTitle">Delivery addresses</h2>
+        <p class="athoor-portal__row-meta" data-portal-address-count></p>
+        <a class="athoor-portal__action" href="/pages/my-athoor-profile" data-portal-address-route>
+          Manage your addresses
+        </a>
+      </section>
+
+      {%- comment -%}
+        Requirement 13.8 — a route to request a copy of the data, and a route to
+        request deletion. Both are rate limited server-side, so both render a designed
+        wait state rather than failing silently or inviting a second press.
+      {%- endcomment -%}
+      <section class="athoor-settings__group" data-portal-privacy aria-labelledby="AthoorSettingsPrivacyTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsPrivacyTitle">Your data</h2>
+
+        <div class="athoor-settings__action">
+          <p class="athoor-portal__row-meta" id="AthoorSettingsExportPurpose">
+            A machine-readable copy of everything this account holds about you.
+          </p>
+          <button
+            class="athoor-portal__action"
+            type="button"
+            data-portal-export
+            aria-describedby="AthoorSettingsExportPurpose AthoorSettingsExportResult"
+          >Request a copy of your data</button>
+          <p class="athoor-portal__row-meta" id="AthoorSettingsExportResult" data-portal-export-result aria-live="polite" hidden></p>
+        </div>
+
+        <div class="athoor-settings__action">
+          <p class="athoor-portal__row-meta" id="AthoorSettingsErasurePurpose">
+            Ask us to delete your account data. A member of our team will action this and contact you.
+          </p>
+          <button
+            class="athoor-portal__action athoor-settings__action--grave"
+            type="button"
+            data-portal-erasure-open
+            aria-describedby="AthoorSettingsErasurePurpose"
+          >Request deletion of your data</button>
+          <p class="athoor-portal__row-status" data-portal-erasure-result aria-live="polite" hidden></p>
+        </div>
+      </section>
+
+      {%- comment -%}
+        Deletion is confirmed in the ONE sheet implementation of task 18.5. It is not
+        reversible from the customer's side once the request is recorded, so it does
+        not happen on a single press.
+      {%- endcomment -%}
+      <dialog class="athoor-portal__sheet" data-portal-erasure-sheet aria-labelledby="AthoorErasureSheetTitle">
+        <div class="athoor-portal__sheet-inner">
+          <h2 class="athoor-portal__sheet-title" id="AthoorErasureSheetTitle" data-portal-sheet-heading>Request deletion</h2>
+          <p>We will remove your account data and contact you when it is done. Your order records are kept where the law requires it.</p>
+          <p class="athoor-portal__row-meta">This cannot be undone from here.</p>
+          <button class="athoor-portal__action athoor-settings__action--grave" type="button" data-portal-erasure-confirm>
+            Yes, request deletion
+          </button>
+          <button class="athoor-portal__sheet-dismiss" type="button" data-portal-sheet-dismiss>Cancel</button>
+        </div>
+      </dialog>
+
+      {%- comment -%}
+        Requirement 13.6 — the logout control, ending the Shopify session and
+        returning to the storefront. `routes.account_logout_url` is Shopify's own
+        indirection: hardcoding `/account/logout` would be wrong under new customer
+        accounts, which is exactly the mode this store runs.
+      {%- endcomment -%}
+      <section class="athoor-settings__group athoor-settings__group--last" aria-labelledby="AthoorSettingsSessionTitle">
+        <h2 class="athoor-fragrance__heading" id="AthoorSettingsSessionTitle">This device</h2>
+        <a class="athoor-portal__action" href="{{ routes.account_logout_url }}" data-portal-logout rel="nofollow">
+          Sign out
+        </a>
+      </section>
+  {%- endcase -%}
+</section>

@@ -46,16 +46,25 @@ function git(args: string[]): string[] {
 
 // Three, not two: header.liquid renders 'portal-account-href', and pushing it without that
 // snippet broke the live storefront sitewide. See portalLivePushDependencies.test.ts.
+/**
+ * DERIVED, not typed. The staged set is the portal's COMPLETE closure: every additive theme
+ * file, plus the two files it modifies. Hardcoding it is what let the 31.4 push ship a set
+ * that was missing `portal-account-href` and broke the storefront sitewide.
+ *
+ * The five return-policy files are excluded here on purpose — separate release.
+ */
+const PORTAL_MODIFIED = ["config/settings_schema.json", "sections/header.liquid"];
 const EXPECTED = [
-  "config/settings_schema.json",
-  "sections/header.liquid",
-  "snippets/portal-account-href.liquid",
-];
+  ...git(["diff", "--diff-filter=A", "--name-only",
+    "32eaca022c140bee9c7451813c735cd1c3389878", "HEAD", "--", "theme/"])
+    .map((p) => p.replace(/^theme\//, "")),
+  ...PORTAL_MODIFIED,
+].sort();
 
 describe("31.2 staged production diff", () => {
   const live = latestLiveDir();
 
-  it("stages exactly the approved deployable set — no globs, no extras", () => {
+  it("stages exactly the complete derived closure — no globs, no extras", () => {
     expect(walk(PUSH).sort()).toEqual([...EXPECTED].sort());
   });
 
@@ -118,23 +127,28 @@ describe("31.2 staged production diff", () => {
     expect(staged).toEqual([...EXPECTED].sort());
   });
 
-  it("the portal push set stays 2 even though more live files are now modified", () => {
-    // Derived deliberately, so this fails the moment someone regenerates theme-push/ from
-    // the modified set without splitting the concerns.
-    const modified = git(["diff", "--diff-filter=M", "--name-only",
-      "32eaca022c140bee9c7451813c735cd1c3389878", "HEAD", "--", "theme/"]);
-    expect(modified.length, "the repo now modifies more than the portal's two files")
-      .toBeGreaterThanOrEqual(EXPECTED.length);
-    expect(walk(PUSH)).toHaveLength(EXPECTED.length);
+  it("stages every additive portal file, including the 10 dynamic section bundles", () => {
+    const staged = walk(PUSH);
+    // portal-chrome.liquid line 113 builds these names at render time, so no static scan
+    // finds them. Missing one renders the portal with that section unable to load.
+    for (const section of [
+      "overview", "orders", "order-detail", "wishlist", "rewards",
+      "activity", "referrals", "profile", "fragrance", "settings",
+    ]) {
+      expect(staged, `athoor-portal-${section}.js must be staged`)
+        .toContain(`assets/athoor-portal-${section}.js`);
+    }
+    expect(staged).toContain("assets/athoor-portal-core.js");
+    expect(staged).toContain("assets/athoor-portal.css");
   });
 
-  it("no staged file is empty or truncated", () => {
+  it("no staged file is empty, and modified files never shrink below live", () => {
     for (const rel of EXPECTED) {
       const staged = read(join(PUSH, rel));
       expect(staged.length, `${rel} must not be empty`).toBeGreaterThan(0);
-      // Only MODIFIED files have a live counterpart to compare against; the snippet is new.
-      const hasLiveCounterpart = rel !== "snippets/portal-account-href.liquid";
-      if (hasLiveCounterpart) {
+      // Only the two MODIFIED files have a live counterpart to compare against; the other 28
+      // are additive and have none.
+      if (PORTAL_MODIFIED.includes(rel)) {
         expect(staged.length, `${rel} must not shrink below live`)
           .toBeGreaterThanOrEqual(read(join(live, rel)).length);
       }
