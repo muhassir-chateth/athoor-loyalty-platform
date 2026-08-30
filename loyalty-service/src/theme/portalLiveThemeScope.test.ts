@@ -106,6 +106,16 @@ describe("live-theme blast radius", () => {
     expect(git(["rev-parse", PRE_PORTAL_COMMIT]).trim()).toBe(PRE_PORTAL_COMMIT);
   });
 
+  // KNOWN LIMITATION, recorded rather than glossed: `modifiedThemeFiles()` derives from
+  // `git diff … HEAD`, so it sees COMMITTED changes only. An uncommitted edit to an
+  // undeclared live theme file does NOT fail this test — verified by trying it. That is
+  // tolerable here because a push runs from committed bytes, but it is exactly the
+  // false-green the D3 assertion below avoids by reading the file from DISK. If this guard
+  // is ever relied on pre-commit, it needs the same treatment.
+  //
+  // Non-vacuity was therefore proved through the declaration, not the working tree:
+  // dropping a declared file fails this test; moving a policy file into the portal's list
+  // fails three.
   it("modifies only DECLARED pre-existing theme files, portal and non-portal kept apart", () => {
     const declared = [...PERMITTED_MODIFICATIONS, ...PERMITTED_NON_PORTAL_MODIFICATIONS].sort();
     expect(modifiedThemeFiles()).toEqual(declared);
