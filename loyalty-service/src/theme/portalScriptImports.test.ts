@@ -28,6 +28,8 @@ const THEME_SCRIPTS = [
   "portal-pages.mjs",
   "portal-preview-push.mjs",
   "portal-settings-apply.mjs",
+  // 31.1's tool touches the LIVE theme, so it gets the same guard as the rest.
+  "portal-live-backup.mjs",
 ];
 
 /** Names a helper module exports. */

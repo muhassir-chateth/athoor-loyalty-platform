@@ -435,3 +435,78 @@ was possible there at all**, on any route.
 | 5 | Decide `shareUrl`: leave as `.myshopify.com`, or apply the 3-line patch | nothing — cosmetic |
 | 6 | Correct 31.8 and §25.3 to say `sections/header.liquid`, two hunks | nothing — documentation |
 | 7 | Decide how the portal gets enabled on the preview theme (see §3) | 30.2–30.5 |
+
+---
+
+## 7. Verified state after the 31.1 pass
+
+Everything below was read from Shopify or produced by a tool in this repo. Nothing
+inferred.
+
+### 31.1 — COMPLETE
+
+`npm run theme:backup:live` (`scripts/theme/portal-live-backup.mjs`), status
+`backed_up_verified`, `wroteToShopify: false`.
+
+The file set is **derived, never typed**:
+`git diff --diff-filter=M --name-only 32eaca0..HEAD -- theme/`. That is the exact
+complement of the `--diff-filter=A` set `portal-preview-push` deploys, so the two tools
+partition the portal's theme footprint — 2 modified + 28 added = 30 touched, asserted with
+no overlap and no gap by `portalLiveBackup.test.ts`.
+
+| Live file | bytes | sha256 |
+|---|---|---|
+| `config/settings_schema.json` | 40,016 | `48d01a6d1a115f8d20d8a7dcae1c82577ac6b8c9b83e53413a1c796d746b60e3` |
+| `sections/header.liquid` | 85,023 | `6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5` |
+
+The 28 added files need no backup: restoring one means deleting it.
+
+**The tool cannot write to live.** It is the only tool that targets theme
+`180956594515`, so the protection is not "don't" but "can't": one `fetch`, no `method:`
+option, and no `PUT`/`POST`/`DELETE`/`PATCH` string anywhere in the file — asserted
+statically, and proved non-vacuous by adding a `PUT` and watching the test fail.
+
+### Meta Pixel — diagnosed, and OUT OF SCOPE for this spec
+
+`grep -riE 'meta pixel|facebook|fbq|web pixel|customer event'` across
+`requirements.md`, `design.md` and `tasks.md` returns **zero** matches; every "pixel" hit
+is a CSS viewport width. So it is a global steering concern, not a portal task.
+
+Diagnosed anyway, in a real browser with JavaScript executed
+(`scripts/theme/portal-browser-probe.mjs`), because the HTML alone cannot answer it:
+
+| Signal | Live storefront |
+|---|---|
+| `window.fbq` | `undefined` |
+| `connect.facebook.net` script tag | absent |
+| facebook / fbcdn / fbevents requests | **0** of 237 |
+| `window.webPixelsManager` | **present** |
+| app web pixel loaded | one — `web-pixel-4997054803`, alongside `cdn.chaty.app` requests |
+
+So Shopify's Customer Events runtime is healthy and **no Meta pixel is registered**.
+Installing one is blocked on two things this project cannot supply: the `write_pixels`
+scope (Shopify named the read half itself —
+`Access denied for webPixel field. Required access: read_pixels`) and the Meta Pixel ID,
+which lives in the owner's Meta account. Inserting inline `fbq(` into theme HTML would be
+the wrong mechanism and is not proposed.
+
+### Browser automation — available, but not sufficient for 30.2
+
+Chrome is installed and Node 24 ships a global `WebSocket`, so a real browser is drivable
+over CDP with **nothing added to `package.json`** — which matters because task 29.10 pins
+the dependency set and task 33 requires `npm ls --omit=dev` unchanged at
+`NEW RECURRING COST = £0/MONTH`. `portalBrowserProbe.test.ts` asserts every import is a
+`node:` built-in so this cannot quietly acquire a dependency.
+
+What it still cannot do: the probe runs a throwaway profile and never touches the owner's
+Chrome, so it holds **no Shopify admin session and no customer session**. 30.2 is blocked
+on a credential and an email inbox, **not** on tooling. That distinction is the reason
+30.2 stays unticked rather than being worked around.
+
+### Database migrations — still unverifiable from here
+
+`start` is `node dist/index.js` with **no migrate step**, and there is no `render.yaml`
+or `Dockerfile`, so applied-migration state **cannot** be inferred from the deployed
+commit in `/health`. `psql` is absent, the Supabase and Postman powers both report no
+tools, and the `DATABASE_URL` in `loyalty-service/.env` is non-production. §5's four
+`SELECT`s in the Supabase SQL editor remain the only route.
