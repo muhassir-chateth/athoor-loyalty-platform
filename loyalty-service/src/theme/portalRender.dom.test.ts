@@ -340,7 +340,7 @@ describe("row renderers (§5.3, §22.6)", () => {
     expect(host.querySelector("[data-slot='items']")?.textContent).toBe("3 items");
     // §20.4 — the link's accessible name names the order, date and total.
     expect(host.querySelector("[data-slot='link']")?.textContent).toBe("Order #1042, 1 June 2026, 125.00");
-    expect(host.querySelector("a")?.getAttribute("href")).toBe("/apps/loyalty/orders/6012345678901");
+    expect(host.querySelector("a")?.getAttribute("href")).toBe("/pages/my-athoor-order-detail?id=6012345678901");
   });
 
   it("never renders undefined, null or NaN for missing fields (Req 16.8)", () => {
