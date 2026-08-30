@@ -447,7 +447,12 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error(`\nUNEXPECTED FAILURE: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(EXIT_HALTED);
-});
+// Only run when invoked directly, matching its two sibling scripts. Nothing imports
+// this one today, but an unguarded top-level `main()` means any future import would
+// execute a production theme push.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(`\nUNEXPECTED FAILURE: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(EXIT_HALTED);
+  });
+}
