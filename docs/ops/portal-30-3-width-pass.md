@@ -32,7 +32,29 @@ Measured in headless Chrome over CDP. 10 sections x 8 widths = 80 measurements.
 | 1280 | no grid element in fixture |
 | 1920 | no grid element in fixture |
 
-## Not covered here
+## What is now MEASURED, and what is still not
 
-- The live storefront render (needs an authenticated preview session).
-- The mobile-keyboard case of 30.3 (needs a real device).
+The scaffold in `portal-section.liquid` carries a ONE-ITEM stub nav, so the first pass could
+measure nothing depending on the real child count — it printed "1 visible target / 56 x 320",
+which described the stub. The fixture now injects the real nine-item nav, with the entry list,
+labels, hrefs, the four-in-the-bar rule and the markup shape all **parsed out of
+`portal-nav.liquid`**, so reordering `nav_items` or renaming a label follows automatically.
+Derived, not Liquid-rendered — that is the honest limit of this harness.
+
+| 30.3 requirement | Status |
+|---|---|
+| `scrollWidth <= width` per section, 8 widths | **MEASURED — 0 failures of 80** |
+| bar fixed below 750, released at 750 | **MEASURED — fixed below 750, `static` at 768** |
+| five bottom-bar targets at 320 | **MEASURED — exactly 5** (four primary + More) |
+| every target >= 44px at 320 | **MEASURED — min 56 x 64 px** |
+| eight entries once the bar releases | **MEASURED — 8 at 768 and above** |
+| wishlist 1-up/2-up boundary at 390 | **NOT measured** — no grid container in the wishlist fixture |
+| no clipped text | **NOT measured** — needs per-element overflow comparison |
+| mobile keyboard case | **NOT measurable here** — real device |
+| the live storefront render | **NOT measurable here** — authenticated preview session |
+
+The four unmeasured clauses remain gated **statically** by
+`portalResponsivePreconditions.test.ts`. 30.3 stays **unticked** until they are measured.
+
+A harness measuring the wrong markup reports a pass just as confidently as one measuring the
+right markup — worth remembering when reading any row above.
