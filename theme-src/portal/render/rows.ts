@@ -153,7 +153,11 @@ export function orderRow(
     items: { text: itemCount(dto.lineItemCount) },
     // §20.4 — the row link's accessible name names the order, date and total.
     link: {
-      href: `/apps/loyalty/orders/${encodeURIComponent(text(dto.id))}`,
+      // The destination is the storefront page, NOT `/apps/loyalty/…`: that prefix is
+      // the App Proxy, so a link there leaves the storefront and lands on the service's
+      // JSON 404. `orderDetail.ts` reads the id from `query:id`, and `overview.ts` and
+      // `activity.ts` already build this exact URL.
+      href: `/pages/my-athoor-order-detail?id=${encodeURIComponent(text(dto.id))}`,
       text: `Order ${number}, ${date}, ${total}`,
     },
   };
