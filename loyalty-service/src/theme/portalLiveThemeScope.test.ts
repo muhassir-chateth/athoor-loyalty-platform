@@ -51,6 +51,27 @@ const PERMITTED_MODIFICATIONS: readonly string[] = [
   "theme/sections/header.liquid",
 ];
 
+/**
+ * Live theme files modified by an APPROVED change set that is NOT the portal.
+ *
+ * The portal's own blast radius stays pinned at two above. This list exists so an
+ * ACCIDENTAL modification of any other live file still fails: a file must be declared in
+ * exactly one of these two lists, and adding it here is a deliberate, reviewable act.
+ * Raising the portal's number to swallow these would have destroyed that property.
+ *
+ * Change set: the customer-facing return window 14 -> 30 days.
+ * Inventory and the deliberate exclusions: docs/ops/return-policy-30-day-sweep.md
+ * These need their own backup, diff and approval before any live push — 31.2 forbids a push
+ * carrying unrelated hunks, so theme-push/ deliberately excludes them.
+ */
+const PERMITTED_NON_PORTAL_MODIFICATIONS: readonly string[] = [
+  "theme/config/settings_data.json",
+  "theme/sections/athoor-tasting-notes.liquid",
+  "theme/templates/index.json",
+  "theme/templates/product.json",
+  "theme/templates/product.product-identity.json",
+];
+
 function git(args: string[]): string {
   return execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
@@ -85,8 +106,32 @@ describe("live-theme blast radius", () => {
     expect(git(["rev-parse", PRE_PORTAL_COMMIT]).trim()).toBe(PRE_PORTAL_COMMIT);
   });
 
-  it("modifies exactly the two permitted pre-existing theme files", () => {
-    expect(modifiedThemeFiles()).toEqual([...PERMITTED_MODIFICATIONS].sort());
+  // KNOWN LIMITATION, recorded rather than glossed: `modifiedThemeFiles()` derives from
+  // `git diff … HEAD`, so it sees COMMITTED changes only. An uncommitted edit to an
+  // undeclared live theme file does NOT fail this test — verified by trying it. That is
+  // tolerable here because a push runs from committed bytes, but it is exactly the
+  // false-green the D3 assertion below avoids by reading the file from DISK. If this guard
+  // is ever relied on pre-commit, it needs the same treatment.
+  //
+  // Non-vacuity was therefore proved through the declaration, not the working tree:
+  // dropping a declared file fails this test; moving a policy file into the portal's list
+  // fails three.
+  it("modifies only DECLARED pre-existing theme files, portal and non-portal kept apart", () => {
+    const declared = [...PERMITTED_MODIFICATIONS, ...PERMITTED_NON_PORTAL_MODIFICATIONS].sort();
+    expect(modifiedThemeFiles()).toEqual(declared);
+  });
+
+  it("keeps the PORTAL's own blast radius at exactly two files", () => {
+    // The portal's radius is what D3 and 31.2 constrain. It must not grow just because a
+    // different approved change set touched more of the live theme.
+    expect(PERMITTED_MODIFICATIONS).toHaveLength(2);
+    const modified = new Set(modifiedThemeFiles());
+    for (const f of PERMITTED_MODIFICATIONS) expect(modified.has(f), `${f} must be modified`).toBe(true);
+  });
+
+  it("declares each modified file exactly once", () => {
+    const overlap = PERMITTED_MODIFICATIONS.filter((f) => PERMITTED_NON_PORTAL_MODIFICATIONS.includes(f));
+    expect(overlap, "a file cannot belong to both change sets").toEqual([]);
   });
 
   it("leaves layout/theme.liquid byte-identical to the pre-portal commit", () => {

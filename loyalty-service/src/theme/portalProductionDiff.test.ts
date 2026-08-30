@@ -21,6 +21,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { REPO_ROOT } from "./portalFixtures.js";
 
 const PUSH = join(REPO_ROOT, "theme-push");
@@ -38,6 +39,10 @@ function walk(dir: string, base = dir): string[] {
   });
 }
 const read = (p: string) => readFileSync(p, "utf8");
+function git(args: string[]): string[] {
+  const out = execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" }).trim();
+  return out === "" ? [] : out.split("\n").map((l) => l.trim()).filter(Boolean);
+}
 
 const EXPECTED = ["config/settings_schema.json", "sections/header.liquid"];
 
@@ -84,6 +89,37 @@ describe("31.2 staged production diff", () => {
     expect(stagedGroups[22].name).toBe("My Athoor Portal");
     const ids = stagedGroups[22].settings.map((s: { id?: string }) => s.id).filter(Boolean);
     expect(ids).toEqual(["portal_enabled", "portal_allowlist"]);
+  });
+
+  it("does NOT widen to carry the 30-day return-policy change", () => {
+    // The return-policy sweep modified five MORE live theme files (settings_data.json,
+    // index.json, product.json, product.product-identity.json, athoor-tasting-notes.liquid).
+    // They are a SEPARATE customer-facing change with its own approval, and 31.2 forbids a
+    // push carrying unrelated hunks. The failure mode is silent: re-deriving the staged set
+    // from `git diff --diff-filter=M` would now yield seven files and quietly bundle a
+    // policy change into a portal release.
+    const staged = walk(PUSH).sort();
+    const policyFiles = [
+      "config/settings_data.json",
+      "templates/index.json",
+      "templates/product.json",
+      "templates/product.product-identity.json",
+      "sections/athoor-tasting-notes.liquid",
+    ];
+    for (const f of policyFiles) {
+      expect(staged, `${f} belongs to the policy change, not the portal push`).not.toContain(f);
+    }
+    expect(staged).toEqual([...EXPECTED].sort());
+  });
+
+  it("the portal push set stays 2 even though more live files are now modified", () => {
+    // Derived deliberately, so this fails the moment someone regenerates theme-push/ from
+    // the modified set without splitting the concerns.
+    const modified = git(["diff", "--diff-filter=M", "--name-only",
+      "32eaca022c140bee9c7451813c735cd1c3389878", "HEAD", "--", "theme/"]);
+    expect(modified.length, "the repo now modifies more than the portal's two files")
+      .toBeGreaterThanOrEqual(EXPECTED.length);
+    expect(walk(PUSH)).toHaveLength(EXPECTED.length);
   });
 
   it("no staged file is empty or truncated", () => {

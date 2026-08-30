@@ -1,0 +1,222 @@
+{
+  "sections": {
+    "main": {
+      "type": "main-product",
+      "blocks": {
+        "judge_me_reviews_preview_badge_b3jXTa": {
+          "type": "shopify:\/\/apps\/judge-me-reviews\/blocks\/preview_badge\/61ccd3b1-a9f2-4160-9fe9-4fec8413e5d8",
+          "settings": {}
+        },
+        "title": {
+          "type": "title",
+          "settings": {}
+        },
+        "custom_liquid_JBhnjg": {
+          "type": "custom_liquid",
+          "settings": {
+            "custom_liquid": "{% assign variant = product.selected_or_first_available_variant %}\n\n{% if variant.weight > 0 %}\n  {% if variant.weight_unit == \"oz\" %}\n    {% assign ml_value = variant.weight_in_unit | times: 27.7777 | round: 0 %}\n    <div class=\"product-weight\">\n      <strong>Size:<\/strong> {{ ml_value }} ml\n    <\/div>\n  {% else %}\n    <div class=\"product-weight\">\n      <strong>Weight:<\/strong> {{ variant.weight_in_unit }} {{ variant.weight_unit }}\n    <\/div>\n  {% endif %}\n{% endif %}"
+          }
+        },
+        "caption": {
+          "type": "text",
+          "settings": {
+            "text": "{{ product.metafields.descriptors.subtitle.value }}",
+            "text_style": "subtitle"
+          }
+        },
+        "price": {
+          "type": "price",
+          "settings": {}
+        },
+        "variant_picker": {
+          "type": "variant_picker",
+          "settings": {
+            "picker_type": "button",
+            "picker_method": "custom_color"
+          }
+        },
+        "quantity_selector": {
+          "type": "quantity_selector",
+          "settings": {}
+        },
+        "buy_buttons": {
+          "type": "buy_buttons",
+          "settings": {
+            "show_dynamic_checkout": true
+          }
+        },
+        "description": {
+          "type": "description",
+          "settings": {}
+        },
+        "collapsible-row-1": {
+          "type": "collapsible_tab",
+          "settings": {
+            "heading": "Shipping & Returns",
+            "icon": "return",
+            "content": "<p><strong>Returns Policy<\/strong><\/p><p>You may return most new, unopened items within 14  days of delivery for a full refund. We'll also pay the return shipping costs if the return is a result of our error (you received an incorrect or defective item, etc.).<\/p><p>You should expect to receive your refund within four weeks of giving your package to the return shipper, however, in many cases you will receive a refund more quickly. This time period includes the transit time for us to receive your return from the shipper (5 to 10 business days), the time it takes us to process your return once we receive it (3 to 5 business days), and the time it takes your bank to process our refund request (5 to 10 business days).<\/p><p>If you need to return an item, simply login to your account, view the order using the 'Complete Orders' link under the My Account menu and click the Return Item(s) button. We'll notify you via e-mail of your refund once we've received and processed the returned item.<\/p><p><strong>Shipping<\/strong><\/p><p>We can ship to virtually any address in the world. Note that there are restrictions on some products, and some products cannot be shipped to international destinations.<\/p><p>When you place an order, we will estimate shipping and delivery dates for you based on the availability of your items and the shipping options you choose. Depending on the shipping provider you choose, shipping date estimates may appear on the shipping quotes page.<\/p><p>Please also note that the shipping rates for many items we sell are weight-based. The weight of any such item can be found on its detail page. To reflect the policies of the shipping companies we use, all weights will be rounded up to the next full pound<\/p>",
+            "page": ""
+          }
+        },
+        "share": {
+          "type": "share",
+          "settings": {
+            "share_label": "Share"
+          }
+        },
+        "icon_text_grLKFe": {
+          "type": "icon_text",
+          "settings": {
+            "text1": "signup and earn  25% off coupon code",
+            "icon1": "shopify:\/\/shop_images\/1153646.png",
+            "html1": "",
+            "link1": "",
+            "text1_color": "#000000",
+            "html1_color": "#000000",
+            "text2": "Free delivery on orders",
+            "icon2": "shopify:\/\/shop_images\/Group_2.png",
+            "html2": "",
+            "link2": "",
+            "text2_color": "#000000",
+            "html2_color": "#000000",
+            "text3": "Free returns within 14 days",
+            "icon3": "shopify:\/\/shop_images\/2279638.png",
+            "html3": "",
+            "link3": "",
+            "text3_color": "#000000",
+            "html3_color": "#000000"
+          }
+        },
+        "shop_shop_login_button_app_block_jM6UjB": {
+          "type": "shopify:\/\/apps\/shop\/blocks\/shop-login-button-app-block\/7cab7c4a-1dfc-4b7e-8e53-31f104f2fa4e",
+          "settings": {}
+        },
+        "clearpay_on_site_messaging_payments_messaging_zmXfF8": {
+          "type": "shopify:\/\/apps\/clearpay-on-site-messaging\/blocks\/payments-messaging\/5d763983-d3e6-4888-9966-4e1170b26ae9",
+          "settings": {
+            "text_align": "inherit",
+            "margin_top": 16,
+            "margin_bottom": 16,
+            "color": "",
+            "size": "md",
+            "intro_text": "or",
+            "show_interest_free": true,
+            "payment_amount_is_bold": true,
+            "show_with": true,
+            "logo_type": "badge",
+            "logo_theme": "black-on-mint",
+            "modal_link_style": "circled-info-icon",
+            "modal_theme": "mint",
+            "breakpoint": 749,
+            "text_align_mobile": "inherit",
+            "margin_top_mobile": 16,
+            "margin_bottom_mobile": 16,
+            "show_lower_limit": true,
+            "show_upper_limit": true,
+            "show_if_outside_limits": true,
+            "product": "{{product}}"
+          }
+        }
+      },
+      "block_order": [
+        "judge_me_reviews_preview_badge_b3jXTa",
+        "title",
+        "custom_liquid_JBhnjg",
+        "caption",
+        "price",
+        "variant_picker",
+        "quantity_selector",
+        "buy_buttons",
+        "description",
+        "collapsible-row-1",
+        "share",
+        "icon_text_grLKFe",
+        "shop_shop_login_button_app_block_jM6UjB",
+        "clearpay_on_site_messaging_payments_messaging_zmXfF8"
+      ],
+      "settings": {
+        "enable_sticky_info": true,
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "gallery_layout": "stacked",
+        "media_size": "large",
+        "hide_variants": false,
+        "enable_video_looping": false,
+        "tab-position": "bottom",
+        "show_wishlist": true,
+        "padding_top": 60,
+        "padding_bottom": 60
+      }
+    },
+    "custom_liquid_VbpJnb": {
+      "type": "custom-liquid",
+      "custom_css": [],
+      "name": "t:sections.custom-liquid.presets.name",
+      "settings": {
+        "page_full_width": false,
+        "page_full_width_spacing": false,
+        "custom_liquid": "<style>\n.identity-luxury-section{\n  position:relative;\n  overflow:hidden;\n  width:100%;\n  padding:80px 0;\n  background:#f8f8f6;\n}\n.identity-scene{\n  position:relative;\n  width:100%;\n  max-width:1200px;\n  margin:auto;\n  height:750px;\n}\n.luxury-glow{\n  position:absolute;\n  left:50%;\n  top:50%;\n  width:500px;\n  height:500px;\n  transform:translate(-50%,-50%);\n  border-radius:50%;\n  background:radial-gradient(circle,\n  rgba(255,255,255,1) 0%,\n  rgba(255,255,255,.55) 40%,\n  rgba(255,255,255,0) 75%);\n}\n.bottle-wrap{\n  position:absolute;\n  left:50%;\n  top:50%;\n  transform:translate(-50%,-50%);\n  z-index:5;\n}\n#identity-bottle{\n  width:min(250px,55vw);\n  display:block;\n  filter:\n  drop-shadow(0 35px 50px rgba(0,0,0,.12))\n  drop-shadow(0 15px 25px rgba(0,0,0,.08));\n}\n.bee-wrap{\n  position:absolute;\n  left:50%;\n  top:50%;\n  width:90px;\n  height:90px;\n  z-index:10;\n  margin-left:15px;\n  margin-top:-180px;\n}\n#identity-bee{\n  width:100%;\n  display:block;\n}\n@media(max-width:768px){\n.identity-scene{\n  height:550px;\n}\n#identity-bottle{\n  width:180px;\n}\n.bee-wrap{\n  width:70px;\n  height:70px;\n  margin-top:-140px;\n}\n}\n<\/style>\n<div class=\"identity-luxury-section\">\n  <div class=\"identity-scene\">\n<div class=\"luxury-glow\"><\/div>\n<div class=\"bottle-wrap\">\n  <img\n    id=\"identity-bottle\"\n    src=\"https:\/\/cdn.shopify.com\/s\/files\/1\/0954\/4613\/9219\/files\/Subject_copy.png?v=1781329880\"\n    alt=\"\"\n  >\n<\/div>\n<div class=\"bee-wrap\">\n  <img\n    id=\"identity-bee\"\n    src=\"https:\/\/cdn.shopify.com\/s\/files\/1\/0954\/4613\/9219\/files\/Pngtree_realistic_of_honey_bee_21327744.png?v=1781329847\"\n    alt=\"\"\n  >\n<\/div>\n  <\/div>\n<\/div>\n<script src=\"https:\/\/cdnjs.cloudflare.com\/ajax\/libs\/gsap\/3.12.5\/gsap.min.js\"><\/script>\n<script>\ndocument.addEventListener(\"DOMContentLoaded\",()=>{\nconst bottle=document.getElementById(\"identity-bottle\");\nconst bee=document.getElementById(\"identity-bee\");\nconst scene=document.querySelector(\".identity-scene\");\nif(!bottle || !bee || !scene) return;\n\/* subtle bottle float *\/\ngsap.to(bottle,{\n y:-8,\n duration:3,\n repeat:-1,\n yoyo:true,\n ease:\"sine.inOut\"\n});\n\/* bee idle on cap *\/\ngsap.to(bee,{\n rotation:3,\n duration:.08,\n repeat:-1,\n yoyo:true,\n ease:\"none\"\n});\n\/* scroll controlled animation *\/\nwindow.addEventListener(\"scroll\",()=>{\n const rect=scene.getBoundingClientRect();\n const progress=Math.max(\n   0,\n   Math.min(\n     1,\n     (window.innerHeight-rect.top)\/\n     (window.innerHeight+rect.height)\n   )\n );\n gsap.to(bottle,{\n   y:(progress*120)-10,\n   duration:.4,\n   overwrite:true\n });\n gsap.to(bee,{\n   x:-180+(progress*180),\n   y:-120+(progress*120),\n   rotation:(progress*360),\n   scale:1.2-(progress*.25),\n   duration:.4,\n   overwrite:true\n });\n gsap.to(\".luxury-glow\",{\n   scale:1+(progress*.25),\n   opacity:1-(progress*.3),\n   duration:.4,\n   overwrite:true\n });\n});\n});\n<\/script>",
+        "color_scheme": "background-1",
+        "padding_top": 40,
+        "padding_bottom": 52
+      }
+    },
+    "17128353345576480d": {
+      "type": "apps",
+      "blocks": {
+        "judge_me_reviews_review_widget_Rr8zFa": {
+          "type": "shopify:\/\/apps\/judge-me-reviews\/blocks\/review_widget\/61ccd3b1-a9f2-4160-9fe9-4fec8413e5d8",
+          "settings": {
+            "review_data": "sample_data",
+            "max_width": 1200,
+            "show_shop_reviews": false,
+            "empty_state": "empty_widget"
+          }
+        }
+      },
+      "block_order": [
+        "judge_me_reviews_review_widget_Rr8zFa"
+      ],
+      "settings": {
+        "include_margins": true
+      }
+    },
+    "product-recommendations": {
+      "type": "product-recommendations",
+      "settings": {
+        "layout": "grid",
+        "heading": "Why not also try",
+        "heading_size": "h2",
+        "products_to_show": 4,
+        "columns_desktop": 4,
+        "color_scheme": "background-1",
+        "image_ratio": "portrait",
+        "show_secondary_image": false,
+        "show_vendor": false,
+        "show_rating": true,
+        "enable_quick_add": true,
+        "columns_mobile": "2",
+        "padding_top": 60,
+        "padding_bottom": 40
+      }
+    },
+    "1655529390db0055f3": {
+      "type": "apps",
+      "settings": {
+        "include_margins": true
+      }
+    },
+    "1781331400c7273d0e": {
+      "type": "_blocks",
+      "settings": {}
+    }
+  },
+  "order": [
+    "main",
+    "custom_liquid_VbpJnb",
+    "17128353345576480d",
+    "product-recommendations",
+    "1655529390db0055f3",
+    "1781331400c7273d0e"
+  ]
+}

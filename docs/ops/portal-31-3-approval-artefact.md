@@ -9,12 +9,19 @@ approved.
 ## The file list — exactly two files
 
 Staged in `theme-push/`, each built from the **pulled live bytes** of theme
-`180956594515` (snapshot `backups/live-180956594515/2026-08-30T22-01-59-294Z/`), never from the working tree.
+`180956594515` (snapshot `backups/live-180956594515/2026-08-30T22-21-36-919Z/`), never from the working tree.
 
 | File | live bytes | staged bytes | live sha256 | staged sha256 |
 |---|---|---|---|---|
 | `config/settings_schema.json` | 40,016 | 41,003 | `48d01a6d1a115f8d` | `66698ea4426b9e47` |
 | `sections/header.liquid` | 85,023 | 85,925 | `6fb229fa916dce31` | `4e83b615316ab943` |
+
+**The 30-day return-policy sweep is NOT part of this diff.** It modified five further live
+theme files (`config/settings_data.json`, `templates/index.json`, `templates/product.json`,
+`templates/product.product-identity.json`, `sections/athoor-tasting-notes.liquid`), taking the
+project's modified-live-file count from 2 to 7. Those are a separate customer-facing change
+with their own approval — see `docs/ops/return-policy-30-day-sweep.md`. Two assertions in
+`portalProductionDiff.test.ts` fail if `theme-push/` ever widens to carry them.
 
 No other file is pushed. The portal's other 28 theme files are **additive** and already
 live on the draft theme only; they carry no live counterpart, so they are not part of this
@@ -79,8 +86,8 @@ treating any mismatch as a failed deployment requiring restore from the 31.1 bac
 31.1 captured both files byte-exactly before any change:
 
 ```
-backups/live-180956594515/2026-08-30T22-01-59-294Z/config/settings_schema.json   sha256 48d01a6d1a115f8d20d8a7dcae1c82577ac6b8c9b83e53413a1c796d746b60e3
-backups/live-180956594515/2026-08-30T22-01-59-294Z/sections/header.liquid        sha256 6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5
+backups/live-180956594515/2026-08-30T22-21-36-919Z/config/settings_schema.json   sha256 48d01a6d1a115f8d20d8a7dcae1c82577ac6b8c9b83e53413a1c796d746b60e3
+backups/live-180956594515/2026-08-30T22-21-36-919Z/sections/header.liquid        sha256 6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5
 ```
 
 Restoring either is a single asset write of those bytes followed by a hash re-check.
@@ -92,7 +99,7 @@ Restoring either is a single asset write of those bytes followed by a hash re-ch
 ### `config/settings_schema.json`
 
 ```diff
---- backups/live-180956594515/2026-08-30T22-01-59-294Z/config/settings_schema.json	2026-08-30 22:38:38
+--- backups/live-180956594515/2026-08-30T22-21-36-919Z/config/settings_schema.json	2026-08-30 22:38:38
 +++ theme-push/config/settings_schema.json	2026-08-30 22:54:42
 @@ -4,8 +4,8 @@
      "theme_name": "Lilac",
@@ -143,7 +150,7 @@ Restoring either is a single asset write of those bytes followed by a hash re-ch
 ### `sections/header.liquid`
 
 ```diff
---- backups/live-180956594515/2026-08-30T22-01-59-294Z/sections/header.liquid	2026-08-30 22:38:38
+--- backups/live-180956594515/2026-08-30T22-21-36-919Z/sections/header.liquid	2026-08-30 22:38:38
 +++ theme-push/sections/header.liquid	2026-08-30 22:55:34
 @@ -348,7 +348,9 @@
                    </nav>

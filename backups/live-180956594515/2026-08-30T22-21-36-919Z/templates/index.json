@@ -1,12 +1,3 @@
-/*
- * ------------------------------------------------------------
- * IMPORTANT: The contents of this file are auto-generated.
- *
- * This file may be updated by the Shopify admin theme editor
- * or related systems. Please exercise caution as any changes
- * made to this file may be overwritten.
- * ------------------------------------------------------------
- */
 {
   "sections": {
     "1654491066da20f9da": {
@@ -15,16 +6,16 @@
         "slide_NQTAYn": {
           "type": "slide",
           "settings": {
-            "image": "shopify://shop_images/Screenshot_2026-03-24_at_15.39.00_7e3429d4-1057-45d5-b768-409a6dfce525.jpg",
-            "mobile_image": "shopify://shop_images/Image_23-05-2026_at_03.16_1.jpg",
+            "image": "shopify:\/\/shop_images\/Screenshot_2026-03-24_at_15.39.00_7e3429d4-1057-45d5-b768-409a6dfce525.jpg",
+            "mobile_image": "shopify:\/\/shop_images\/Image_23-05-2026_at_03.16_1.jpg",
             "slide_video_toggle": true,
-            "video_slide": "shopify://files/videos/IMG_4134 2.mov",
+            "video_slide": "shopify:\/\/files\/videos\/IMG_4134 2.mov",
             "heading": "",
             "heading_size": "h2",
             "subheading": "MY ATHOOR LONDON",
-            "text": "Limited Seasonal Fragrance Offer: Spring Meets Fall  — Save Up to 20% Off | Code: SPRING26 | Timeless Luxury. Lasting Impression.",
+            "text": "Limited Seasonal Fragrance Offer: Spring Meets Fall  — Save Up to 15% Off for singles | Code: SPRING26 | Timeless Luxury. Lasting Impression.",
             "button_label": "Discover",
-            "link": "shopify://collections/all",
+            "link": "shopify:\/\/collections\/all",
             "button_style_secondary": true,
             "box_align": "bottom-center",
             "show_text_box": false,
@@ -38,15 +29,15 @@
           "type": "slide",
           "disabled": true,
           "settings": {
-            "mobile_image": "shopify://shop_images/Screenshot_2026-03-24_at_15.39.00_3fed747e-8f87-4ba8-a894-491da758b872.jpg",
+            "mobile_image": "shopify:\/\/shop_images\/Screenshot_2026-03-24_at_15.39.00_3fed747e-8f87-4ba8-a894-491da758b872.jpg",
             "slide_video_toggle": false,
-            "video_slide": "shopify://files/videos/1755716635300373_enhanced.mp4",
+            "video_slide": "shopify:\/\/files\/videos\/1755716635300373_enhanced.mp4",
             "heading": "",
             "heading_size": "h0",
             "subheading": "",
             "text": "",
             "button_label": "",
-            "link": "shopify://products/identity",
+            "link": "shopify:\/\/products\/identity",
             "button_style_secondary": false,
             "box_align": "bottom-center",
             "show_text_box": true,
@@ -61,13 +52,13 @@
           "disabled": true,
           "settings": {
             "slide_video_toggle": true,
-            "video_slide": "shopify://files/videos/IMG_5811undefined.MP4",
+            "video_slide": "shopify:\/\/files\/videos\/IMG_5811undefined.MP4",
             "heading": "",
             "heading_size": "h1",
             "subheading": "",
             "text": "",
             "button_label": "Explore the Collection",
-            "link": "shopify://products/old-money",
+            "link": "shopify:\/\/products\/old-money",
             "button_style_secondary": false,
             "box_align": "bottom-center",
             "show_text_box": true,
@@ -82,13 +73,13 @@
           "disabled": true,
           "settings": {
             "slide_video_toggle": true,
-            "video_slide": "shopify://files/videos/Hailuo_Video_A hyper-realistic, 8K cinemati_414981011367510020undefined 2.mov",
+            "video_slide": "shopify:\/\/files\/videos\/Hailuo_Video_A hyper-realistic, 8K cinemati_414981011367510020undefined 2.mov",
             "heading": "",
             "heading_size": "h1",
             "subheading": "",
             "text": "",
             "button_label": "Explore the Collection",
-            "link": "shopify://products/gissa-d-aura",
+            "link": "shopify:\/\/products\/gissah-d-aura",
             "button_style_secondary": true,
             "box_align": "bottom-center",
             "show_text_box": true,
@@ -117,41 +108,22 @@
         "custom_class_name": ""
       }
     },
-    "athoor_3d_hero": {
-      "type": "athoor-3d-hero",
-      "settings": {
-        "bee_model_url": "https://cdn.shopify.com/3d/models/1ef4246e97934870/Flying_bee.glb",
-        "bottle_model_url": "",
-        "bottle_image_url": "https://cdn.shopify.com/s/files/1/0954/4613/9219/files/identityoldmoney-7381173.png?v=1782618688",
-        "hdri_url": "",
-        "bg_color": "#ffffff",
-        "text_color": "#1a1a1a",
-        "accent_color": "#B8960C",
-        "bottle_color": "#5a2a16",
-        "bloom": 0.6,
-        "height": 640,
-        "left_eyebrow": "Smell Is A Word",
-        "left_title": "Perfume Is Literature",
-        "cta_text": "Shop Now",
-        "cta_link": "shopify://collections/all"
-      }
-    },
     "athoor_categories": {
       "type": "athoor-categories",
       "blocks": {
         "cat_1": {
           "type": "category",
           "settings": {
-            "image": "shopify://shop_images/SaveClip.App_570001667_18071383289210849_8705602634722757403_n.jpg",
+            "image": "shopify:\/\/shop_images\/SaveClip.App_570001667_18071383289210849_8705602634722757403_n.jpg",
             "label": "Fragrances",
             "coming_soon": false,
-            "link": "/collections/all"
+            "link": "\/collections\/all"
           }
         },
         "cat_2": {
           "type": "category",
           "settings": {
-            "image": "shopify://shop_images/make-your-own-candles.jpg",
+            "image": "shopify:\/\/shop_images\/make-your-own-candles.jpg",
             "label": "Scented Candles",
             "coming_soon": true,
             "link": ""
@@ -160,8 +132,8 @@
         "cat_3": {
           "type": "category",
           "settings": {
-            "image": "shopify://shop_images/9BBB2E6B-8B57-4B83-B1B2-A6C310148874.png",
-            "label": "Car / Home Diffusers",
+            "image": "shopify:\/\/shop_images\/9BBB2E6B-8B57-4B83-B1B2-A6C310148874.png",
+            "label": "Car \/ Home Diffusers",
             "coming_soon": true,
             "link": ""
           }
@@ -169,10 +141,10 @@
         "cat_4": {
           "type": "category",
           "settings": {
-            "image": "shopify://shop_images/a_Use_the_first_image_8e2802e1-d797-4de7-9106-5b56405f04b1.jpg",
+            "image": "shopify:\/\/shop_images\/a_Use_the_first_image_8e2802e1-d797-4de7-9106-5b56405f04b1.jpg",
             "label": "Travel Sets",
             "coming_soon": true,
-            "link": "/products/custom-sample-set"
+            "link": "\/products\/custom-sample-set"
           }
         }
       },
@@ -191,6 +163,32 @@
         "padding_bottom": 80
       }
     },
+    "athoor_3d_hero": {
+      "type": "athoor-3d-hero",
+      "settings": {
+        "bee_model_url": "https:\/\/cdn.shopify.com\/3d\/models\/1ef4246e97934870\/Flying_bee.glb",
+        "bottle_model_url": "",
+        "bottle_image_url": "https:\/\/cdn.shopify.com\/s\/files\/1\/0954\/4613\/9219\/files\/identityoldmoney-7381173.png?v=1782618688",
+        "hdri_url": "",
+        "bg_color": "#ffffff",
+        "text_color": "#1a1a1a",
+        "accent_color": "#b8960c",
+        "bg_word": "IDENTITY",
+        "word_color": "#ece7df",
+        "bottle_color": "#5a2a16",
+        "bloom": 0.6,
+        "bee_scale": 1,
+        "height": 640,
+        "left_eyebrow": "Smell Is A Word",
+        "left_title": "Perfume Is Literature",
+        "left_text": "",
+        "cta_text": "DISCOVER",
+        "cta_link": "shopify:\/\/collections\/all",
+        "right_eyebrow": "",
+        "right_title": "",
+        "right_text": ""
+      }
+    },
     "support_block_wBrkMb": {
       "type": "support-block",
       "blocks": {
@@ -198,7 +196,7 @@
           "type": "column",
           "settings": {
             "title": "Column",
-            "text": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.</p>",
+            "text": "<p>Pair text with an image to focus on your chosen product, collection, or blog post. Add details on availability, style, or even provide a review.<\/p>",
             "link_label": "",
             "link": ""
           }
@@ -207,7 +205,7 @@
           "type": "column",
           "disabled": true,
           "settings": {
-            "image": "shopify://shop_images/pngtree-trust-line-icon-png-image_6615381.png",
+            "image": "shopify:\/\/shop_images\/pngtree-trust-line-icon-png-image_6615381.png",
             "title": "EXTRAIT DE PARFUM · HIGHEST CONCENTRATION",
             "text": "",
             "link_label": "",
@@ -218,7 +216,7 @@
           "type": "column",
           "disabled": true,
           "settings": {
-            "image": "shopify://shop_images/Group_2.png",
+            "image": "shopify:\/\/shop_images\/Group_2.png",
             "title": "ORDERS FOR FREE DELIVERY",
             "text": "",
             "link_label": "",
@@ -229,8 +227,8 @@
           "type": "column",
           "disabled": true,
           "settings": {
-            "image": "shopify://shop_images/2279638.png",
-            "title": "WITHIN 30 DAYS FREE RETURNS",
+            "image": "shopify:\/\/shop_images\/2279638.png",
+            "title": "WITHIN 14 DAYS FREE RETURNS",
             "text": "",
             "link_label": "",
             "link": ""
@@ -288,7 +286,7 @@
           "type": "buttons",
           "settings": {
             "button_label_1": "Explore the Collection",
-            "button_link_1": "shopify://collections/all",
+            "button_link_1": "shopify:\/\/collections\/all",
             "button_style_secondary_1": false,
             "button_label_2": "",
             "button_link_2": "",
@@ -306,8 +304,8 @@
       "settings": {
         "page_full_width": true,
         "page_full_width_spacing": true,
-        "image": "shopify://shop_images/IMG_4102.png",
-        "image_2": "shopify://shop_images/Image_23-05-2026_at_03.16_1_9cac1d6c-365a-4d2c-aa21-ef7d8de6bc7a.jpg",
+        "image": "shopify:\/\/shop_images\/IMG_4102.png",
+        "image_2": "shopify:\/\/shop_images\/Image_23-05-2026_at_03.16_1_9cac1d6c-365a-4d2c-aa21-ef7d8de6bc7a.jpg",
         "image_overlay_opacity": 0,
         "image_height": "large",
         "adapt_height_first_image": false,
@@ -326,7 +324,7 @@
     "athoor_bestsellers": {
       "type": "athoor-bestsellers-marquee",
       "settings": {
-        "subtitle": "BEST SELLERS",
+        "subtitle": "trending",
         "title": "Bestsellers",
         "description": "Timeless favourites, loved by many.",
         "collection": "all",
@@ -396,7 +394,7 @@
           "type": "buttons",
           "settings": {
             "button_label_1": "Explore the Collection",
-            "button_link_1": "shopify://collections/all",
+            "button_link_1": "shopify:\/\/collections\/all",
             "button_style_secondary_1": true,
             "button_label_2": "",
             "button_link_2": "",
@@ -415,8 +413,8 @@
       "settings": {
         "page_full_width": true,
         "page_full_width_spacing": false,
-        "image": "shopify://shop_images/Screenshot_2026-03-24_at_15.39.00_a6343316-5d62-40c9-adb3-59800167fd5b.jpg",
-        "image_2": "shopify://shop_images/Image_23-05-2026_at_03.16_1_9cac1d6c-365a-4d2c-aa21-ef7d8de6bc7a.jpg",
+        "image": "shopify:\/\/shop_images\/Screenshot_2026-03-24_at_15.39.00_a6343316-5d62-40c9-adb3-59800167fd5b.jpg",
+        "image_2": "shopify:\/\/shop_images\/Image_23-05-2026_at_03.16_1_9cac1d6c-365a-4d2c-aa21-ef7d8de6bc7a.jpg",
         "image_overlay_opacity": 20,
         "image_height": "medium",
         "adapt_height_first_image": false,
@@ -438,7 +436,7 @@
         "template--16838509429034__05066910-f16f-45f5-ab01-b4c1d3b84f4a-1667650011d33b59c9-0": {
           "type": "column",
           "settings": {
-            "image": "shopify://shop_images/pngtree-trust-line-icon-png-image_6615381.png",
+            "image": "shopify:\/\/shop_images\/pngtree-trust-line-icon-png-image_6615381.png",
             "title": "EXTRAIT DE PARFUM · HIGHEST CONCENTRATION",
             "text": "",
             "link_label": "",
@@ -448,7 +446,7 @@
         "template--16838509429034__05066910-f16f-45f5-ab01-b4c1d3b84f4a-1667650011d33b59c9-1": {
           "type": "column",
           "settings": {
-            "image": "shopify://shop_images/Group_2.png",
+            "image": "shopify:\/\/shop_images\/Group_2.png",
             "title": "ORDERS FOR FREE DELIVERY",
             "text": "",
             "link_label": "",
@@ -458,8 +456,8 @@
         "template--16838509429034__05066910-f16f-45f5-ab01-b4c1d3b84f4a-1667650011d33b59c9-2": {
           "type": "column",
           "settings": {
-            "image": "shopify://shop_images/2279638.png",
-            "title": "WITHIN 30 DAYS FREE RETURNS",
+            "image": "shopify:\/\/shop_images\/2279638.png",
+            "title": "WITHIN 14 DAYS FREE RETURNS",
             "text": "",
             "link_label": "",
             "link": ""
@@ -501,7 +499,7 @@
           "type": "slide",
           "settings": {
             "slide_video_toggle": true,
-            "video_slide": "shopify://files/videos/IMG_5811undefined.MP4",
+            "video_slide": "shopify:\/\/files\/videos\/IMG_5811undefined.MP4",
             "heading": "",
             "heading_size": "h2",
             "subheading": "",
@@ -521,7 +519,7 @@
           "type": "slide",
           "settings": {
             "slide_video_toggle": true,
-            "video_slide": "shopify://files/videos/Hailuo_Video_A super-realistic, 8K, VFS-qua_415074536423657479undefined.MP4",
+            "video_slide": "shopify:\/\/files\/videos\/Hailuo_Video_A super-realistic, 8K, VFS-qua_415074536423657479undefined.MP4",
             "heading": "",
             "heading_size": "h2",
             "subheading": "",
@@ -541,7 +539,7 @@
           "type": "slide",
           "settings": {
             "slide_video_toggle": false,
-            "video_slide": "shopify://files/videos/1755716635300373_enhanced.mp4",
+            "video_slide": "shopify:\/\/files\/videos\/1755716635300373_enhanced.mp4",
             "heading": "",
             "heading_size": "h2",
             "subheading": "",
@@ -627,11 +625,12 @@
         "buy_buttons_NRqd6K",
         "deal_m6bmEy"
       ],
+      "disabled": true,
       "settings": {
         "page_full_width": false,
         "page_full_width_spacing": true,
         "product": "identity",
-        "color_scheme": "accent-2",
+        "color_scheme": "background-1",
         "secondary_background": false,
         "hide_variants": false,
         "enable_video_looping": false,
@@ -691,10 +690,11 @@
         "buy_buttons_inzMRN",
         "deal_Frami4"
       ],
+      "disabled": true,
       "settings": {
         "page_full_width": false,
         "page_full_width_spacing": true,
-        "product": "gissa-d-aura",
+        "product": "gissah-d-aura",
         "color_scheme": "background-1",
         "secondary_background": false,
         "hide_variants": false,
@@ -755,11 +755,12 @@
         "buy_buttons_KgPbcG",
         "deal_nBAFRG"
       ],
+      "disabled": true,
       "settings": {
         "page_full_width": false,
         "page_full_width_spacing": true,
         "product": "old-money",
-        "color_scheme": "background-1",
+        "color_scheme": "accent-1",
         "secondary_background": false,
         "hide_variants": false,
         "enable_video_looping": false,
@@ -789,9 +790,9 @@
           "type": "buttons",
           "settings": {
             "button_label_1": "Explore the Collection",
-            "button_link_1": "shopify://collections/all",
+            "button_link_1": "shopify:\/\/collections\/all",
             "button_style_secondary_1": false,
-            "button_label_2": "In the Dawn theme, I have a slideshow section. The third slide (block ID: template--25104111632723__slideshow_hFetqV__slide_C36QaP) contains a portrait/vertical video. On desktop, the video appears too small inside the wide slideshow area. Create a custom CSS block that:1. Targets ONLY the third slide using the selector [id=\"template--25104111632723__slideshow_hFetqV__slide_C36QaP\"]2. Makes the video element larger on desktop only, wrapped in @media (min-width: 990px) 3. Does NOT affect slides 1 or 2 4. Does NOT change any mobile stylesUse transform: scale() or increase the width and max-width of the video/media element inside that slide to make it fill more of the slideshow area on desktop.",
+            "button_label_2": "In the Dawn theme, I have a slideshow section. The third slide (block ID: template--25104111632723__slideshow_hFetqV__slide_C36QaP) contains a portrait\/vertical video. On desktop, the video appears too small inside the wide slideshow area. Create a custom CSS block that:1. Targets ONLY the third slide using the selector [id=\"template--25104111632723__slideshow_hFetqV__slide_C36QaP\"]2. Makes the video element larger on desktop only, wrapped in @media (min-width: 990px) 3. Does NOT affect slides 1 or 2 4. Does NOT change any mobile stylesUse transform: scale() or increase the width and max-width of the video\/media element inside that slide to make it fill more of the slideshow area on desktop.",
             "button_link_2": "",
             "button_style_secondary_2": false
           }
@@ -807,7 +808,7 @@
       "settings": {
         "page_full_width": true,
         "page_full_width_spacing": false,
-        "image": "shopify://shop_images/ChatGPT_Image_Jun_3_2026_at_01_39_43_AM.png",
+        "image": "shopify:\/\/shop_images\/ChatGPT_Image_Jun_3_2026_at_01_39_43_AM.png",
         "image_overlay_opacity": 0,
         "image_height": "large",
         "adapt_height_first_image": false,
@@ -846,7 +847,7 @@
         "template--16838509429034__4769a216-99df-4752-b92d-d082d18cec80-166781442079ed0d2b-1": {
           "type": "text",
           "settings": {
-            "text": "<p>At <strong>My Athoor London</strong>, we don’t just create perfumes — we tell stories through scent. Rooted in heritage and shaped by modern elegance, our signature fragrances are designed to leave a lasting impression. With a focus on unique compositions and premium ingredients, we invite you to experience character, luxury, and identity — bottled.</p>",
+            "text": "<p>At <strong>My Athoor London<\/strong>, we don’t just create perfumes — we tell stories through scent. Rooted in heritage and shaped by modern elegance, our signature fragrances are designed to leave a lasting impression. With a focus on unique compositions and premium ingredients, we invite you to experience character, luxury, and identity — bottled.<\/p>",
             "text_style": "body"
           }
         },
@@ -854,7 +855,7 @@
           "type": "button",
           "settings": {
             "button_label": "Explore the Collection",
-            "button_link": "shopify://collections/all"
+            "button_link": "shopify:\/\/collections\/all"
           }
         }
       },
@@ -867,7 +868,7 @@
       "settings": {
         "page_full_width": true,
         "page_full_width_spacing": false,
-        "image": "shopify://shop_images/freepik__expand__89007.jpg",
+        "image": "shopify:\/\/shop_images\/IMG_0369.jpg",
         "enable_image2": false,
         "height": "adapt",
         "desktop_image_width": "medium",
@@ -875,10 +876,10 @@
         "desktop_content_position": "middle",
         "desktop_content_alignment": "center",
         "content_layout": "no-overlap",
-        "color_scheme": "background-1",
+        "color_scheme": "background-2",
         "mobile_content_alignment": "center",
-        "padding_top": 0,
-        "padding_bottom": 0,
+        "padding_top": 12,
+        "padding_bottom": 12,
         "custom_class_name": "home-image-text"
       }
     },
@@ -888,7 +889,7 @@
         "0356d96f-a788-4dce-8bad-ebeb78ff5f95": {
           "type": "text",
           "settings": {
-            "block_image": "shopify://shop_images/IMG_0241_1.jpg",
+            "block_image": "shopify:\/\/shop_images\/IMG_0241_1.jpg",
             "show_image": true,
             "show_content": true,
             "block_title": "EAU DU PARFUM",
@@ -896,7 +897,7 @@
             "block_sub_title": "",
             "block_description": "",
             "block_button_text": "",
-            "block_button_link": "shopify://collections",
+            "block_button_link": "shopify:\/\/collections",
             "block_text_align": "left",
             "block_position": "bottom-left"
           }
@@ -904,7 +905,7 @@
         "fe0739c7-63ff-4844-8530-2c1968b23b8a": {
           "type": "text",
           "settings": {
-            "block_image": "shopify://shop_images/IMG_0362.png",
+            "block_image": "shopify:\/\/shop_images\/IMG_0362.png",
             "show_image": true,
             "show_content": true,
             "block_title": "Moisturizer",
@@ -912,7 +913,7 @@
             "block_sub_title": "",
             "block_description": "",
             "block_button_text": "",
-            "block_button_link": "shopify://collections",
+            "block_button_link": "shopify:\/\/collections",
             "block_text_align": "left",
             "block_position": "bottom-left"
           }
@@ -920,7 +921,7 @@
         "43a9907b-c24e-4578-9ed4-faf868e41f62": {
           "type": "text",
           "settings": {
-            "block_image": "shopify://shop_images/IMG_0246.jpg",
+            "block_image": "shopify:\/\/shop_images\/IMG_0246.jpg",
             "show_image": true,
             "show_content": true,
             "block_title": "Face Cream",
@@ -928,7 +929,7 @@
             "block_sub_title": "",
             "block_description": "",
             "block_button_text": "",
-            "block_button_link": "shopify://collections",
+            "block_button_link": "shopify:\/\/collections",
             "block_text_align": "left",
             "block_position": "bottom-left"
           }
@@ -936,7 +937,7 @@
         "a6632f8f-e3b9-44be-9603-bce0df053eee": {
           "type": "text",
           "settings": {
-            "block_image": "shopify://shop_images/IMG_0233.jpg",
+            "block_image": "shopify:\/\/shop_images\/IMG_0233.jpg",
             "show_image": true,
             "show_content": true,
             "block_title": "Teeth Whitner",
@@ -944,7 +945,7 @@
             "block_sub_title": "",
             "block_description": "",
             "block_button_text": "",
-            "block_button_link": "shopify://collections",
+            "block_button_link": "shopify:\/\/collections",
             "block_text_align": "left",
             "block_position": "bottom-left"
           }
@@ -967,20 +968,20 @@
         "text_style": "caption-with-letter-spacing",
         "text_size": "medium",
         "column_alignment": "center",
-        "primary_image": "shopify://shop_images/IMG_0236.jpg",
+        "primary_image": "shopify:\/\/shop_images\/IMG_0236.jpg",
         "enable_title": true,
         "primary_title": "Bathing Salts",
-        "primary_title_link": "shopify://collections",
+        "primary_title_link": "shopify:\/\/collections",
         "primary_sub_title": "",
         "primary_description": "",
         "primary_button_text": "SHOP NOw",
-        "primary_button_link": "shopify://collections",
+        "primary_button_link": "shopify:\/\/collections",
         "primary_text_align": "left",
         "primary_position": "bottom-left",
         "main_banner_style": "overlay_style",
         "additional_banner_style": "overlay_style",
-        "content_width": "43/57",
-        "lap_content_width": "43/57",
+        "content_width": "43\/57",
+        "lap_content_width": "43\/57",
         "content_color_scheme": "background-1",
         "block_style": "style-2",
         "padding_top": 60,
@@ -1000,7 +1001,7 @@
           "settings": {
             "author": "Marcus R",
             "job_title": "",
-            "quote": "<p>“Gissa D’ Aura smells expensive and feels even better. It’s powerful without being overpowering.”</p>",
+            "quote": "<p>“Gissa D’ Aura smells expensive and feels even better. It’s powerful without being overpowering.”<\/p>",
             "star": "4.5",
             "link_label": "",
             "link": ""
@@ -1011,7 +1012,7 @@
           "settings": {
             "author": "Josh L",
             "job_title": "",
-            "quote": "<p>“Old Money is my everyday scent. It’s clean, fresh, and quietly confident.”</p>",
+            "quote": "<p>“Old Money is my everyday scent. It’s clean, fresh, and quietly confident.”<\/p>",
             "star": "5",
             "link_label": "",
             "link": ""
@@ -1022,7 +1023,7 @@
           "settings": {
             "author": "Aalia K",
             "job_title": "",
-            "quote": "<p>“Identity is unlike anything I’ve worn — people stop me to ask what it is.”</p>",
+            "quote": "<p>“Identity is unlike anything I’ve worn — people stop me to ask what it is.”<\/p>",
             "star": "4",
             "link_label": "",
             "link": ""
@@ -1034,18 +1035,19 @@
         "333ed5ef-02ef-4276-9d0d-2201eaf09f8f",
         "template--16928048841006__79b119fc-a0b9-433d-bc28-337b3f358600-166825074197005379-0"
       ],
+      "custom_css": [],
       "settings": {
         "page_full_width": true,
         "page_full_width_spacing": false,
-        "image": "shopify://shop_images/IMG_0239.jpg",
+        "image": "shopify:\/\/shop_images\/SaveClip.App_569174507_18071383232210849_8761985880081359748_n.jpg",
         "title": "What Our Clients Say",
         "heading_size": "h1",
         "text": "TOP REVIEWS",
         "description": "Zraesent in nunc vel urna consequat mattis eget vel libero. Phasellus pellentesque.",
-        "column_alignment": "center",
+        "column_alignment": "left",
         "button_label": "gg",
-        "button_link": "shopify://collections/anti-aging-creams",
-        "color_scheme": "background-1",
+        "button_link": "shopify:\/\/collections\/anti-aging-creams",
+        "color_scheme": "background-2",
         "enable_arrows": true,
         "padding_top": 60,
         "padding_bottom": 0,
@@ -1062,7 +1064,7 @@
             "name": "Sarah M.",
             "rating": 5,
             "text": "Absolutely exceptional quality and service.",
-            "video": "shopify://files/videos/SaveClip.App_AQO8dwB9lDUUhGh6x7h62h1oblVdPbv-EIzsIbbe12YWd6cOE_ljkl-Be8wALkAbGFxN_fnG35KbI2LyCy-BgdgCtVtkyN8mJ-Oemkk.mp4",
+            "video": "shopify:\/\/files\/videos\/SaveClip.App_AQO8dwB9lDUUhGh6x7h62h1oblVdPbv-EIzsIbbe12YWd6cOE_ljkl-Be8wALkAbGFxN_fnG35KbI2LyCy-BgdgCtVtkyN8mJ-Oemkk.mp4",
             "video_url": "",
             "instagram_url": "",
             "reveal_delay": 2500
@@ -1072,153 +1074,28 @@
       "block_order": [
         "review_3TCGUL"
       ],
+      "custom_css": [],
       "name": "Testimonial Video",
       "settings": {
         "eyebrow": "REAL STORIES",
-        "title": "Loved by Many",
+        "title": "Trusted by thousands",
         "reveal_delay": 2500,
         "bg_color": "#faf8f5",
         "text_color": "#1a1a1a",
         "gold_color": "#b8960c",
-        "padding_top": 60,
-        "padding_bottom": 72
+        "padding_top": 92,
+        "padding_bottom": 8
       }
     },
     "athoor_house": {
       "type": "athoor-house-banner",
+      "disabled": true,
       "settings": {
         "show_text": false,
         "title": "Join My Athoor London House",
         "text": "Get 25% off your first order. Earn points with every purchase, redeem them for discounts, exclusive gifts and early access to new launches.",
         "button_label": "Join Now",
         "button_link": ""
-      }
-    },
-    "9c0db463-9f70-44c9-b64d-3db226b0fa5e": {
-      "type": "instagram",
-      "blocks": {
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-0": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG-20250719-WA0007.jpg",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        },
-        "d6c139dd-a1a6-4b18-9c65-3f675679e5ff": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG-20250719-WA0006.jpg",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        },
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-1": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG_4246.png",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        },
-        "7e8fd1c6-2383-4cb2-98a2-32f1f41db42d": {
-          "type": "column",
-          "settings": {
-            "enable_image": false,
-            "subheading": "Instagram",
-            "title": "@myathoorlondon",
-            "text": "<p>‘In every breath, a memory.<br/>In every note,a story- MY ATHOOR LONDON’</p>",
-            "link_label": "",
-            "link": "https://www.instagram.com/myathoorlondon?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==",
-            "icon_class": false
-          }
-        },
-        "df6c2ff5-f62f-412d-bf26-7994aa49535f": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG-20250719-WA0003.jpg",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        },
-        "045e9bb3-4706-45f3-b491-2cd154538a7d": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG_4353.jpg",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        },
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-2": {
-          "type": "column",
-          "settings": {
-            "enable_image": true,
-            "image": "shopify://shop_images/IMG_4220.png",
-            "subheading": "",
-            "title": "",
-            "text": "",
-            "link_label": "",
-            "link": "#",
-            "icon_class": true
-          }
-        }
-      },
-      "block_order": [
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-0",
-        "d6c139dd-a1a6-4b18-9c65-3f675679e5ff",
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-1",
-        "7e8fd1c6-2383-4cb2-98a2-32f1f41db42d",
-        "df6c2ff5-f62f-412d-bf26-7994aa49535f",
-        "045e9bb3-4706-45f3-b491-2cd154538a7d",
-        "template--16928048841006__9c0db463-9f70-44c9-b64d-3db226b0fa5e-16700493023d0f6f38-2"
-      ],
-      "settings": {
-        "page_full_width": true,
-        "page_full_width_spacing": false,
-        "title": "",
-        "heading_size": "h1",
-        "subtitle": "",
-        "text_style": "caption-with-letter-spacing",
-        "text_size": "medium",
-        "image_width": "full",
-        "image_ratio": "adapt",
-        "columns_desktop": 7,
-        "column_alignment": "center",
-        "background_style": "none",
-        "button_label": "",
-        "button_link": "",
-        "color_scheme": "background-1",
-        "enable_overlay": false,
-        "columns_mobile": "1",
-        "swipe_on_mobile": true,
-        "padding_top": 20,
-        "padding_bottom": 0,
-        "custom_class_name": ""
       }
     },
     "178105224056ba03d4": {
@@ -1277,12 +1154,24 @@
     "178146526537e23e69": {
       "type": "_blocks",
       "settings": {}
+    },
+    "athoor_subscribe": {
+      "type": "athoor-subscribe",
+      "settings": {
+        "eyebrow": "SIGN UP FOR UPDATES",
+        "text": "Get exclusive updates on new collection launches, personalised offers and the House’s latest news.",
+        "drawer_title": "STAY UP TO DATE WITH MY ATHOOR LONDON",
+        "drawer_desc": "Receive the latest updates straight to your inbox and personalised communication based on your interests.",
+        "drawer_legal": "By clicking CREATE MY PROFILE, you confirm that you have read and agree to our Privacy Policy and would like to receive updates about new activities, exclusive products, and personalised experiences.",
+        "privacy_link": "\/policies\/privacy-policy",
+        "button_text": "CREATE MY PROFILE"
+      }
     }
   },
   "order": [
     "1654491066da20f9da",
-    "athoor_3d_hero",
     "athoor_categories",
+    "athoor_3d_hero",
     "support_block_wBrkMb",
     "image_banner_wVCMbg",
     "athoor_bestsellers",
@@ -1299,11 +1188,11 @@
     "79b119fc-a0b9-433d-bc28-337b3f358600",
     "athoor_testimonial_video_trH6TF",
     "athoor_house",
-    "9c0db463-9f70-44c9-b64d-3db226b0fa5e",
     "178105224056ba03d4",
     "1781059166daa6f8b1",
     "178139624129c3f755",
     "1781397873e7f4da03",
-    "178146526537e23e69"
+    "178146526537e23e69",
+    "athoor_subscribe"
   ]
 }
