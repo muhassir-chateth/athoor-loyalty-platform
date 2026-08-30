@@ -1,0 +1,49 @@
+{
+  "task": "31.1",
+  "store": "myathoorlondon.myshopify.com",
+  "theme": {
+    "id": 180956594515,
+    "role": "main",
+    "name": "My Athoor London"
+  },
+  "capturedAt": "2026-08-30T22:21:38.256Z",
+  "derivedFrom": "32eaca022c140bee9c7451813c735cd1c3389878",
+  "headCommit": "ad8b9db72e57788596509867f39f6ec82e32ef36",
+  "files": [
+    {
+      "key": "config/settings_data.json",
+      "bytes": 21335,
+      "sha256": "b408f7a61f4133fc28fdaef9628bdd1738d946c0841f565c6af2c86ae4712e86"
+    },
+    {
+      "key": "config/settings_schema.json",
+      "bytes": 40016,
+      "sha256": "48d01a6d1a115f8d20d8a7dcae1c82577ac6b8c9b83e53413a1c796d746b60e3"
+    },
+    {
+      "key": "sections/athoor-tasting-notes.liquid",
+      "bytes": 11663,
+      "sha256": "3d55fb26d5f13938d70c550d520f79aa25ea609eaf3626c485b4e5a4a97ea1b6"
+    },
+    {
+      "key": "sections/header.liquid",
+      "bytes": 85023,
+      "sha256": "6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5"
+    },
+    {
+      "key": "templates/index.json",
+      "bytes": 40597,
+      "sha256": "a21635c6c2d3166755ed65cf4f149154568d5c4342f8bdf99de3f1ee09a42dbb"
+    },
+    {
+      "key": "templates/product.json",
+      "bytes": 9975,
+      "sha256": "2fbfe30cf592b7142edfdc0b3ad209893b006fdc214b9fd4fcccdb968b942bee"
+    },
+    {
+      "key": "templates/product.product-identity.json",
+      "bytes": 11816,
+      "sha256": "5ca2c85e717be192be257bf3357486c8d60f103eda43ae36d8fb743bb8ef551f"
+    }
+  ]
+}
