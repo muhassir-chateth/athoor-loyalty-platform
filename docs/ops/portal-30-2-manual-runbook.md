@@ -75,6 +75,17 @@ nothing, that is a defect.
 
 ## 2. Creating the ten Pages by hand
 
+> **STATUS: done, and not by hand.** All ten Pages exist with the correct
+> `template_suffix`, all `published_at = null` (Hidden), no duplicates. Because the
+> **Theme template** dropdown enumerates the *published* theme (confirmed below), the
+> suffixes were set through the Admin API instead — ten single-field `PUT`s, exactly the
+> minimum shape described later in this section. Page ids:
+> `my-athoor` 182286549331 · `-orders` 182382494035 · `-order-detail` 182382461267 ·
+> `-wishlist` 182382657875 · `-rewards` 182382592339 · `-activity` 182382395731 ·
+> `-referrals` 182382559571 · `-profile` 182382526803 · `-fragrance` 182382428499 ·
+> `-settings` 182382625107. Titles were left as the lowercase handle: no template reads
+> `page.title`, so it is an admin-facing label only.
+
 For each row in §1, in Shopify admin:
 
 1. **Online Store → Pages → Add page**
@@ -194,6 +205,11 @@ shows the templates. Nothing in this runbook performs an API write.
 
 ## 4. If verification later needs `read_content` — exactly why, and for what
 
+> **STATUS: granted.** `read_content`, `write_content`, `read_online_store_pages` and
+> `write_online_store_pages` are on the app token (15 scopes total), so
+> `npm run theme:pages` performs this check automatically. Last run: all ten handles
+> present, all ten suffixes correct, all ten Hidden, no duplicates.
+
 Once you have created the ten Pages, the questions that matter are:
 
 1. Does each Page have the **exact** handle? (a wrong handle → 404)
@@ -224,13 +240,33 @@ page that is subtly wrong.
 
 ## 5. Enabling `portal_on` on the preview theme only
 
-### The current situation
+### The current situation — DONE, no longer manual
 
-The preview theme's `config/settings_schema.json` **does not declare** `portal_enabled`
-or `portal_allowlist` — verified during 30.1. Both therefore resolve to `nil` in Liquid,
-`portal_on` is `false`, and **the portal cannot be switched on at all** on that theme.
-30.1 was correct to leave it that way: its acceptance criteria cover only "the portal's
-own **new** files", and this file is a modification.
+**This whole section is now historical.** It described a theme whose
+`config/settings_schema.json` did not declare `portal_enabled` or `portal_allowlist`.
+That is no longer the state. Verified against theme `205900054867` by Admin API read:
+
+| | |
+|---|---|
+| `settings_schema.json` | **23** groups, including `My Athoor Portal` — declares `portal_enabled` (checkbox, default `false`) and `portal_allowlist` (textarea) |
+| `settings_data.json` | `portal_enabled = false`, `portal_allowlist = "9395357876563"`, 141 settings |
+| Applied by | `npm run theme:settings … --allowlist=9395357876563 --disable-portal-flag --apply` (PR #48), status `values_applied_verified` |
+| Live theme | unaffected — 388 assets, key-list `2b45b1bc0987b1fd`, 0 portal assets, and its `settings_data.json` does not mention `portal_enabled` at all |
+
+So the manual **Edit code** append and the **Customize** step below are both already
+done and need not be repeated.
+
+**Why this matters more than a stale paragraph.** The theme was found with
+`portal_enabled = true` and **no** allowlist — the exact inverse of what this section
+prescribes ("Leave *Show the My Athoor portal to everyone* **OFF**. Put your own numeric
+customer id in *Staged rollout: customer IDs*"). The gate in `portal-chrome.liquid` reads
+`if portal_enabled … elsif portal_allowlist`, so `portal_enabled` is a MASTER SWITCH that
+short-circuits the allowlist: while it was on, every signed-in customer was admitted and
+the allowlist governed nothing. Nothing was exposed — the theme is unpublished and the
+live theme carries no portal files — but published in that state the portal would have
+released to all signed-in customers at once. It has been set back to what this section
+asks for. Pre-change state is backed up at
+`backups/theme-205900054867-settings/2026-08-30T21-02-54-517Z/settings_data.json`.
 
 ### The narrowest change that works
 
@@ -448,6 +484,43 @@ An honest gap is auditable; a false pass is not, and 30.2 is a release gate.
 ## 9. Assertions, per step
 
 Run this for each profile. `?preview_theme_id=205900054867` on every URL.
+
+### PREREQUISITE — read this before step 1, or step 1 will fail
+
+**The ten Pages are Hidden, and a Hidden page returns 404 on the storefront regardless
+of which theme is previewing.** Verified with read-only GETs:
+
+| Request | Result |
+|---|---|
+| `/pages/my-athoor` | **HTTP 404** |
+| `/pages/my-athoor?preview_theme_id=205900054867` | **HTTP 302** → `location: /pages/my-athoor`, param stripped, only `_shopify_essential` set → follows to **HTTP 404** |
+
+A bare `preview_theme_id` does not establish a preview for an unauthenticated visitor —
+Shopify discards it. And page publication state is independent of theme preview, so an
+authenticated storefront **Preview** session is expected to 404 on these pages too.
+Making them Visible is not an option: a published Page whose template the live theme
+lacks falls back to `page.liquid` and becomes a thin indexable URL on the live store.
+
+**Two ways to actually start the journey, neither of which publishes anything:**
+
+1. **Theme editor** (Themes → "Copy of My Athoor London" → **Customize**). This renders
+   in an authenticated admin iframe and is the one context expected to display an
+   unpublished page. Try this first; it costs nothing.
+2. **`?view=` on a page that is already Visible** — the mechanism §2 already established
+   on this store. In an authenticated preview session,
+   `/pages/rewards?view=my-athoor-orders` renders the portal template without any portal
+   Page needing to be public. This covers authentication, every section's rendering, all
+   data and all persistence; it does **not** cover nav *traversal*, which defers to 31.5.
+   Confirm the expected heading from the §1 headings table, because a bad `view` falls
+   back silently with HTTP 200.
+
+### Also before you start: the allowlisted customer has no orders
+
+Customer `9395357876563` is real and `state: enabled`, but `orders_count = 0`. So step 4
+will legitimately show the **empty** state and step 5 cannot be reached by clicking a
+row, because there are no rows. To exercise order detail — and the PR #47 fix to the
+order-row link — either use an account that has orders and add its id to the allowlist,
+or open `/pages/my-athoor-order-detail?id=<a real order id>` directly.
 
 | # | Step | Assert |
 |---|---|---|
