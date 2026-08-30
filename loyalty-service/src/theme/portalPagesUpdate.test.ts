@@ -61,7 +61,7 @@ describe("diffPageWrite", () => {
       ok: true,
     });
     expect(d.updatedAtMoved).toBe(true);
-    expect(d.publishedAtStillNull).toBe(true);
+    expect(d.publishedAtUnchanged).toBe(true);
   });
 
   it("protects the fields the caller promised not to touch", () => {
@@ -80,14 +80,14 @@ describe("diffPageWrite", () => {
     ]);
   });
 
-  it("flags a page that became published, and clears publishedAtStillNull", () => {
+  it("flags a page that became published, and clears publishedAtUnchanged", () => {
     const d = diffPageWrite(
       before,
       { ...cleanAfter, published_at: "2026-08-29T10:05:00-00:00" },
       "my-athoor",
     );
     expect(d.ok).toBe(false);
-    expect(d.publishedAtStillNull).toBe(false);
+    expect(d.publishedAtUnchanged).toBe(false);
     expect(d.protectedViolations.map((v) => v.field)).toContain("published_at");
   });
 
@@ -119,6 +119,30 @@ describe("diffPageWrite", () => {
     );
     expect(d.ok).toBe(false);
     expect(d.unexpectedChanges.map((c) => c.field)).toContain("some_future_field");
+  });
+
+  it("accepts an ALREADY-published page whose publication state does not move", () => {
+    // The real my-athoor page is published (published_at 2026-08-30T14:30:51-04:00),
+    // not Hidden. An earlier version of this verifier demanded published_at === null,
+    // which would have failed a correct write on the actual page.
+    const pub = { ...before, published_at: "2026-08-30T14:30:51-04:00" };
+    const d = diffPageWrite(
+      pub,
+      { ...pub, template_suffix: "my-athoor", updated_at: "2026-08-30T15:00:00-04:00" },
+      "my-athoor",
+    );
+    expect(d.ok).toBe(true);
+    expect(d.publishedAtUnchanged).toBe(true);
+    expect(d.publishedAtAfter).toBe("2026-08-30T14:30:51-04:00");
+    expect(d.protectedViolations).toEqual([]);
+  });
+
+  it("flags an already-published page that became UNpublished", () => {
+    const pub = { ...before, published_at: "2026-08-30T14:30:51-04:00" };
+    const d = diffPageWrite(pub, { ...pub, template_suffix: "my-athoor", published_at: null }, "my-athoor");
+    expect(d.ok).toBe(false);
+    expect(d.publishedAtUnchanged).toBe(false);
+    expect(d.protectedViolations.map((v) => v.field)).toContain("published_at");
   });
 
   it("does not treat an unchanged updated_at as a failure on its own", () => {
