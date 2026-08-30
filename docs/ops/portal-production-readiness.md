@@ -597,3 +597,41 @@ landed. Byte-identical.
 That is the substance of Requirement 22.7's flag-off guarantee: 28 new files are present on the
 live theme and the rendered output has not moved by a single byte. 30.6 stays **unticked**
 because its preview-side comparison is still owed.
+
+---
+
+## 11. The deployed portal templates PROVEN to resolve on live — no credentials needed
+
+Only possible after the 31.4 push put the 28 additive files on the live theme. Before it, every
+portal template was absent from live, so nothing could be exercised there at all.
+
+`?view=<suffix>` selects a template at request time, and the ten portal Pages being Hidden does
+not matter: the view is requested against `/pages/rewards`, which is Visible. So the deployed
+templates can be rendered anonymously.
+
+| Request | Bytes | Liquid errors | portal markup |
+|---|---|---|---|
+| `/pages/rewards` (own template, baseline) | 301,260 | 0 | 0 |
+| `?view=my-athoor` | 299,023 | 0 | 0 |
+| `?view=my-athoor-orders` | 299,037 | 0 | 0 |
+| `?view=my-athoor-rewards` | 299,039 | 0 | 0 |
+| `?view=my-athoor-wishlist` | 299,041 | 0 | 0 |
+| `?view=my-athoor-settings` | 299,041 | 0 | 0 |
+| `?view=totally-bogus-xyz` (**not a template**) | **358,324** | 0 | 0 |
+
+**Why this proves resolution rather than fallback.** A missing view falls back silently with
+HTTP 200 — that is the 358,324-byte row, and it is what a failed lookup looks like on this
+store. Every portal view instead lands ~59 KB away from it, and the portal views differ from
+*each other* by a few bytes (299,023 / 299,037 / 299,039 / 299,041). A single fallback template
+cannot produce five different sizes. The variation is each template passing its own
+`section_name` and `page_title` into `portal-chrome`.
+
+So, on the live theme, with the flag off:
+
+- each portal template **resolves** and renders
+- `portal-chrome` takes the **flag-off branch** — `portalRoot` is 0, no portal markup, no portal
+  stylesheet or script
+- **zero Liquid errors**, which is the specific failure the first 31.4 attempt caused
+
+This is the strongest evidence available without a customer session. What it still cannot show is
+the signed-in portal itself — that needs 30.2.
