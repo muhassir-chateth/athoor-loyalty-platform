@@ -56,10 +56,49 @@ portal-live-push.mjs — push the approved portal diff to the LIVE theme (task 3
 // sections/header.liquid renders 'portal-account-href', which was absent from live, so
 // Shopify rendered the error into the account link on every page. The snippet is the
 // transitive closure of header.liquid's new dependencies — exactly one file.
+// The COMPLETE transitive closure for the portal live deployment, recomputed after the 31.4
+// incident. 28 additive files + 2 modified = 30.
+//
+// The 10 per-section bundles are NOT statically reachable: portal-chrome.liquid line 113
+// builds the name at render time as
+//   {{ 'athoor-portal-' | append: section_name | append: '.js' | asset_url }}
+// A closure computed only from literal asset references misses all ten, and pushing that
+// subset would render the portal with every section silently failing to load its bundle —
+// the same class of failure as the header incident, one level deeper.
+//
+// DELIBERATELY EXCLUDED: the five return-policy files (a separate release) and the seven
+// aria-label hunks inside header.liquid (held back on the owner's instruction).
 const APPROVED_PATHS = [
+  "assets/athoor-portal-activity.js",
+  "assets/athoor-portal-core.js",
+  "assets/athoor-portal-fragrance.js",
+  "assets/athoor-portal-order-detail.js",
+  "assets/athoor-portal-orders.js",
+  "assets/athoor-portal-overview.js",
+  "assets/athoor-portal-profile.js",
+  "assets/athoor-portal-referrals.js",
+  "assets/athoor-portal-rewards.js",
+  "assets/athoor-portal-settings.js",
+  "assets/athoor-portal-wishlist.js",
+  "assets/athoor-portal.css",
   "config/settings_schema.json",
   "sections/header.liquid",
   "snippets/portal-account-href.liquid",
+  "snippets/portal-chrome.liquid",
+  "snippets/portal-more-sheet.liquid",
+  "snippets/portal-nav.liquid",
+  "snippets/portal-section.liquid",
+  "snippets/portal-signin-invitation.liquid",
+  "templates/page.my-athoor-activity.liquid",
+  "templates/page.my-athoor-fragrance.liquid",
+  "templates/page.my-athoor-order-detail.liquid",
+  "templates/page.my-athoor-orders.liquid",
+  "templates/page.my-athoor-profile.liquid",
+  "templates/page.my-athoor-referrals.liquid",
+  "templates/page.my-athoor-rewards.liquid",
+  "templates/page.my-athoor-settings.liquid",
+  "templates/page.my-athoor-wishlist.liquid",
+  "templates/page.my-athoor.liquid",
 ];
 const API = "2024-10";
 const LIVE_ROLE = "main";

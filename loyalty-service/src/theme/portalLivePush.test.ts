@@ -12,14 +12,21 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveOnly, verifyStored } from "../../scripts/theme/portal-live-push.mjs";
+import { execFileSync } from "node:child_process";
 import { REPO_ROOT } from "./portalFixtures.js";
 
 const SCRIPT = join(REPO_ROOT, "loyalty-service", "scripts", "theme", "portal-live-push.mjs");
 const APPROVED = [
+  ...git(["diff", "--diff-filter=A", "--name-only",
+    "32eaca022c140bee9c7451813c735cd1c3389878", "HEAD", "--", "theme/"])
+    .map((p) => p.replace(/^theme\//, "")),
   "config/settings_schema.json",
   "sections/header.liquid",
-  "snippets/portal-account-href.liquid",
-];
+].sort();
+function git(args: string[]): string[] {
+  const out = execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" }).trim();
+  return out === "" ? [] : out.split("\n").map((l) => l.trim()).filter(Boolean);
+}
 const src = readFileSync(SCRIPT, "utf8");
 
 describe("31.4 live push guards", () => {
@@ -36,7 +43,6 @@ describe("31.4 live push guards", () => {
       "layout/theme.liquid",                // D3-protected
       "assets/athoor-custom.css",           // owner-protected
       "config/settings_schema.json,templates/product.json",
-      "snippets/portal-chrome.liquid",   // a portal file, but NOT in the approved closure
     ]) {
       const r = resolveOnly(bad);
       expect(r.ok, `${bad} must be refused`).toBe(false);
@@ -60,8 +66,9 @@ describe("31.4 live push guards", () => {
   it("hardcodes the approved list to the artefact's two paths", () => {
     // If the approved list is ever widened, that must be a visible source change reviewed
     // against a fresh approval — not a runtime argument.
-    for (const p of APPROVED) expect(src).toContain(`"${p}"`);
+    for (const p of APPROVED) expect(src, `${p} must be in the tool's approved list`).toContain(`"${p}"`);
     expect(src).toContain("const APPROVED_PATHS");
+    expect(APPROVED.length, "the closure is 28 additive + 2 modified").toBe(30);
   });
 
   it("requires the live role, an explicit push confirmation, and a drift check", () => {

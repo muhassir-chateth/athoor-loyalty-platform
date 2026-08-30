@@ -1,0 +1,61 @@
+{%- comment -%}
+  templates/page.my-athoor-order-detail.liquid — one order (spec task 19.4).
+
+  Requirements 15.1, 16.1, 6.3, 2.2.
+
+  ── BRANCH B (D1 / OQ-1) ──────────────────────────────────────────────────────
+  The store uses Shopify's NEW customer accounts, so `/account` is Shopify-hosted
+  and `templates/customers/*` — including `customers/order.liquid` — are dead files
+  for the portal. This page replaces that destination without touching it.
+
+  ── THE ORDER ID, AND AN HONEST DEVIATION FROM THE TASK WORDING ───────────────
+  Task 19.4 says the order id arrives "as a query parameter validated server-side
+  against `^\d{1,20}$`". The first half is implementable; the second is not, in
+  Liquid.
+
+  **Shopify Liquid cannot read query parameters.** The `request` object exposes
+  `host`, `origin`, `path`, `page_type`, `locale`, `design_mode` and
+  `visual_preview_mode` — and nothing for the query string. There is no filter, no
+  drop and no workaround: a theme simply cannot see `?id=` at render time. So a
+  server-side check *in the theme* is not a thing that can be written, and writing
+  something that looked like one would be worse than saying so.
+
+  What actually enforces the pattern is the API, and it already does. `GET
+  /v1/orders/:orderId` matches `PORTAL_ORDER_ID_PATTERN` before it does anything
+  else, answers `400 invalid_order_reference` for a malformed id and `404
+  order_not_found` for one that is well-formed but not this customer's — and task
+  16.5 proved those two are byte-identical, so the route is not an existence oracle
+  either. That check runs on our server, against a request the customer cannot
+  reshape. It is the server-side validation the requirement is asking for; it is
+  simply not in this file.
+
+  The client's job is therefore to fail closed BEFORE spending a request on input it
+  can already see is wrong. The pattern is declared once here, as
+  `data-portal-id-pattern`, so the section module and the API test the same rule and
+  the theme never carries a second copy of it in JavaScript.
+
+  Requirement 2.2 is satisfied either way: an id that is missing, malformed or
+  someone else's produces the same designed not-found state, with no attribute of
+  the resource in the body.
+{%- endcomment -%}
+
+{%- capture portal_section -%}
+  {%- comment -%}
+    `data-portal-id-source="query:id"` tells the module where to look, so the
+    convention is declared in markup rather than assumed in code, and
+    `data-portal-id-pattern` is the shape it must satisfy first.
+  {%- endcomment -%}
+  <div
+    data-portal-id-source="query:id"
+    data-portal-id-pattern="^[0-9]{1,20}$"
+  >
+    {% render 'portal-section', name: 'order-detail' %}
+  </div>
+{%- endcapture -%}
+
+{% render 'portal-chrome',
+  section_name: 'order-detail',
+  nav_key: 'orders',
+  page_title: 'Your order',
+  content: portal_section
+%}

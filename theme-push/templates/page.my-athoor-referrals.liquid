@@ -1,0 +1,32 @@
+{%- comment -%}
+  templates/page.my-athoor-referrals.liquid — the Referrals page (spec task 19.4).
+
+  Requirements 15.1, 16.1, 6.3.
+
+  N10. Every point figure comes from the response, never from the theme (Requirement 10.15).
+
+  ── BRANCH B (D1 / OQ-1) ──────────────────────────────────────────────────────
+  The store uses Shopify's NEW customer accounts: `/account` redirects to
+  `shopify.com/<id>/account`, so it is Shopify-hosted and `templates/customers/*`
+  are dead files for the portal. §17.2's Branch B therefore puts every portal
+  destination on its own Shopify page, and this is one of them. Nothing under
+  `templates/customers/` is read or modified by the portal.
+
+  ── WHY THIS FILE IS FOUR LINES OF LOGIC ──────────────────────────────────────
+  Every gate, every landmark and every asset tag lives in `portal-chrome`, which is
+  rendered once here. Ten templates that each evaluated the feature flag would be
+  ten chances for one of them to evaluate it differently — and §25.2 requires the
+  flag to be read in one server-side place before any portal markup exists.
+
+  With the flag off this renders `page.content` and nothing else: no portal markup,
+  no stylesheet, no script. That is what makes the flag-off response byte-identical
+  to a plain Shopify page (Requirement 22.2).
+{%- endcomment -%}
+
+{%- capture portal_section -%}{% render 'portal-section', name: 'referrals' %}{%- endcapture -%}
+{% render 'portal-chrome',
+  section_name: 'referrals',
+  nav_key: 'referrals',
+  page_title: 'Referrals',
+  content: portal_section
+%}
