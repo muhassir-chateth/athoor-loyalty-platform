@@ -126,3 +126,27 @@ policy change opens a 16-day window for it.
 changing it silently would alter loyalty behaviour under cover of a copy edit. It needs a
 decision: extend the hold to 30 days, or keep 14 and rely on clawback. That belongs to the
 follow-up task.
+
+## 5. Record corrections (kept visible on purpose)
+
+Two of my own errors during this sweep, corrected forward rather than rewritten:
+
+1. **A false non-vacuity claim.** Commit `c38cebb` stated the split blast-radius guard was
+   "proved by modifying an undeclared file and watching the guard fire". It was not — that
+   attempt produced GREEN. `modifiedThemeFiles()` derives from
+   `git diff --diff-filter=M <pre-portal-commit> HEAD -- theme/`, so it compares **commits**
+   and an uncommitted edit is invisible to it. Non-vacuity was re-proved through the
+   declaration, which is what a HEAD-based guard can police: dropping a declared file fails
+   1 assertion, moving a policy file into the portal's list fails 3. The limitation is now
+   recorded in the test itself. It is the same false-green the D3 assertion in that file
+   already avoids by reading from disk while taking its baseline from a commit.
+
+2. **A stray `git stash`.** A line I wrote as a "no-op guard" inside a verification script
+   was not a no-op: it stashed the uncommitted guard fix, which is why the old assertion name
+   reappeared and a commit found nothing to commit. Recovered in full with `git stash pop`
+   (the stash held exactly one file). Nothing was lost, but the script had no business
+   running a git command at all.
+
+Commit `9145c80` also carries one mangled sentence: its message used backticks inside a
+double-quoted shell string, so zsh ran the quoted git command as a substitution and dropped
+it. The command it should have named is the one in item 1 above.
