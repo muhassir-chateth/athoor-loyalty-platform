@@ -6,9 +6,9 @@
     "role": "main",
     "name": "My Athoor London"
   },
-  "capturedAt": "2026-08-30T21:38:38.242Z",
+  "capturedAt": "2026-08-30T22:01:59.638Z",
   "derivedFrom": "32eaca022c140bee9c7451813c735cd1c3389878",
-  "headCommit": "57d0b370ad1ac954915ab26ea7007e0f8a0ff42f",
+  "headCommit": "e6e2cfacde697ef7050bc1977601ae534085f807",
   "files": [
     {
       "key": "config/settings_schema.json",
@@ -21,4 +21,4 @@
       "sha256": "6fb229fa916dce311dce32b1b0ed0505b54240b5e9544ba3664d94c6374958c5"
     }
   ]
-}\n
+}
