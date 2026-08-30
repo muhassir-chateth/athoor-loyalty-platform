@@ -16,6 +16,13 @@ Staged in `theme-push/`, each built from the **pulled live bytes** of theme
 | `config/settings_schema.json` | 40,016 | 41,003 | `48d01a6d1a115f8d` | `66698ea4426b9e47` |
 | `sections/header.liquid` | 85,023 | 85,925 | `6fb229fa916dce31` | `4e83b615316ab943` |
 
+**The 30-day return-policy sweep is NOT part of this diff.** It modified five further live
+theme files (`config/settings_data.json`, `templates/index.json`, `templates/product.json`,
+`templates/product.product-identity.json`, `sections/athoor-tasting-notes.liquid`), taking the
+project's modified-live-file count from 2 to 7. Those are a separate customer-facing change
+with their own approval — see `docs/ops/return-policy-30-day-sweep.md`. Two assertions in
+`portalProductionDiff.test.ts` fail if `theme-push/` ever widens to carry them.
+
 No other file is pushed. The portal's other 28 theme files are **additive** and already
 live on the draft theme only; they carry no live counterpart, so they are not part of this
 diff. The push will use `--only=` with these two exact paths and no globs.
