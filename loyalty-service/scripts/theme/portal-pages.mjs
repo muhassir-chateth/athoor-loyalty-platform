@@ -68,7 +68,6 @@ portal-pages.mjs — verify (default) or create the portal's ten Shopify Pages
   --set-template-suffix=<handle>     set template_suffix on ONE existing page
   --apply                            perform that write (default: plan only)
   --confirm-page-id=<id>             required alongside --apply
-  --title-prefix=<text>              admin-facing title prefix (default "My Athoor")
 
   token: SHOPIFY_THEME_TOKEN or SHOPIFY_ADMIN_API_TOKEN (environment only)
 `;
@@ -95,9 +94,19 @@ function requiredPages() {
     .map((suffix) => ({
       handle: suffix,
       templateSuffix: suffix,
-      title: suffix === "my-athoor"
-        ? "My Athoor"
-        : "My Athoor — " + suffix.slice("my-athoor-".length).replace(/-/g, " "),
+      // TITLE == HANDLE, deliberately.
+      //
+      // No portal template reads `page.title` — each passes its heading explicitly
+      // to `portal-chrome` — so the Shopify title is an admin-facing label only and
+      // the implementation does not constrain it. An earlier version composed
+      // "My Athoor — orders" style titles, which was invention: nothing in the
+      // repository or the spec specifies them.
+      //
+      // The one page that already exists on the store has title `my-athoor`,
+      // matching its handle. Mirroring that is derived from observed state rather
+      // than made up, and it keeps the ten consistent in the admin list. Renaming
+      // all ten later is a pure admin-side cosmetic change.
+      title: suffix,
     }));
 }
 
@@ -421,9 +430,7 @@ async function main() {
       store, token, method: "POST", path: "/pages.json",
       body: {
         page: {
-          title: `${args["title-prefix"] ?? "My Athoor"}`.trim() === "My Athoor"
-            ? r.title
-            : r.title,
+          title: r.title,
           handle: r.handle,
           template_suffix: r.templateSuffix,
           // Hidden. See the header: a published Page with a template the live
