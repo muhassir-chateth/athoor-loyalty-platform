@@ -510,3 +510,63 @@ or `Dockerfile`, so applied-migration state **cannot** be inferred from the depl
 commit in `/health`. `psql` is absent, the Supabase and Postman powers both report no
 tools, and the `DATABASE_URL` in `loyalty-service/.env` is non-production. §5's four
 `SELECT`s in the Supabase SQL editor remain the only route.
+
+---
+
+## 8. Task 31.7 — restore path REHEARSED, and the rollback matrix
+
+### The rehearsal actually performed
+
+Run against the **preview** theme `205900054867`. The live theme was never written.
+
+| Step | Action | Result |
+|---|---|---|
+| 0 | Confirm the backup file matches its own manifest | sha `48d01a6d1a115f8d` — match |
+| 1 | Restore the backed-up **live** `config/settings_schema.json` onto the preview theme, re-pull, hash-compare to the 31.1 manifest | **MATCH on read 2** |
+| 2 | Return the preview theme to its own prior bytes, re-pull, hash-compare | **MATCH on read 2** — 23 groups, portal group present |
+| 3 | Confirm `settings_data.json` was never written | `portal_enabled=false`, `portal_allowlist="9395357876563"`, 141 settings — intact |
+
+"MATCH on read 2" both times is the same read-after-write staleness already handled by
+`pollForVerified`: Shopify serves a stale `config/*` asset to a read issued immediately
+after a PUT. A single-read verifier would have reported a false failure on a restore that
+had in fact succeeded — which is precisely the wrong moment to be told a rollback failed.
+
+`config/settings_schema.json` was chosen deliberately as the rehearsal subject: if the
+round trip had failed halfway, the preview theme would have lost only the portal settings
+*declaration*, which makes `portal_on` resolve to false — the portal **fails safe** — and
+recovery is `npm run theme:settings --apply`, a path already tested. Rehearsing on
+`sections/header.liquid` had no equivalent tested recovery, because that file is in the
+push tool's *modified* set rather than its *added* set.
+
+### The rollback matrix (design §25.8), as an operating procedure
+
+| What went wrong | Rollback action | Rehearsed? |
+|---|---|---|
+| Portal misbehaving for customers | **Flag flip** — `portal_enabled=false` and/or clear `portal_allowlist`. No deploy, no theme push, no migration. | mechanism proven (`values_applied_verified`) |
+| A pushed **live** file is wrong | Restore the byte-exact 31.1 backup for that path, re-pull, hash-compare against the manifest | **yes — 31.7, PASS** |
+| A **draft** theme file is wrong | `theme:push:preview --rollback`, or restore from `backups/theme-205900054867/` | tool ships `--rollback` |
+| The settings **schema** group is wrong | `theme:settings --rollback` restores `settings_schema.json` from its backup | tool ships `--rollback` |
+| The database must be reverted | `migrate:down` — gated by `scripts/migration/migrate-down-guard.mjs`, which enforces the **zero-row precondition of §6.5**. A migration with rows present is not reversible by design. | guard exists; not exercised (no production DB access) |
+
+Backup of record for the live push:
+
+```
+backups/live-180956594515/2026-08-30T22-01-59-294Z/config/settings_schema.json
+backups/live-180956594515/2026-08-30T22-01-59-294Z/sections/header.liquid
+```
+
+`shasum -a 256 -c manifest.sha256` in that directory reports `OK` for both.
+
+---
+
+## 9. Task 33 — the automatable evidence
+
+| Checkpoint | Evidence | State |
+|---|---|---|
+| All tests pass | see the test line in the final report | PASS |
+| `NEW RECURRING COST = £0/MONTH` | `npm ls --omit=dev --depth=0` — `fastify`, `pg`, `pg-boss`, `zod`, `typescript`, `@types/node`, `@types/pg`. No automation package; the real-browser probe uses Chrome over CDP with Node's built-in `WebSocket`. | HOLDS |
+| No unauthorised theme change | live theme `180956594515`: 388 assets, key-list `2b45b1bc0987b1fd`, 0 portal assets, `settings_data.json` does not mention `portal_enabled` | HOLDS |
+| No migration change | 22 files, unchanged throughout | HOLDS |
+| No scope change | no scope was added; `read_pixels` was **declined** rather than requested, and the Meta pixel work stopped at diagnosis | HOLDS |
+| Owner decisions D1–D8 | recorded in `design.md`; D1 (new customer accounts) confirmed empirically as Branch B; **D3 needs revisiting** — it authorises editing `layout/theme.liquid`, but the account link is actually in `sections/header.liquid` | PARTIAL |
+| No webhook / App Proxy change | none made by any tool in this repo; App Proxy verified only by reading `/apps/loyalty/v1/*` (401, unchanged behaviour) | HOLDS |

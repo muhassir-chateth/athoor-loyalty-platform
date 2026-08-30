@@ -83,6 +83,15 @@ describe.each(THEME_SCRIPTS)("%s imports everything it uses", (script) => {
     },
   );
 
+  it("emits real newlines, not the two characters backslash-n", () => {
+    // A manifest written with `+ "\\n"` instead of `+ "\n"` produced a manifest.json that
+    // was not valid JSON and a manifest.sha256 with ZERO newlines, so `shasum -c` could
+    // not verify it at all. A backup whose manifest cannot be parsed or verified defeats
+    // the point of taking it. The bug is invisible in review — both forms look plausible.
+    const offenders = [...src.matchAll(/\\\\n/g)].map((m) => m.index);
+    expect(offenders, "found literal backslash-n in a string").toEqual([]);
+  });
+
   it("guards main() so importing the module cannot execute it", () => {
     // Two of these scripts previously called main() at top level, so importing
     // either would run a production tool inside the test suite.

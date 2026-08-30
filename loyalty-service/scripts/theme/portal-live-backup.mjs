@@ -90,7 +90,7 @@ async function main() {
   const themeId = String(args["theme-id"] ?? "");
   if (themeId === "") { console.error(USAGE); process.exit(2); }
   if (String(args["confirm-theme-id"] ?? "") !== themeId) {
-    console.error(`\\nRefusing: --confirm-theme-id must equal --theme-id (${themeId}).`);
+    console.error(`\nRefusing: --confirm-theme-id must equal --theme-id (${themeId}).`);
     process.exit(2);
   }
   await assertEnvironmentIdentity({ args, phase: "portal-live-backup", store, writes: false, usageText: USAGE });
@@ -140,12 +140,12 @@ async function main() {
   // Re-read from disk and re-hash: proves what landed, not what we intended to write.
   const mismatches = manifest.filter((m) => sha256(readFileSync(join(dir, m.key), "utf8")) !== m.sha256);
   writeFileSync(join(dir, "manifest.sha256"),
-    manifest.map((m) => `${m.sha256}  ${m.key}`).join("\\n") + "\\n", "utf8");
+    manifest.map((m) => `${m.sha256}  ${m.key}`).join("\n") + "\n", "utf8");
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({
     task: "31.1", store, theme: { id: target.id, role: target.role, name: target.name },
     capturedAt: new Date().toISOString(), derivedFrom: PRE_PORTAL_COMMIT,
     headCommit: git(["rev-parse", "HEAD"]), files: manifest,
-  }, null, 2) + "\\n", "utf8");
+  }, null, 2) + "\n", "utf8");
 
   return finish({
     phase: "portal-live-backup",
