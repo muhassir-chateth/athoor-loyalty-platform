@@ -44,12 +44,18 @@ function git(args: string[]): string[] {
   return out === "" ? [] : out.split("\n").map((l) => l.trim()).filter(Boolean);
 }
 
-const EXPECTED = ["config/settings_schema.json", "sections/header.liquid"];
+// Three, not two: header.liquid renders 'portal-account-href', and pushing it without that
+// snippet broke the live storefront sitewide. See portalLivePushDependencies.test.ts.
+const EXPECTED = [
+  "config/settings_schema.json",
+  "sections/header.liquid",
+  "snippets/portal-account-href.liquid",
+];
 
 describe("31.2 staged production diff", () => {
   const live = latestLiveDir();
 
-  it("stages exactly the two live files the portal modifies — no globs, no extras", () => {
+  it("stages exactly the approved deployable set — no globs, no extras", () => {
     expect(walk(PUSH).sort()).toEqual([...EXPECTED].sort());
   });
 
@@ -125,8 +131,13 @@ describe("31.2 staged production diff", () => {
   it("no staged file is empty or truncated", () => {
     for (const rel of EXPECTED) {
       const staged = read(join(PUSH, rel));
-      const liveFile = read(join(live, rel));
-      expect(staged.length, `${rel} must not shrink below live`).toBeGreaterThanOrEqual(liveFile.length);
+      expect(staged.length, `${rel} must not be empty`).toBeGreaterThan(0);
+      // Only MODIFIED files have a live counterpart to compare against; the snippet is new.
+      const hasLiveCounterpart = rel !== "snippets/portal-account-href.liquid";
+      if (hasLiveCounterpart) {
+        expect(staged.length, `${rel} must not shrink below live`)
+          .toBeGreaterThanOrEqual(read(join(live, rel)).length);
+      }
     }
   });
 });
