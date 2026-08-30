@@ -185,10 +185,31 @@ export function resolveOnly(raw) {
   return { ok: true, paths: requested };
 }
 
-async function keyListHash(store, token, themeId) {
+async function keyList(store, token, themeId) {
   const res = await shopify(store, token, "GET", `/themes/${themeId}/assets.json`);
   const keys = (res.json?.assets ?? []).map((a) => a.key).sort();
-  return { count: keys.length, hash: sha256(keys.join("\n")) };
+  return { count: keys.length, hash: sha256(keys.join("\n")), keys };
+}
+
+/**
+ * Did the asset list change by EXACTLY the additive files, and nothing else?
+ *
+ * Earlier pushes only modified existing files, so "the key list is unchanged" was the right
+ * assertion. This push ADDS 28 assets, so an unchanged list would be the failure. Relaxing it
+ * to "the count went up" would stop catching an accidental create or delete, so the assertion
+ * becomes exact set equality on both directions.
+ */
+export function diffKeyLists(before, after, expectedAdded) {
+  const b = new Set(before), a = new Set(after);
+  const added = [...a].filter((k) => !b.has(k)).sort();
+  const removed = [...b].filter((k) => !a.has(k)).sort();
+  const want = [...new Set(expectedAdded)].sort();
+  const unexpectedAdded = added.filter((k) => !want.includes(k));
+  const missingAdded = want.filter((k) => !added.includes(k));
+  return {
+    ok: removed.length === 0 && unexpectedAdded.length === 0 && missingAdded.length === 0,
+    added, removed, unexpectedAdded, missingAdded,
+  };
 }
 
 async function main() {
@@ -227,32 +248,55 @@ async function main() {
 
   // Drift + staging checks BEFORE anything is written.
   const plan = [];
+  const additive = [];
   for (const key of only.paths) {
-    if (!backedUp.has(key)) return finish({ phase: "portal-live-push",
-      result: { status: "halted_no_backup_for_path", key, backupDir }, successStatus: "pushed_verified" });
     const live = await shopify(store, token, "GET", assetPath(themeId, key));
     const liveText = live.json?.asset?.value;
-    if (typeof liveText !== "string") return finish({ phase: "portal-live-push",
-      result: { status: "halted_live_unreadable", key, httpStatus: live.status }, successStatus: "pushed_verified" });
+    const staged = readFileSync(join(REPO_ROOT, "theme-push", key), "utf8");
+
+    if (typeof liveText !== "string") {
+      // ADDITIVE: no live counterpart, so no backup is possible — rollback is deletion. A 404
+      // is the only acceptable absence; anything else means we cannot tell what we are about
+      // to overwrite, and that is not a state to write in.
+      if (live.status !== 404) return finish({ phase: "portal-live-push",
+        result: { status: "halted_live_unreadable", key, httpStatus: live.status },
+        successStatus: "pushed_verified" });
+      if (backedUp.has(key)) return finish({ phase: "portal-live-push",
+        result: { status: "halted_backup_exists_but_live_absent", key,
+          note: "the backup says this file existed on live; it does not now" },
+        successStatus: "pushed_verified" });
+      additive.push(key);
+      plan.push({ key, kind: "additive", liveBytes: null, stagedBytes: staged.length,
+        liveSha256: null, stagedSha256: sha256(staged).slice(0, 16), staged });
+      continue;
+    }
+
+    // MODIFIED: must have a backup, and live must still hash to it.
+    if (!backedUp.has(key)) return finish({ phase: "portal-live-push",
+      result: { status: "halted_no_backup_for_path", key, backupDir }, successStatus: "pushed_verified" });
     const liveHash = sha256(liveText);
     if (liveHash !== backedUp.get(key)) return finish({ phase: "portal-live-push",
       result: { status: "halted_live_drifted_since_backup", key,
         backupSha256: backedUp.get(key), liveSha256: liveHash,
         note: "the reviewed diff was against different bytes; re-run 31.1 and re-approve" },
       successStatus: "pushed_verified" });
-    const staged = readFileSync(join(REPO_ROOT, "theme-push", key), "utf8");
-    plan.push({ key, liveBytes: liveText.length, stagedBytes: staged.length,
+    plan.push({ key, kind: "modified", liveBytes: liveText.length, stagedBytes: staged.length,
       liveSha256: liveHash.slice(0, 16), stagedSha256: sha256(staged).slice(0, 16), staged });
   }
 
-  const before = await keyListHash(store, token, themeId);
+  const before = await keyList(store, token, themeId);
   printBlock("portal-live-push plan", {
     store, theme: { id: target.id, role: target.role, name: target.name },
     approvedArtefact: "docs/ops/portal-31-3-approval-artefact.md",
     onlyPaths: only.paths, globsUsed: false,
     backupDir, driftCheck: "every live file still hashes to its 31.1 backup",
+    fileCount: plan.length,
+    additiveCount: additive.length,
+    modifiedCount: plan.length - additive.length,
     files: plan.map(({ staged, ...rest }) => rest),
-    assetKeyList: before, mode: apply ? "apply" : "plan-only",
+    assetKeyList: { count: before.count, hash: before.hash.slice(0, 16) },
+    expectedNewKeys: additive.length,
+    mode: apply ? "apply" : "plan-only",
   });
   if (!apply) { console.log("\nPlan only. Nothing was written."); process.exit(EXIT_OK); }
 
@@ -287,22 +331,28 @@ async function main() {
         rollback: `restore ${p.key} from ${backupDir}` }, successStatus: "pushed_verified" });
   }
 
-  const after = await keyListHash(store, token, themeId);
+  const after = await keyList(store, token, themeId);
+  const keyDelta = diffKeyLists(before.keys, after.keys, additive);
   writeFileSync(join(evidence, "push-evidence.json"), JSON.stringify({
     task: "31.4", store, theme: { id: target.id, role: target.role },
     pushedAt: new Date().toISOString(), only: only.paths, written,
-    assetKeyList: { before, after, unchanged: before.hash === after.hash && before.count === after.count },
+    assetKeyList: { beforeCount: before.count, afterCount: after.count, delta: keyDelta },
     backupDir,
   }, null, 2) + "\n", "utf8");
 
-  const keyListOk = before.hash === after.hash && before.count === after.count;
+  const keyListOk = keyDelta.ok;
   return finish({
     phase: "portal-live-push",
     result: {
       status: keyListOk ? "pushed_verified" : "halted_asset_list_changed",
       theme: { id: target.id, role: target.role, name: target.name },
       written,
-      assetKeyList: { before, after, unchanged: keyListOk },
+      assetKeyList: {
+        beforeCount: before.count, afterCount: after.count,
+        added: keyDelta.added.length, removed: keyDelta.removed,
+        unexpectedAdded: keyDelta.unexpectedAdded, missingAdded: keyDelta.missingAdded,
+        ok: keyDelta.ok,
+      },
       evidence, backupDir,
       rollback: `restore the two files from ${backupDir} and re-verify their sha256`,
     },

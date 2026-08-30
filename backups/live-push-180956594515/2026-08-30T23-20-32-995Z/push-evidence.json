@@ -1,0 +1,294 @@
+{
+  "task": "31.4",
+  "store": "myathoorlondon.myshopify.com",
+  "theme": {
+    "id": 180956594515,
+    "role": "main"
+  },
+  "pushedAt": "2026-08-30T23:20:57.996Z",
+  "only": [
+    "assets/athoor-portal-activity.js",
+    "assets/athoor-portal-core.js",
+    "assets/athoor-portal-fragrance.js",
+    "assets/athoor-portal-order-detail.js",
+    "assets/athoor-portal-orders.js",
+    "assets/athoor-portal-overview.js",
+    "assets/athoor-portal-profile.js",
+    "assets/athoor-portal-referrals.js",
+    "assets/athoor-portal-rewards.js",
+    "assets/athoor-portal-settings.js",
+    "assets/athoor-portal-wishlist.js",
+    "assets/athoor-portal.css",
+    "config/settings_schema.json",
+    "sections/header.liquid",
+    "snippets/portal-account-href.liquid",
+    "snippets/portal-chrome.liquid",
+    "snippets/portal-more-sheet.liquid",
+    "snippets/portal-nav.liquid",
+    "snippets/portal-section.liquid",
+    "snippets/portal-signin-invitation.liquid",
+    "templates/page.my-athoor-activity.liquid",
+    "templates/page.my-athoor-fragrance.liquid",
+    "templates/page.my-athoor-order-detail.liquid",
+    "templates/page.my-athoor-orders.liquid",
+    "templates/page.my-athoor-profile.liquid",
+    "templates/page.my-athoor-referrals.liquid",
+    "templates/page.my-athoor-rewards.liquid",
+    "templates/page.my-athoor-settings.liquid",
+    "templates/page.my-athoor-wishlist.liquid",
+    "templates/page.my-athoor.liquid"
+  ],
+  "written": [
+    {
+      "key": "assets/athoor-portal-activity.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "6639f2600a91e6fb"
+    },
+    {
+      "key": "assets/athoor-portal-core.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "2f8c6092d419e513"
+    },
+    {
+      "key": "assets/athoor-portal-fragrance.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "dc90a2581db6bb6a"
+    },
+    {
+      "key": "assets/athoor-portal-order-detail.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "dc144853c991777d"
+    },
+    {
+      "key": "assets/athoor-portal-orders.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "9c398aa17a812316"
+    },
+    {
+      "key": "assets/athoor-portal-overview.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "83bc56aef5772262"
+    },
+    {
+      "key": "assets/athoor-portal-profile.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "02f9a33b2313f012"
+    },
+    {
+      "key": "assets/athoor-portal-referrals.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "37af7f649efb5a53"
+    },
+    {
+      "key": "assets/athoor-portal-rewards.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "88191e9ed7a99b74"
+    },
+    {
+      "key": "assets/athoor-portal-settings.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "a85ee65cbb005717"
+    },
+    {
+      "key": "assets/athoor-portal-wishlist.js",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "63999277481cb051"
+    },
+    {
+      "key": "assets/athoor-portal.css",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "aa62fc607830f874"
+    },
+    {
+      "key": "config/settings_schema.json",
+      "verified": true,
+      "verifiedBy": "json-content-identical-shopify-reformatted",
+      "readAttempts": 1,
+      "sha256": "66698ea4426b9e47"
+    },
+    {
+      "key": "sections/header.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "4e83b615316ab943"
+    },
+    {
+      "key": "snippets/portal-account-href.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "571ea8893a179551"
+    },
+    {
+      "key": "snippets/portal-chrome.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "94a8c3022a65a389"
+    },
+    {
+      "key": "snippets/portal-more-sheet.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "d1d573e4b846d69c"
+    },
+    {
+      "key": "snippets/portal-nav.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "d7e3b265f3284481"
+    },
+    {
+      "key": "snippets/portal-section.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "c23d065c041c48b6"
+    },
+    {
+      "key": "snippets/portal-signin-invitation.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "94f561d63510c335"
+    },
+    {
+      "key": "templates/page.my-athoor-activity.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "4c37a5a5b9fe01eb"
+    },
+    {
+      "key": "templates/page.my-athoor-fragrance.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "2f6b8b134ef4d949"
+    },
+    {
+      "key": "templates/page.my-athoor-order-detail.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "0628e3e23f317d7c"
+    },
+    {
+      "key": "templates/page.my-athoor-orders.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "ff1e48e44c5dd58b"
+    },
+    {
+      "key": "templates/page.my-athoor-profile.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "416c77eb7b54547c"
+    },
+    {
+      "key": "templates/page.my-athoor-referrals.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "e22603a052345c2c"
+    },
+    {
+      "key": "templates/page.my-athoor-rewards.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "f2d1d19e82aab259"
+    },
+    {
+      "key": "templates/page.my-athoor-settings.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "a0e43a322c8a7491"
+    },
+    {
+      "key": "templates/page.my-athoor-wishlist.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "574ff9ab420149d1"
+    },
+    {
+      "key": "templates/page.my-athoor.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 1,
+      "sha256": "03b564a219197762"
+    }
+  ],
+  "assetKeyList": {
+    "beforeCount": 388,
+    "afterCount": 416,
+    "delta": {
+      "ok": true,
+      "added": [
+        "assets/athoor-portal-activity.js",
+        "assets/athoor-portal-core.js",
+        "assets/athoor-portal-fragrance.js",
+        "assets/athoor-portal-order-detail.js",
+        "assets/athoor-portal-orders.js",
+        "assets/athoor-portal-overview.js",
+        "assets/athoor-portal-profile.js",
+        "assets/athoor-portal-referrals.js",
+        "assets/athoor-portal-rewards.js",
+        "assets/athoor-portal-settings.js",
+        "assets/athoor-portal-wishlist.js",
+        "assets/athoor-portal.css",
+        "snippets/portal-account-href.liquid",
+        "snippets/portal-chrome.liquid",
+        "snippets/portal-more-sheet.liquid",
+        "snippets/portal-nav.liquid",
+        "snippets/portal-section.liquid",
+        "snippets/portal-signin-invitation.liquid",
+        "templates/page.my-athoor-activity.liquid",
+        "templates/page.my-athoor-fragrance.liquid",
+        "templates/page.my-athoor-order-detail.liquid",
+        "templates/page.my-athoor-orders.liquid",
+        "templates/page.my-athoor-profile.liquid",
+        "templates/page.my-athoor-referrals.liquid",
+        "templates/page.my-athoor-rewards.liquid",
+        "templates/page.my-athoor-settings.liquid",
+        "templates/page.my-athoor-wishlist.liquid",
+        "templates/page.my-athoor.liquid"
+      ],
+      "removed": [],
+      "unexpectedAdded": [],
+      "missingAdded": []
+    }
+  },
+  "backupDir": "/Users/muhassirjuman/kiro_athoor-pages/backups/live-180956594515/2026-08-30T22-21-36-919Z"
+}

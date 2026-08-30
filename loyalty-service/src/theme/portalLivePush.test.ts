@@ -11,7 +11,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveOnly, verifyStored } from "../../scripts/theme/portal-live-push.mjs";
+import { resolveOnly, verifyStored, diffKeyLists } from "../../scripts/theme/portal-live-push.mjs";
 import { execFileSync } from "node:child_process";
 import { REPO_ROOT } from "./portalFixtures.js";
 
@@ -118,6 +118,42 @@ describe("31.4 live push guards", () => {
       const r = verifyStored("sections/header.liquid", "<p>a</p>", "<p>a</p> ");
       expect(r.ok, "a byte difference in Liquid is a real difference").toBe(false);
       expect(r.mode).toBe("bytes-differ");
+    });
+  });
+
+  // -- diffKeyLists ---------------------------------------------------------
+  // Earlier pushes only MODIFIED files, so "the key list is unchanged" was correct. This push
+  // ADDS 28 assets, so an unchanged list would be the failure. Relaxing it to "the count went
+  // up" would stop catching an accidental create or delete, so it is exact set equality.
+  describe("diffKeyLists", () => {
+    const before = ["a", "b", "c"];
+
+    it("accepts exactly the expected additions", () => {
+      const r = diffKeyLists(before, ["a", "b", "c", "d", "e"], ["d", "e"]);
+      expect(r.ok, JSON.stringify(r)).toBe(true);
+      expect(r.added).toEqual(["d", "e"]);
+    });
+
+    it("rejects an unexpected addition", () => {
+      const r = diffKeyLists(before, ["a", "b", "c", "d", "zz"], ["d"]);
+      expect(r.ok).toBe(false);
+      expect(r.unexpectedAdded).toEqual(["zz"]);
+    });
+
+    it("rejects ANY removal, which is the dangerous direction", () => {
+      const r = diffKeyLists(before, ["a", "b", "d"], ["d"]);
+      expect(r.ok).toBe(false);
+      expect(r.removed).toEqual(["c"]);
+    });
+
+    it("rejects a push where an expected file never appeared", () => {
+      const r = diffKeyLists(before, ["a", "b", "c", "d"], ["d", "e"]);
+      expect(r.ok).toBe(false);
+      expect(r.missingAdded).toEqual(["e"]);
+    });
+
+    it("accepts a modify-only push where nothing is added", () => {
+      expect(diffKeyLists(before, ["a", "b", "c"], []).ok).toBe(true);
     });
   });
 
