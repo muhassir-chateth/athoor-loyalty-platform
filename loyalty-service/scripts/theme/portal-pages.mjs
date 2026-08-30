@@ -48,6 +48,7 @@ import { join } from "node:path";
 import {
   EXIT_HALTED,
   EXIT_OK,
+  finish,
   parseArgs,
   printBlock,
   requireSecretFromEnv,
