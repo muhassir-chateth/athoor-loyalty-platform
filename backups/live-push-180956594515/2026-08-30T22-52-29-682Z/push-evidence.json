@@ -1,0 +1,33 @@
+{
+  "task": "31.4",
+  "store": "myathoorlondon.myshopify.com",
+  "theme": {
+    "id": 180956594515,
+    "role": "main"
+  },
+  "pushedAt": "2026-08-30T22:52:34.674Z",
+  "only": [
+    "sections/header.liquid"
+  ],
+  "written": [
+    {
+      "key": "sections/header.liquid",
+      "verified": true,
+      "verifiedBy": "byte-identical",
+      "readAttempts": 2,
+      "sha256": "4e83b615316ab943"
+    }
+  ],
+  "assetKeyList": {
+    "before": {
+      "count": 388,
+      "hash": "2b45b1bc0987b1fd8ea31111672385d4cae22544a72b4dbd6f397bd71296f950"
+    },
+    "after": {
+      "count": 388,
+      "hash": "2b45b1bc0987b1fd8ea31111672385d4cae22544a72b4dbd6f397bd71296f950"
+    },
+    "unchanged": true
+  },
+  "backupDir": "/Users/muhassirjuman/kiro_athoor-pages/backups/live-180956594515/2026-08-30T22-21-36-919Z"
+}

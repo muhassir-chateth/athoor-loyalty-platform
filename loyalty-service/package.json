@@ -28,7 +28,8 @@
     "theme:push:preview": "node scripts/theme/portal-preview-push.mjs",
     "theme:pages": "node scripts/theme/portal-pages.mjs",
     "theme:settings": "node scripts/theme/portal-settings-apply.mjs",
-    "theme:backup:live": "node scripts/theme/portal-live-backup.mjs"
+    "theme:backup:live": "node scripts/theme/portal-live-backup.mjs",
+    "theme:push:live": "node scripts/theme/portal-live-push.mjs"
   },
   "dependencies": {
     "@types/node": "^22.0.0",
