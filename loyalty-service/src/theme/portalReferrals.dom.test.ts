@@ -475,6 +475,18 @@ describe("Referrals: states (Requirements 10.8, 16.3)", () => {
     // `states.set` calls `announce.polite` DIRECTLY rather than through the runtime
     // wrapper, so the harness recorder never sees it. The live region is where the
     // announcement actually lands, and is what a screen reader would read.
+    //
+    // FLUSH FIRST. `announce.write` clears the region and then sets the message
+    // inside `setTimeout(…, 0)` — deliberately a macrotask, so the accessibility
+    // tree observes the empty value before the new one and a repeated message is
+    // still re-announced. Two announcements therefore land here in sequence:
+    // "Preparing your account" from the loading state, then this one from the empty
+    // state. Asserting the moment `boot()` resolves races the second timer, and this
+    // test intermittently read the LOADING text instead — it failed in CI as
+    // `expected 'Preparing your account' to contain 'Share your code to begin'`
+    // while passing locally. The other six live-region assertions in the suite
+    // already flush; this one did not.
+    await new Promise((resolve) => setTimeout(resolve, 4));
     expect(h.root.querySelector("[data-portal-live]")?.textContent).toContain("Share your code to begin");
   });
 
