@@ -570,3 +570,30 @@ backups/live-180956594515/2026-08-30T22-01-59-294Z/sections/header.liquid
 | No scope change | no scope was added; `read_pixels` was **declined** rather than requested, and the Meta pixel work stopped at diagnosis | HOLDS |
 | Owner decisions D1–D8 | recorded in `design.md`; D1 (new customer accounts) confirmed empirically as Branch B; **D3 needs revisiting** — it authorises editing `layout/theme.liquid`, but the account link is actually in `sections/header.liquid` | PARTIAL |
 | No webhook / App Proxy change | none made by any tool in this repo; App Proxy verified only by reading `/apps/loyalty/v1/*` (401, unchanged behaviour) | HOLDS |
+
+---
+
+## 10. Task 30.6 — the live-side half, confirmed after the 31.4 push
+
+30.6 asks that the regions which must not change are identical between preview and live, and
+that `/pages/rewards` with the flag off is unchanged.
+
+**The preview-vs-live comparison is not automatable** — rendering the preview theme needs an
+authenticated session, and a bare `preview_theme_id` is discarded for anonymous visitors.
+
+**The live-side invariant IS confirmed, with a real before/after byte comparison.**
+`/pages/rewards` measured **301,260 bytes** three times before the push (stability was checked
+first, precisely so the number could be trusted), and **301,260 bytes** after all 30 files
+landed. Byte-identical.
+
+| Signal | After the push |
+|---|---|
+| `/pages/rewards` size | **301,260 bytes — identical to pre-push** |
+| `data-portal-root` markers | 0 |
+| `athoor-portal` asset references | 0 |
+| Liquid errors | 0 |
+| `<head>` stylesheet entries | 43 |
+
+That is the substance of Requirement 22.7's flag-off guarantee: 28 new files are present on the
+live theme and the rendered output has not moved by a single byte. 30.6 stays **unticked**
+because its preview-side comparison is still owed.
