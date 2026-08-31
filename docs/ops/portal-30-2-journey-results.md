@@ -104,3 +104,61 @@ reproducible production 500 on a portal endpoint is a fail. The flag stays **OFF
 Not yet exercised: order detail (the customer has 0 orders, so no row to click) and the
 persistence steps 3, 6, 10, 11 and 13, which mutate real customer data and are better run once
 the 500 is fixed.
+
+---
+
+# Post-fix re-run — the 500 is gone
+
+The catalogue defect was fixed (`availableForSale` moved to the variant), merged, and deployed:
+production `/health` reported `build.commit = 4dd28f9`, matching `main`, before re-running.
+
+## Overview and Wishlist specifically
+
+| | before | after |
+|---|---|---|
+| `GET /v1/catalog/products` | **500** | **200** |
+| Overview product titles | none | `IDENTITY`, `GISSAH D'AURA`, `OLD MONEY` |
+| Wishlist product titles | none | `IDENTITY`, `GISSAH D'AURA`, `OLD MONEY` |
+| Wishlist prices | none | `50.00`, `45.00`, `45.00` |
+| Wishlist availability | none | `Available`, `Available`, `Available` |
+
+The availability column matters most: that is the exact field that was moved from `Product` to
+`ProductVariant`. It renders correct values, so the new mapping is verified end to end — not
+merely "the 500 stopped".
+
+## Full sweep, all nine sections, after the fix
+
+| view | heading | nav | state | API calls | failures | console errors | stuck |
+|---|---|---|---|---|---|---|---|
+| `my-athoor` | Overview | Overview | ready | 4 | 0 | 0 | no |
+| `my-athoor-orders` | Your orders | Orders | empty | 1 | 0 | 0 | no |
+| `my-athoor-wishlist` | Your wishlist | Wishlist | ready | 2 | 0 | 0 | no |
+| `my-athoor-rewards` | Rewards | Rewards | ready | 1 | 0 | 0 | no |
+| `my-athoor-activity` | Points activity | **Rewards** | empty | 2 | 0 | 0 | no |
+| `my-athoor-referrals` | Referrals | Referrals | ready | 1 | 0 | 0 | no |
+| `my-athoor-profile` | Profile | Profile | ready | 4 | 0 | 0 | no |
+| `my-athoor-fragrance` | Fragrance profile | Fragrance profile | empty | 2 | 0 | 0 | no |
+| `my-athoor-settings` | Settings | Settings | ready | 3 | 0 | 0 | no |
+
+**20 loyalty API calls, 0 failures, 0 stuck sections, 0 console errors.**
+
+## 30.2 status: read-path VERIFIED, write-path not yet
+
+What is now genuinely verified in a real browser against production:
+
+- authentication and identity resolution — every call resolved to the right customer
+- all nine section routes render, with the headings the runbook specifies
+- `activity` highlights **Rewards**, the deliberate parent-nav rule
+- no section stuck on `loading` — the PR #28 defect class is absent
+- no cross-customer data anywhere — Property 1 holds
+- every portal endpoint returns 200
+
+Still **not** exercised, so 30.2 stays unticked:
+
+| Runbook step | Why not yet |
+|---|---|
+| 5 — order detail | the customer has 0 orders, so there is no row to open and no id to pass |
+| 3, 6, 10, 11, 13 — persistence | these MUTATE real customer data (profile field, wishlist removal, birthday, preferences). Birthday in particular is once-a-year and then locked, so it is not casually repeatable |
+
+The persistence steps are automatable and are the natural next move; they were deliberately not
+run in the same pass as a defect hunt, so that a write could not be confused with a read failure.
