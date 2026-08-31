@@ -832,3 +832,89 @@ true on all four pages, including the homepage. It matches the brand name "My At
 ordinary copy. The structural counters are the authoritative signal and they are all zero. There is also
 1 console error on every page including the homepage, so it is pre-existing and site-wide, not
 attributable to the portal — I have not diagnosed it and am not claiming it is harmless.
+
+---
+
+## 16. The CLS fix — applied to the DRAFT only, and it does NOT meet the gate
+
+`min-height: 100vh` on `.athoor-portal`, source `theme-src/portal/styles/base.css`, rebuilt via
+`npm run build:portal` (CSS 5.11 KB gzip against a 20 KB budget, `build:portal:check` confirms
+artefacts match source). Pushed with `theme:push:preview --apply` to theme **205900054867, role
+`unpublished`** — 28 pushed, 28 verified identical, 0 mismatches, backup taken. **Live theme
+180956594515 was not touched. `portal_enabled` was not changed.** The push script refuses any theme
+whose role is `main`, so this could not have reached live even by mistake.
+
+Confirmed applied: the root serves `min-height: 844px` at a 390x844 viewport.
+
+### Result: mobile CLS gate < 0.1 is NOT met
+
+| section | CLS before | CLS after | verdict | LCP before | LCP after |
+|---|---|---|---|---|---|
+| overview | 0 | 0 | pass | 284 | 504 |
+| orders | 0 | 0 | pass | 380 | 372 |
+| profile | 0.0212 | 0.0212 | pass | 244 | 360 |
+| rewards | 0 | 0 | pass | 764 | 764 |
+| referrals | 0 | 0 | pass | 784 | 812 |
+| **fragrance** | 0.4596 | **0.1202** | **FAIL** | 1204 | 1184 |
+| wishlist | 0.3663 | **0.0651** | pass | 904 | 1028 |
+| **settings** | 0.4231 | **0.4231** | **FAIL** | 252 | 344 |
+| activity | 0.1086 | **0.0457** | pass | 848 | 896 |
+
+Desktop: settings **0.1221** unchanged, still over its 0.105 baseline. Every other desktop section
+unchanged. Overflow 0 everywhere, nav targets 5 mobile / 8 desktop, bar `fixed` / `sticky` as before,
+**0 API failures and 0 console errors across all 54 loads.**
+
+### Why it only half worked — two independent causes, not one
+
+The scores that did not move are the tell. A rule that changes nothing cannot be acting on that
+shift's cause.
+
+**Cause A — section growth displacing the theme footer. FIXED.**
+`footer.footer.color-background-2` was the dominant source before and is now **absent from the shift
+sources entirely**. This is what improved wishlist (0.3663 -> 0.0651), activity (0.1086 -> 0.0457) and
+most of fragrance.
+
+**Cause B — content resized or removed after render, inside the portal. NOT ADDRESSED.**
+
+| section | remaining source | movement |
+|---|---|---|
+| settings 0.4231 | `section.athoor-settings__group` x2 | y=535 h=309 -> [0,0]; y=389 h=147 -> [0,0] |
+| fragrance 0.1202 | `footer.athoor-portal__footer` | y=425 h=69 -> [0,0] |
+| overview desktop 0.0925 | `section.athoor-overview__tile` | h=242 -> h=340, plus a tile appearing at y=867 |
+
+A destination of `[0,0]` means the element was **removed or hidden after having been laid out**. Settings
+renders two groups and then collapses them; overview's tiles grow ~98px as data lands and shove the
+greeting up. Root height for settings is 1781px, far past the 844px reserve, so the reserve is simply
+not in play — hence the bit-identical score.
+
+Fixing cause B is a different job from cause A: reserve height on `.athoor-settings__group` and
+`.athoor-overview__tile`, and stop the portal's own footer moving. That is per-component work on the
+section stylesheets, not one rule on the root, so it is **not attempted here** rather than rushed.
+
+### LCP: a real tradeoff, recorded
+
+Worst mobile median is 1184ms against 1204ms before, so the headline is flat. Individual sections
+regressed: overview 284 -> 504, profile 244 -> 360, settings 252 -> 344, wishlist 904 -> 1028. A taller
+page changes which element qualifies as largest-contentful, so this is a plausible consequence of the
+reserve rather than a slowdown. Everything remains far inside the 7.4s mobile baseline, but "no LCP
+regression" is **not** satisfied section by section, and it would be dishonest to file it as clean.
+
+### Two corrections to my own harness
+
+1. **`empty` is not stuck.** `fragrance` reports `data-state="empty"`, and orders and activity likewise —
+   correct for an account with no orders, no activity and no fragrance profile. My gate flagged
+   `:not([data-state="ready"])` as failure and produced 18 false positives.
+2. **My earlier "0 stuck sections across 54 loads" was vacuous.** It queried
+   `[data-portal-state="loading"]`. The attribute is `data-state`. The selector could never match
+   anything, so the zero measured nothing. The corrected selector shows the states above, all designed.
+
+### Standing position
+
+The draft carries a real improvement on three sections and no CLS regression anywhere. It does **not**
+meet the < 0.1 mobile gate, so **it must not be promoted to live and the flag must stay OFF.**
+Rollback, if wanted:
+
+```
+node scripts/theme/portal-preview-push.mjs --store=myathoorlondon.myshopify.com \
+  --environment=production --theme-id=205900054867 --rollback
+```
