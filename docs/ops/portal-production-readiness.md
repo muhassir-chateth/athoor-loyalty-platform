@@ -918,3 +918,107 @@ Rollback, if wanted:
 node scripts/theme/portal-preview-push.mjs --store=myathoorlondon.myshopify.com \
   --environment=production --theme-id=205900054867 --rollback
 ```
+
+---
+
+## 17. The CLS fix, done properly — attributed, corrected, and re-measured (draft only)
+
+Section 16 recorded the first attempt as a partial failure. This section records the second
+attempt, which passes every CLS gate, and is honest about the LCP cost it carries.
+
+### The two real causes, attributed with a MutationObserver aligned to shift time
+
+Not guessed — the codebase's own rule is that guessing at a CLS fix earns a second shift. Each
+shift was tied to the DOM mutation that produced it, in the same frame:
+
+- **settings 0.4231** — at the loading→ready flip, the `comms` and `consent` groups un-hide
+  (`hidden` removed) and insert ~400px ABOVE the `addresses` group, which carries no `hidden` and
+  so was visible throughout loading. That is §21.6's own "content is never inserted above existing
+  content", broken by markup that left one sibling visible while hiding the two above it.
+- **overview 0.0925 desktop / 0.2421 mobile** — at the same flip, two empty tiles are dropped
+  (`drop()`), pulling the rest of the summary up past the greeting.
+
+The `data-portal-body` div is empty and self-closed; the section's real content is its SIBLINGS,
+governed only by their own `hidden` attributes, not by the body's display rule. That is why the
+earlier root reserve never touched these two.
+
+### The fix — two rules in base.css, source not artifact
+
+1. `min-height: 100dvh` on `.athoor-portal__section`. `100dvh`, never the vh unit that §19.5's
+   test forbids — the dynamic unit excludes the mobile browser chrome. On the SECTION, not the
+   root, because the footer follows the section.
+2. Hide the section's data content until `[data-state="ready"]`, keeping only the state block,
+   skeleton, live region and the `[data-portal-greeting]` LCP element. The reveal then has nothing
+   visible to push and the drop nothing visible to pull.
+
+Built via `npm run build:portal`; the built asset contains no "100vh"; `build:portal:check` confirms
+artefacts match source; CSS 5.14 KB gzip against the 20 KB budget. Pushed to draft 205900054867
+(role unpublished, 28/28 verified identical, live untouched, flag unchanged).
+
+### CLS — full 9-section × 2-viewport × 3-run cold median, foregrounded
+
+An earlier "0 CLS" reading was a FALSE zero: the layout-shift API only fires for a foregrounded
+tab, and after a Chrome relaunch the extension's tab held the foreground. Every measurement below
+uses `Target.activateTarget` + `Page.bringToFront` and was confirmed `visibilityState === "visible"`.
+
+| section | mobile before | mobile after | desktop before | desktop after |
+|---|---|---|---|---|
+| overview | 0 | 0.0015 | 0.0925 | 0.0014 |
+| orders | 0 | 0 | 0.0012 | 0.0012 |
+| profile | 0.0212 | 0 | 0.0079 | 0 |
+| rewards | 0 | 0 | 0.0355 | 0 |
+| referrals | 0 | 0 | 0.0647 | 0 |
+| fragrance | 0.4596 | 0.0027 | 0.0012 | 0.0012 |
+| wishlist | 0.3663 | 0 | 0 | 0 |
+| settings | 0.4231 | 0 | 0.1221 | 0 |
+| activity | 0.1086 | 0.0027 | 0.0012 | 0.0012 |
+
+**Worst mobile CLS 0.0027 (gate < 0.1). Worst desktop CLS 0.0014 (gate < 0.105). Both pass with
+~40x margin.** Zero horizontal overflow at every width, nav 5 mobile / 8 desktop, zero stuck-loading
+sections, zero `/apps/loyalty` responses >= 400, zero console errors across all 54 loads.
+
+### LCP — a real regression, reported as one
+
+The fix delays LCP on the sections whose largest element was content it now hides until ready. Same
+harness, with the fix vs the fix neutralized (which restores pre-fix content visibility):
+
+| section | LCP with fix | CLS with fix | LCP neutralized | CLS neutralized |
+|---|---|---|---|---|
+| overview mobile | 784 | 0.0015 | 432 | 0.2136 |
+| settings mobile | 984 | 0 | 464 | 0.2621 |
+| rewards mobile | 836 | 0 | 716 | 0 |
+| wishlist desktop | 1024 | 0 | 944 | 0 |
+
+So the fix costs ~350ms of LCP on overview and ~520ms on settings, and less elsewhere. This is not
+noise and it is not hidden: it is the intrinsic trade. Content visible during loading paints its LCP
+early and then shifts when the data resolves; content hidden until ready never shifts but paints
+later. The neutralized column is what "no LCP regression" would cost — CLS 0.21–0.26, which is
+"poor" by Google's 0.1 threshold and fails this project's 0.059 mobile baseline outright.
+
+**The absolute LCP after the fix is still strong**: worst is settings at 984ms, which is 7.5x under
+the 7.4s mobile baseline and inside Google's 2.5s "good" band. Every section stays under ~1s. But
+against the pre-fix numbers it is a regression, and calling it anything else would be dishonest.
+
+The rewards and wishlist rows show the trade is not always worth taking: their content does NOT
+shift when visible (CLS 0 in both columns), so hiding it buys no CLS and only costs LCP. A future,
+more surgical rule could hide only the data containers that actually shift and keep static headings
+visible for LCP — at the cost of per-section granularity the current one-rule fix avoids. That is a
+deliberate follow-up, not something to guess at now.
+
+### Keyboard occlusion — still passes after the fix
+
+| case | viewport h | bar | input t/b | bar t/b | input visible | bar covers |
+|---|---|---|---|---|---|---|
+| no keyboard | 844 | fixed | 400/444 | 787/844 | yes | 0px |
+| iOS (~336px) | 508 | fixed | 232/276 | 451/508 | yes | 0px |
+| Android (~310px) | 534 | fixed | 245/289 | 477/534 | yes | 0px |
+
+Unchanged from section 14. Still a simulation, still not a substitute for a handset.
+
+### Gates
+
+Complete suite 232 files / 4248 tests green; `typecheck`, `typecheck:portal`, `build:portal:check`
+all clean, including the §19.5 100dvh guard and the 31.2 blast-radius guard. **30.5's CLS is now met.
+The open question is the LCP trade** — recorded here rather than decided unilaterally, because "no
+LCP regression" was an explicit requirement and this fix does not meet it strictly, even as it keeps
+LCP well under baseline.
