@@ -50,6 +50,18 @@ export const CATALOG_VARIANT_WINDOW = 1;
 /**
  * The N4 document. Rooted at `nodes(ids:)` with `... on Product` as the ONLY
  * inline fragment, which is what {@link assertGlobalCatalogueQuery} requires.
+ *
+ * -- `availableForSale` IS A VARIANT FIELD, NOT A PRODUCT FIELD -------------
+ * This document selected it on `Product`, and every catalogue read returned 500 in
+ * production. Shopify's Admin API says so plainly:
+ *   Field 'availableForSale' doesn't exist on type 'Product'
+ * It DOES exist on the Storefront API's `Product` — the likely source of the mistake —
+ * and on the Admin API's `ProductVariant`. `orders.ts` and `reorder.ts` already select
+ * it on the variant, so this document was the only one disagreeing with the rest.
+ *
+ * The suite missed it because the catalogue tests MOCK the Shopify response: a document
+ * Shopify would reject satisfies a mock perfectly. `portalGraphqlSchemaFidelity.test.ts`
+ * now asserts the field's placement in every portal document.
  */
 export const PORTAL_CATALOG_PRODUCTS_QUERY = /* GraphQL */ `
   query portalCatalogProducts($ids: [ID!]!, $variantWindow: Int!) {
@@ -60,7 +72,6 @@ export const PORTAL_CATALOG_PRODUCTS_QUERY = /* GraphQL */ `
         handle
         status
         publishedAt
-        availableForSale
         featuredImage {
           url
           width
@@ -79,6 +90,7 @@ export const PORTAL_CATALOG_PRODUCTS_QUERY = /* GraphQL */ `
         variants(first: $variantWindow) {
           nodes {
             id
+            availableForSale
           }
         }
       }
@@ -93,13 +105,14 @@ export interface ShopifyCatalogProductNode {
   readonly handle?: string | null;
   readonly status?: string | null;
   readonly publishedAt?: string | null;
-  readonly availableForSale?: boolean | null;
   readonly featuredImage?: { url?: string | null; width?: number | null; height?: number | null } | null;
   readonly priceRangeV2?: { minVariantPrice?: { amount?: string | null } | null } | null;
   readonly compareAtPriceRange?: {
     minVariantCompareAtPrice?: { amount?: string | null } | null;
   } | null;
-  readonly variants?: { nodes?: readonly { id?: string | null }[] | null } | null;
+  readonly variants?: {
+    nodes?: readonly { id?: string | null; availableForSale?: boolean | null }[] | null;
+  } | null;
 }
 
 interface CatalogNodesEnvelope {
@@ -170,7 +183,12 @@ export function projectCatalogProduct(node: ShopifyCatalogProductNode): PortalCa
     }
   }
 
-  const defaultVariantId = numericVariantIdFromGid(node.variants?.nodes?.[0]?.id);
+  // ONE variant is fetched (CATALOG_VARIANT_WINDOW = 1) and it is already the node
+  // `defaultVariantId` comes from, so availability is read from the SAME variant.
+  // Reading it from anywhere else would let the two disagree: a product could
+  // advertise "available" while the variant the client adds to the bag is not.
+  const firstVariant = node.variants?.nodes?.[0];
+  const defaultVariantId = numericVariantIdFromGid(firstVariant?.id);
 
   return {
     productId,
@@ -179,7 +197,7 @@ export function projectCatalogProduct(node: ShopifyCatalogProductNode): PortalCa
     // though Shopify still reports the handle.
     handle: published && typeof node.handle === "string" && node.handle !== "" ? node.handle : null,
     published,
-    availableForSale: node.availableForSale === true,
+    availableForSale: firstVariant?.availableForSale === true,
     priceGBP,
     compareAtPriceGBP,
     imageUrl: typeof node.featuredImage?.url === "string" ? node.featuredImage.url : null,
