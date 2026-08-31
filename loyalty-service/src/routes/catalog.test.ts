@@ -127,11 +127,13 @@ function productNode(overrides: Record<string, unknown> = {}) {
     handle: "oud-royale",
     status: "ACTIVE",
     publishedAt: "2024-01-01T00:00:00Z",
-    availableForSale: true,
     featuredImage: { url: "https://cdn/oud.jpg", width: 800, height: 1000 },
     priceRangeV2: { minVariantPrice: { amount: "184.0" } },
     compareAtPriceRange: { minVariantCompareAtPrice: { amount: "220.00" } },
-    variants: { nodes: [{ id: "gid://shopify/ProductVariant/4477" }] },
+    // availableForSale is a ProductVariant field on the Admin API. Selecting it on
+    // Product returned 500 for every catalogue call in production; this fixture encoded
+    // that same mistake, which is why the suite stayed green through the outage.
+    variants: { nodes: [{ id: "gid://shopify/ProductVariant/4477", availableForSale: true }] },
     ...overrides,
   };
 }
@@ -175,7 +177,11 @@ describe("projectCatalogProduct (§7.5)", () => {
 
   it("keeps published and availableForSale as SEPARATE facts (§7.5)", () => {
     // An out-of-stock published product can be linked to but not bought.
-    const outOfStock = projectCatalogProduct(productNode({ availableForSale: false }));
+    const outOfStock = projectCatalogProduct(
+      productNode({
+        variants: { nodes: [{ id: "gid://shopify/ProductVariant/4477", availableForSale: false }] },
+      }),
+    );
     expect(outOfStock.published).toBe(true);
     expect(outOfStock.handle).toBe("oud-royale");
     expect(outOfStock.availableForSale).toBe(false);
