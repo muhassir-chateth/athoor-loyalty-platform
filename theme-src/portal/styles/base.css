@@ -877,6 +877,28 @@
   Overview's own skeleton is dropped: with its content visible the skeleton would
   be redundant, and removing a 168px skeleton at `ready` would shift the greeting.
 */
-.athoor-portal__section[data-portal-section="overview"] .athoor-portal__skeleton {
-  display: none;
+@media (min-width: 750px) {
+  /*
+    On desktop the overview tiles sit in a grid, and the loyalty tile grows
+    (measured 242 -> 340px) as its data lands, reflowing the grid — the original
+    ~0.09 shift. Desktop LCP is ~290ms whether the content is visible or hidden,
+    so on desktop overview is hidden until `ready` like every other section,
+    trading a marginal LCP change for a rock-solid CLS. The greeting is still
+    excluded, so it paints immediately.
+  */
+  .athoor-portal__section[data-portal-section="overview"]:not([data-state="ready"]) > :not(.athoor-portal__state):not(.athoor-portal__skeleton):not(.athoor-portal__live):not([data-portal-greeting]) {
+    display: none;
+  }
+}
+
+@media (max-width: 749px) {
+  /*
+    On mobile the tiles stack, the grow is absorbed (measured CLS 0), and hiding
+    the content cost the most LCP (~784ms hidden vs ~570ms visible), so overview
+    keeps its content visible here. Its skeleton is dropped because with content
+    visible it is redundant and its removal would move the greeting.
+  */
+  .athoor-portal__section[data-portal-section="overview"] .athoor-portal__skeleton {
+    display: none;
+  }
 }
