@@ -676,3 +676,159 @@ kind of claim that looks like evidence and is not.
 
 **30.5 stays unticked.** To close it: three runs per section, all nine sections, both viewports,
 report the median — and pay attention to desktop CLS on overview specifically.
+
+---
+
+## 13. Task 30.5 — the FULL requirement, and it FAILS on CLS
+
+### Correction to section 12 above
+
+Section 12 concluded "Every reading is inside its baseline. The portal does not regress the page it
+lives on." **That conclusion was wrong, and this section supersedes it.** Section 12 sampled four of
+nine sections with an ordinary warm HTTP cache. Running the requirement as actually specified — nine
+sections, three runs, median, cache disabled so every load is cold — surfaces mobile CLS up to
+**0.4596** against a **0.059** baseline. The partial sample did not merely under-measure; it produced
+the opposite verdict. That is worth stating plainly rather than quietly overwriting.
+
+### Method
+
+9 sections x 2 viewports x 3 runs = 54 loads. `Network.setCacheDisabled: true` on every run, so these
+are cold-load figures. Cold is the honest condition for a feature no customer has visited yet: every
+first view of this portal is a cold view. LCP and CLS via `PerformanceObserver` (`buffered: true`),
+5.5s collection window.
+
+### Mobile 390x844 — median of 3 cold runs
+
+| section | LCP med | LCP runs | CLS med | CLS runs | TTFB med |
+|---|---|---|---|---|---|
+| overview | 284 | 400, 284, 232 | 0 | 0.2421, 0, 0 | 76 |
+| orders | 380 | 584, 380, 260 | 0 | 0.0622, 0, 0 | 62 |
+| profile | 244 | 240, 408, 244 | 0.0212 | 0.0212, 0, 0.0212 | 60 |
+| rewards | 764 | 936, 576, 764 | 0 | 0.3022, 0, 0 | 61 |
+| referrals | 784 | 784, 808, 628 | 0 | 0.2151, 0, 0 | 60 |
+| **fragrance** | 1204 | 1204, 1072, 1248 | **0.4596** | 0.4596, 0.4596, 0.4596 | 61 |
+| **wishlist** | 904 | 1068, 884, 904 | **0.3663** | 0.3663, 0.3663, 0.3663 | 60 |
+| **settings** | 252 | 388, 236, 252 | **0.4231** | 0.4231, 0, 0.4231 | 59 |
+| **activity** | 848 | 840, 848, 984 | **0.1086** | 0.1086, 0.1086, 0.1086 | 61 |
+
+### Desktop 1280x900 — median of 3 cold runs
+
+| section | LCP med | CLS med | CLS runs | TTFB med |
+|---|---|---|---|---|
+| overview | 248 | 0.0925 | 0.0925 x3 | 60 |
+| orders | 488 | 0.0012 | 0.0012 x3 | 60 |
+| profile | 448 | 0.0079 | 0.0079 x3 | 60 |
+| rewards | 736 | 0.0355 | 0.0355 x3 | 66 |
+| referrals | 436 | 0.0647 | 0.0647 x3 | 58 |
+| fragrance | 484 | 0.0012 | 0.0012 x3 | 59 |
+| wishlist | 920 | 0 | 0 x3 | 61 |
+| **settings** | 464 | **0.1221** | 0.1221 x3 | 60 |
+| activity | 748 | 0.0012 | 0.0012 x3 | 60 |
+
+### Verdict
+
+| metric | baseline | worst median | result |
+|---|---|---|---|
+| LCP mobile | 7.4s | 1.204s | **PASS**, 6x headroom |
+| LCP desktop | 3.3s | 0.920s | **PASS**, 3.5x headroom |
+| CLS mobile | 0.059 | **0.4596** | **FAIL** — 7.8x baseline, 4 sections over |
+| CLS desktop | 0.105 | **0.1221** | **FAIL** — settings over |
+
+LCP is not a concern anywhere. **CLS fails**: mobile on fragrance, settings, wishlist and activity;
+desktop on settings. Four of those medians are identical across all three runs, so they are
+deterministic layout shifts, not cache noise. Google's own "good" threshold is 0.1, so fragrance,
+settings and wishlist are "poor" by that standard too, independent of this project's baseline.
+
+The two mobile sections showing `0.24, 0, 0` and `0.30, 0, 0` patterns shift only on the very first
+load — those are font/resource warming that survives `setCacheDisabled`. Their medians are 0 and they
+are not the defect.
+
+### Root cause — the footer, not the images
+
+Captured `layout-shift` entries with their `sources` node rects:
+
+| section | shift | at | shifting element | y/height before -> after |
+|---|---|---|---|---|
+| fragrance | 0.4596 | 1234ms | `footer.footer.color-background-2` | [558,286] -> [0,0] |
+| | | | `footer.athoor-portal__footer` | [425,69] -> [0,0] |
+| | | | `p.athoor-portal__state-message` | [354,22] -> [402,22] |
+| wishlist | 0.3663 | 792ms | `footer.footer.color-background-2` | [558,286] -> [0,0] |
+| activity | 0.1086 | 811ms | `footer.footer.color-background-2` | [558,286] -> [757,87] |
+
+One shift per section, landing 790-1230ms in — exactly when the portal's fetched content replaces its
+loading state. **The portal section's skeleton is shorter than its loaded content, so when content
+arrives everything below it moves.** The site footer is the largest thing below it, which is why the
+footer dominates the score. `p.athoor-portal__state-message` sliding 354 -> 402 is the same 48px
+growth seen from inside the section.
+
+**The images are not the cause and are correctly built.** Wishlist carries 3 portal images, all with
+explicit `width="300" height="300"`, none resolving to `aspect-ratio: auto`, all `loading="lazy"`.
+That is the right implementation; the CLS is not theirs.
+
+### The fix, not yet applied
+
+Reserve height for portal content before it arrives — a `min-height` on the section container sized to
+typical loaded content, or a skeleton built to the same height as the content it is replacing — so the
+footer never moves. This is a change to a portal theme asset, which means another live-theme push, so
+it is **not applied**. The flag is OFF, so no customer has seen this; this is the correct moment to fix
+it rather than after enabling.
+
+**30.5 stays unticked, now for a substantive reason rather than an incomplete sample.**
+
+---
+
+## 14. Mobile keyboard — simulated in Chrome, PASSES; real device still required
+
+Chrome exposes no software-keyboard API, so the keyboard was simulated by shortening the visual
+viewport by a realistic keyboard height and then focusing a profile text input.
+
+| case | viewport h | bar position | input top/bottom | bar top/bottom | input fully visible | bar covers input |
+|---|---|---|---|---|---|---|
+| no keyboard | 844 | fixed | 400/444 | 787/844 | yes | no, 0px |
+| iOS keyboard (~336px) | 508 | fixed | 232/276 | 451/508 | yes | no, 0px |
+| Android keyboard (~310px) | 534 | fixed | 245/289 | 477/534 | yes | no, 0px |
+
+The layout tolerates a short viewport: the focused field stays fully on screen and the fixed bottom bar
+never overlaps it, at either keyboard height.
+
+**What this does NOT establish, and why a handset is still needed.** This tests the layout consequence
+of a shorter viewport, not the keyboard itself. It does not reproduce iOS Safari `visualViewport`
+resize semantics or its dynamic toolbar collapse, Safari's own scroll-on-focus behaviour, Android's
+`resize` vs `pan` window modes, or keyboard accessory bars. Those need a real iOS and a real Android
+device. The simulation is genuine evidence that the layout is not obviously broken under occlusion, and
+it is not a substitute for the device test.
+
+---
+
+## 15. Task 31.5 — authenticated journey re-confirmed across all 54 loads
+
+The 30.5 sweep doubled as a journey re-run, since it loaded every section repeatedly while recording
+failures:
+
+| signal | result across 9 sections x 2 viewports x 3 runs |
+|---|---|
+| `/apps/loyalty` responses >= 400 | **0** |
+| console errors | **0** |
+| sections stuck in loading/pending | **0** |
+
+No `app_proxy_signature_invalid`, no `identity_resolution_failed`, no 5xx, across 54 cold loads.
+
+### Flag-off safety, from the visitor's side
+
+Verified in an isolated browser context with no cookies and no draft-preview session, so it reflects
+what an ordinary live visitor sees. Home, `/pages/rewards`, `/pages/rewards?view=my-athoor`, and
+`/pages/account-landing`, all HTTP 200:
+
+| probe | result on all four URLs |
+|---|---|
+| `[data-portal-root]` nodes | 0 |
+| `[class*="athoor-portal"]` nodes | 0 |
+| portal scripts | 0 |
+| portal stylesheets | 0 |
+| `/pages/account-landing` link present | yes |
+
+**The portal is dark on live.** One caveat on my own harness: a "portal-ish body text" regex returned
+true on all four pages, including the homepage. It matches the brand name "My Athoor London" in
+ordinary copy. The structural counters are the authoritative signal and they are all zero. There is also
+1 console error on every page including the homepage, so it is pre-existing and site-wide, not
+attributable to the portal — I have not diagnosed it and am not claiming it is harmless.
