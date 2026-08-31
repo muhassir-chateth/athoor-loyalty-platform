@@ -795,3 +795,37 @@
     border-inline-start-color: CanvasText;
   }
 }
+
+/* ========================================================================== *
+ * §21.6 — reserved height, so arriving content does not displace the footer
+ * ========================================================================== */
+
+/*
+  The skeleton at `.athoor-portal__skeleton` is three rows, 44px + 12px each,
+  so it reserves 168px. Real section content measures 600-1000px. When the
+  fetch resolves and the body replaces the skeleton, everything below the
+  section moves down — and the largest thing below it is the site footer.
+
+  Measured before this rule, mobile 390 cold, median of three runs:
+  fragrance 0.4596, settings 0.4231, wishlist 0.3663, activity 0.1086, against
+  a 0.059 baseline. Captured layout-shift sources named
+  `footer.footer.color-background-2` moving from y=558 h=286 as the offender,
+  in a viewport 844 tall — the footer was fully visible, so all of its
+  displacement counted.
+
+  Reserving a viewport's height on the root puts the footer below the fold at
+  first paint. A shift only scores while the element is in the viewport, so the
+  footer's later movement contributes nothing regardless of how tall the
+  content turns out to be. That is why this is one unconditional rule on the
+  root rather than nine per-section values tuned to one account's data: a
+  reserve tuned to observed heights would drift the moment a customer has more
+  wishlist items than the pilot account.
+
+  The cost is deliberate: a section whose content is shorter than the viewport
+  carries whitespace before its footer. On a layout already built on generous
+  spacing that reads as intentional, and it is the price of a stationary
+  footer.
+*/
+.athoor-portal {
+  min-height: 100vh;
+}
