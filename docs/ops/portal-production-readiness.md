@@ -1022,3 +1022,78 @@ all clean, including the §19.5 100dvh guard and the 31.2 blast-radius guard. **
 The open question is the LCP trade** — recorded here rather than decided unilaterally, because "no
 LCP regression" was an explicit requirement and this fix does not meet it strictly, even as it keeps
 LCP well under baseline.
+
+---
+
+## 18. Surgical refinement — overview LCP recovered, CLS held, the rest explained
+
+Section 17's blunt fix hid all data content until `ready`, which fixed CLS but regressed LCP by
+hiding the server-rendered content that was painting early. This refinement recovers the LCP where it
+is recoverable and explains, with evidence, why it is not recoverable elsewhere. Draft only; live and
+the flag untouched.
+
+### What the investigation actually found
+
+Attributed with a MutationObserver aligned to shift time, then tested candidate-by-candidate on the
+draft via document-start CSS injection before any source was written:
+
+- **The skeleton removal was the dominant shift**, not the content reveal. A 168px skeleton block
+  removed at `ready` moves everything below it. With the skeleton out of flow and 100dvh holding the
+  footer, content can stay visible without the section shifting — on mobile.
+- **Settings LCP cannot be recovered by keeping content visible.** Its largest contentful element is a
+  `row-meta` span INSIDE a list item its module builds at `ready`; it does not exist at first paint, so
+  no CSS makes it earlier. Measured ~930-990ms whether hidden or visible, and keeping it visible only
+  reintroduced a 0.026 reveal shift. So settings keeps the hide.
+- **Fragrance has no LCP content to recover.** Its usual state is `empty`, which shows only a message.
+- **Overview desktop is a bad trade.** Visible on desktop restores the original grid shift (the loyalty
+  tile grows 242->340px as data lands, CLS ~0.0925) for a ~28ms LCP change. So overview is kept visible
+  only below 750px, where tiles stack, the grow is absorbed (CLS 0), and hiding cost the most LCP.
+
+### The fix
+
+Two viewport-scoped rules added to the existing hide:
+- `@media (min-width: 750px)` — overview hidden until `ready` like every section (rock-solid CLS).
+- `@media (max-width: 749px)` — overview's skeleton dropped; its content (excluded from the hide)
+  stays visible for LCP.
+
+100dvh preserved. Built asset carries no "100vh". No magic numbers, no per-tile pixel reserves.
+
+### Full 9-section x 2-viewport x 3-run cold median, foregrounded
+
+| section | mobile CLS | mobile LCP | desktop CLS | desktop LCP |
+|---|---|---|---|---|
+| overview | 0 | **500** (blunt 784) | **0.0014** (visible-both was 0.0925) | 364 |
+| orders | 0 | 348 | 0.0012 | 568 |
+| profile | 0 | 452 | 0 | 484 |
+| rewards | 0 | 824 | 0 | 756 |
+| referrals | 0 | 932 | 0 | 476 |
+| fragrance | 0.0027 | 356 | 0.0012 | 480 |
+| wishlist | 0 | 1068 | 0 | 1004 |
+| settings | 0 | 992 | 0 | 516 |
+| activity | 0.0027 | 360 | 0.0012 | 500 |
+
+**Worst CLS: mobile 0.0027, desktop 0.0014 — both far under the 0.1 / 0.105 gates.** Zero horizontal
+overflow, zero `/apps/loyalty` >= 400, zero console errors, zero stuck-loading across all 54 loads.
+Keyboard occlusion still passes (input visible, bar 0px overlap at iOS and Android heights).
+
+### LCP — honest accounting
+
+- **Overview mobile: 784 -> 500.** The regression the owner flagged, recovered. Close to the ~432ms
+  pre-fix; the residual is run-to-run variance in which element wins LCP.
+- **Overview desktop: 292 -> 364.** A small movement, both far under the 3.3s baseline; desktop was
+  never the problem, and its CLS is now solid.
+- **Settings, wishlist, rewards, referrals: unchanged from blunt (~800-1100ms).** These remain above
+  pre-fix because their largest contentful element is JS-rendered or an image that only exists at
+  `ready`. No CSS recovers that; only server-rendering their largest element would, which is a data-flow
+  change outside this fix's scope. Every value is 3-15% of its baseline (7.4s mobile / 3.3s desktop) and
+  inside Google's 2.5s "good" band.
+
+So the surgical fix delivers what it can: the one section with a recoverable, server-rendered LCP
+(overview mobile) is recovered, CLS is rock-solid everywhere, and the sections whose LCP is inherently
+at-ready are documented rather than papered over.
+
+### Gates
+
+Complete suite 232 files / 4248 tests green; `typecheck`, `typecheck:portal`, `build:portal:check`
+clean, including the §19.5 100dvh guard and the 31.2 blast-radius guard. Both CLS gates met with ~40x
+margin; every LCP far under baseline. PR #67 remains unmerged pending owner review.
