@@ -830,12 +830,13 @@
   and stays there however the body grows.
 
   RULE 2 hides the section's DATA content until `ready`, so the reveal has nothing
-  visible to push and the drop has nothing visible to pull. Only the state block,
-  the skeleton and the visually-hidden live region show while loading — which is
-  what the skeleton is FOR. `[data-portal-greeting]` is excluded because it is the
-  server-rendered largest-contentful-paint element (§21.5); hiding it until ready
-  would move the LCP from ~280ms to whenever the fetch settles. Templates and the
-  closed sheet dialog are display:none regardless, so they need no naming.
+  visible to push and the drop has nothing visible to pull — EXCEPT overview, which
+  is handled separately below because it has server-rendered content worth painting
+  early. For the sections it covers, only the state block, the skeleton and the
+  visually-hidden live region show while loading — which is what the skeleton is
+  FOR. `[data-portal-greeting]` is excluded because it is a server-rendered
+  largest-contentful-paint element (§21.5). Templates and the closed sheet dialog
+  are display:none regardless, so they need no naming.
 
   Measured after both rules, mobile 390 cold: settings 0.4231 -> 0, overview
   0.2421 -> 0.0015, fragrance 0.1202 -> 0.0027, every other section at or below
@@ -853,6 +854,29 @@
   `:not([data-state="ready"]) .athoor-portal__section-body { display: none }`, which
   only covered the body div and not the server-rendered sibling groups and tiles.
 */
-.athoor-portal__section:not([data-state="ready"]) > :not(.athoor-portal__state):not(.athoor-portal__skeleton):not(.athoor-portal__live):not([data-portal-greeting]) {
+.athoor-portal__section:not([data-state="ready"]):not([data-portal-section="overview"]) > :not(.athoor-portal__state):not(.athoor-portal__skeleton):not(.athoor-portal__live):not([data-portal-greeting]) {
+  display: none;
+}
+
+/*
+  Overview is the exception, and keeps its content VISIBLE during loading. It is
+  the landing section; its greeting and tile headings are server-rendered and
+  should paint at once. Its per-tile heights are already reserved (overview.css)
+  and RULE 1's 100dvh holds the footer below the fold, so the visible content does
+  not shift as data lands: measured mobile 0, desktop 0.0824 (both under gate),
+  with LCP restored to ~370ms mobile / ~304ms desktop, versus ~784ms when it was
+  hidden by the rule above.
+
+  The other sections keep the hide, deliberately. Settings' largest contentful
+  element is a row-meta span INSIDE a list item its module builds at `ready` — it
+  does not exist at first paint, so keeping the group visible cannot make that LCP
+  earlier (measured ~930ms whether hidden or visible) and only risks a reveal
+  shift. Fragrance's usual state is `empty`, which shows only its message. For both,
+  hiding is robust and costs no LCP that visibility could recover.
+
+  Overview's own skeleton is dropped: with its content visible the skeleton would
+  be redundant, and removing a 168px skeleton at `ready` would shift the greeting.
+*/
+.athoor-portal__section[data-portal-section="overview"] .athoor-portal__skeleton {
   display: none;
 }
