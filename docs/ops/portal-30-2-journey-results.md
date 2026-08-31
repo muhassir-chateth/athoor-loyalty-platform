@@ -162,3 +162,51 @@ Still **not** exercised, so 30.2 stays unticked:
 
 The persistence steps are automatable and are the natural next move; they were deliberately not
 run in the same pass as a defect hunt, so that a write could not be confused with a read failure.
+
+---
+
+# Reversible persistence — proven, then reverted
+
+The previous section closed by saying the persistence steps were deliberately left out of the defect
+hunt. They have now been run, under one constraint: **only a change I could put back.**
+
+## What I chose to write to, and what I refused to touch
+
+| candidate | decision |
+|---|---|
+| Settings -> "New fragrance launches" | **chosen.** A notification preference, currently off. On, then off again, returns the account to its exact prior state |
+| Email | refused — it is the login identity |
+| Phone | refused — may trigger a verification flow |
+| "Send me marketing email" | refused — a real consent that governs real sends |
+| Birthday | refused — owner approval required; once set it locks for a year |
+| Wishlist removal | refused — owner approval required; it destroys a real saved item |
+
+## The round trip
+
+| step | observation |
+|---|---|
+| 0 | original value = `false` |
+| 1 | clicked -> DOM `true`; `PUT /profile/preferences` -> **200**, xrid `90ca7235-2315-4480-bea9-0c5cbc38e5e1-1788136394` |
+| 2 | full reload -> value still `true` -> **PERSISTED** |
+| 3 | clicked back -> DOM `false`; `PUT /profile/preferences` -> **200**, xrid `ad69a5ec-8afa-40b3-911e-e77276f5a82f-1788136411` |
+| 4 | full reload -> value `false` -> **RESTORED TO ORIGINAL** |
+
+Persistence is proven in both directions, not just on the write that happened to be convenient. The
+account is in the state it started in.
+
+One honest caveat: the *value* is restored, but the preference row almost certainly carries a
+"last changed" timestamp that now points at this test. The observable customer-facing setting is
+identical; the audit trail is not, and cannot be.
+
+## 30.2 status: read path VERIFIED, write path VERIFIED for preferences, three steps still open
+
+| runbook step | state |
+|---|---|
+| 1, 2, 4, 7, 8, 9, 12 — read paths | verified, 20/20 API calls clean, 0 console errors |
+| 11 — preferences persist | **verified above, reverted** |
+| 5 — order detail | **blocked.** Pilot customer has `orders_count = 0`; there is no row to open and no order id to pass. Needs an account with at least one order |
+| 6 — wishlist removal | **owner approval required.** Destroys a real saved item |
+| 10 — birthday | **owner approval required.** Currently unset; once set it locks for a year |
+
+30.2 stays **unticked**. Three of thirteen steps are unexercised, and a task is not complete because
+the exercised majority passed.

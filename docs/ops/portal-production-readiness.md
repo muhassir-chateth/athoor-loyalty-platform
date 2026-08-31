@@ -635,3 +635,44 @@ So, on the live theme, with the flag off:
 
 This is the strongest evidence available without a customer session. What it still cannot show is
 the signed-in portal itself — that needs 30.2.
+
+---
+
+## 12. Task 30.5 — Web Vitals captured in real Chrome (PARTIAL)
+
+Captured with `PerformanceObserver` over CDP (`largest-contentful-paint` and `layout-shift`, both
+`buffered: true`), 6s collection window per load. No Lighthouse dependency — Lighthouse is not
+installed here, and adding it was not worth a new dependency for four numbers I can read directly.
+
+| section | viewport | LCP (ms) | CLS | TTFB (ms) | domContentLoaded (ms) |
+|---|---|---|---|---|---|
+| overview | mobile 390 | 300 | 0 | 73 | 336 |
+| overview | desktop 1280 | 252 | **0.0925** | 61 | 217 |
+| wishlist | mobile 390 | 648 | 0 | 61 | 249 |
+| wishlist | desktop 1280 | 668 | 0 | 142 | 310 |
+| rewards | mobile 390 | 540 | 0 | 62 | 294 |
+| rewards | desktop 1280 | 628 | 0.0355 | 59 | 384 |
+| profile | mobile 390 | 412 | 0 | 59 | 393 |
+| profile | desktop 1280 | 248 | 0.0079 | 64 | 209 |
+
+### Against the recorded baselines
+
+| metric | baseline | worst portal reading | verdict |
+|---|---|---|---|
+| LCP mobile | 7.4s | 0.648s | far under |
+| LCP desktop | 3.3s | 0.668s | far under |
+| CLS mobile | 0.059 | 0 | under |
+| CLS desktop | 0.105 | 0.0925 | under, but only by 0.012 |
+
+Every reading is inside its baseline. The portal does not regress the page it lives on.
+
+### Why this is PARTIAL and not a pass
+
+The acceptance criterion asks for **three runs, median, every section**. This is **one run across four
+of nine sections**. The numbers are real and they are comfortably inside baseline, but a single
+sample is not a median, and desktop CLS at 0.0925 sits close enough to the 0.105 baseline that
+run-to-run variance could plausibly cross it. Reporting one run as a median would be exactly the
+kind of claim that looks like evidence and is not.
+
+**30.5 stays unticked.** To close it: three runs per section, all nine sections, both viewports,
+report the median — and pay attention to desktop CLS on overview specifically.
