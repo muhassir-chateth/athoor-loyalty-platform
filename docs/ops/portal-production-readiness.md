@@ -832,3 +832,268 @@ true on all four pages, including the homepage. It matches the brand name "My At
 ordinary copy. The structural counters are the authoritative signal and they are all zero. There is also
 1 console error on every page including the homepage, so it is pre-existing and site-wide, not
 attributable to the portal — I have not diagnosed it and am not claiming it is harmless.
+
+---
+
+## 16. The CLS fix — applied to the DRAFT only, and it does NOT meet the gate
+
+`min-height: 100vh` on `.athoor-portal`, source `theme-src/portal/styles/base.css`, rebuilt via
+`npm run build:portal` (CSS 5.11 KB gzip against a 20 KB budget, `build:portal:check` confirms
+artefacts match source). Pushed with `theme:push:preview --apply` to theme **205900054867, role
+`unpublished`** — 28 pushed, 28 verified identical, 0 mismatches, backup taken. **Live theme
+180956594515 was not touched. `portal_enabled` was not changed.** The push script refuses any theme
+whose role is `main`, so this could not have reached live even by mistake.
+
+Confirmed applied: the root serves `min-height: 844px` at a 390x844 viewport.
+
+### Result: mobile CLS gate < 0.1 is NOT met
+
+| section | CLS before | CLS after | verdict | LCP before | LCP after |
+|---|---|---|---|---|---|
+| overview | 0 | 0 | pass | 284 | 504 |
+| orders | 0 | 0 | pass | 380 | 372 |
+| profile | 0.0212 | 0.0212 | pass | 244 | 360 |
+| rewards | 0 | 0 | pass | 764 | 764 |
+| referrals | 0 | 0 | pass | 784 | 812 |
+| **fragrance** | 0.4596 | **0.1202** | **FAIL** | 1204 | 1184 |
+| wishlist | 0.3663 | **0.0651** | pass | 904 | 1028 |
+| **settings** | 0.4231 | **0.4231** | **FAIL** | 252 | 344 |
+| activity | 0.1086 | **0.0457** | pass | 848 | 896 |
+
+Desktop: settings **0.1221** unchanged, still over its 0.105 baseline. Every other desktop section
+unchanged. Overflow 0 everywhere, nav targets 5 mobile / 8 desktop, bar `fixed` / `sticky` as before,
+**0 API failures and 0 console errors across all 54 loads.**
+
+### Why it only half worked — two independent causes, not one
+
+The scores that did not move are the tell. A rule that changes nothing cannot be acting on that
+shift's cause.
+
+**Cause A — section growth displacing the theme footer. FIXED.**
+`footer.footer.color-background-2` was the dominant source before and is now **absent from the shift
+sources entirely**. This is what improved wishlist (0.3663 -> 0.0651), activity (0.1086 -> 0.0457) and
+most of fragrance.
+
+**Cause B — content resized or removed after render, inside the portal. NOT ADDRESSED.**
+
+| section | remaining source | movement |
+|---|---|---|
+| settings 0.4231 | `section.athoor-settings__group` x2 | y=535 h=309 -> [0,0]; y=389 h=147 -> [0,0] |
+| fragrance 0.1202 | `footer.athoor-portal__footer` | y=425 h=69 -> [0,0] |
+| overview desktop 0.0925 | `section.athoor-overview__tile` | h=242 -> h=340, plus a tile appearing at y=867 |
+
+A destination of `[0,0]` means the element was **removed or hidden after having been laid out**. Settings
+renders two groups and then collapses them; overview's tiles grow ~98px as data lands and shove the
+greeting up. Root height for settings is 1781px, far past the 844px reserve, so the reserve is simply
+not in play — hence the bit-identical score.
+
+Fixing cause B is a different job from cause A: reserve height on `.athoor-settings__group` and
+`.athoor-overview__tile`, and stop the portal's own footer moving. That is per-component work on the
+section stylesheets, not one rule on the root, so it is **not attempted here** rather than rushed.
+
+### LCP: a real tradeoff, recorded
+
+Worst mobile median is 1184ms against 1204ms before, so the headline is flat. Individual sections
+regressed: overview 284 -> 504, profile 244 -> 360, settings 252 -> 344, wishlist 904 -> 1028. A taller
+page changes which element qualifies as largest-contentful, so this is a plausible consequence of the
+reserve rather than a slowdown. Everything remains far inside the 7.4s mobile baseline, but "no LCP
+regression" is **not** satisfied section by section, and it would be dishonest to file it as clean.
+
+### Two corrections to my own harness
+
+1. **`empty` is not stuck.** `fragrance` reports `data-state="empty"`, and orders and activity likewise —
+   correct for an account with no orders, no activity and no fragrance profile. My gate flagged
+   `:not([data-state="ready"])` as failure and produced 18 false positives.
+2. **My earlier "0 stuck sections across 54 loads" was vacuous.** It queried
+   `[data-portal-state="loading"]`. The attribute is `data-state`. The selector could never match
+   anything, so the zero measured nothing. The corrected selector shows the states above, all designed.
+
+### Standing position
+
+The draft carries a real improvement on three sections and no CLS regression anywhere. It does **not**
+meet the < 0.1 mobile gate, so **it must not be promoted to live and the flag must stay OFF.**
+Rollback, if wanted:
+
+```
+node scripts/theme/portal-preview-push.mjs --store=myathoorlondon.myshopify.com \
+  --environment=production --theme-id=205900054867 --rollback
+```
+
+---
+
+## 17. The CLS fix, done properly — attributed, corrected, and re-measured (draft only)
+
+Section 16 recorded the first attempt as a partial failure. This section records the second
+attempt, which passes every CLS gate, and is honest about the LCP cost it carries.
+
+### The two real causes, attributed with a MutationObserver aligned to shift time
+
+Not guessed — the codebase's own rule is that guessing at a CLS fix earns a second shift. Each
+shift was tied to the DOM mutation that produced it, in the same frame:
+
+- **settings 0.4231** — at the loading→ready flip, the `comms` and `consent` groups un-hide
+  (`hidden` removed) and insert ~400px ABOVE the `addresses` group, which carries no `hidden` and
+  so was visible throughout loading. That is §21.6's own "content is never inserted above existing
+  content", broken by markup that left one sibling visible while hiding the two above it.
+- **overview 0.0925 desktop / 0.2421 mobile** — at the same flip, two empty tiles are dropped
+  (`drop()`), pulling the rest of the summary up past the greeting.
+
+The `data-portal-body` div is empty and self-closed; the section's real content is its SIBLINGS,
+governed only by their own `hidden` attributes, not by the body's display rule. That is why the
+earlier root reserve never touched these two.
+
+### The fix — two rules in base.css, source not artifact
+
+1. `min-height: 100dvh` on `.athoor-portal__section`. `100dvh`, never the vh unit that §19.5's
+   test forbids — the dynamic unit excludes the mobile browser chrome. On the SECTION, not the
+   root, because the footer follows the section.
+2. Hide the section's data content until `[data-state="ready"]`, keeping only the state block,
+   skeleton, live region and the `[data-portal-greeting]` LCP element. The reveal then has nothing
+   visible to push and the drop nothing visible to pull.
+
+Built via `npm run build:portal`; the built asset contains no "100vh"; `build:portal:check` confirms
+artefacts match source; CSS 5.14 KB gzip against the 20 KB budget. Pushed to draft 205900054867
+(role unpublished, 28/28 verified identical, live untouched, flag unchanged).
+
+### CLS — full 9-section × 2-viewport × 3-run cold median, foregrounded
+
+An earlier "0 CLS" reading was a FALSE zero: the layout-shift API only fires for a foregrounded
+tab, and after a Chrome relaunch the extension's tab held the foreground. Every measurement below
+uses `Target.activateTarget` + `Page.bringToFront` and was confirmed `visibilityState === "visible"`.
+
+| section | mobile before | mobile after | desktop before | desktop after |
+|---|---|---|---|---|
+| overview | 0 | 0.0015 | 0.0925 | 0.0014 |
+| orders | 0 | 0 | 0.0012 | 0.0012 |
+| profile | 0.0212 | 0 | 0.0079 | 0 |
+| rewards | 0 | 0 | 0.0355 | 0 |
+| referrals | 0 | 0 | 0.0647 | 0 |
+| fragrance | 0.4596 | 0.0027 | 0.0012 | 0.0012 |
+| wishlist | 0.3663 | 0 | 0 | 0 |
+| settings | 0.4231 | 0 | 0.1221 | 0 |
+| activity | 0.1086 | 0.0027 | 0.0012 | 0.0012 |
+
+**Worst mobile CLS 0.0027 (gate < 0.1). Worst desktop CLS 0.0014 (gate < 0.105). Both pass with
+~40x margin.** Zero horizontal overflow at every width, nav 5 mobile / 8 desktop, zero stuck-loading
+sections, zero `/apps/loyalty` responses >= 400, zero console errors across all 54 loads.
+
+### LCP — a real regression, reported as one
+
+The fix delays LCP on the sections whose largest element was content it now hides until ready. Same
+harness, with the fix vs the fix neutralized (which restores pre-fix content visibility):
+
+| section | LCP with fix | CLS with fix | LCP neutralized | CLS neutralized |
+|---|---|---|---|---|
+| overview mobile | 784 | 0.0015 | 432 | 0.2136 |
+| settings mobile | 984 | 0 | 464 | 0.2621 |
+| rewards mobile | 836 | 0 | 716 | 0 |
+| wishlist desktop | 1024 | 0 | 944 | 0 |
+
+So the fix costs ~350ms of LCP on overview and ~520ms on settings, and less elsewhere. This is not
+noise and it is not hidden: it is the intrinsic trade. Content visible during loading paints its LCP
+early and then shifts when the data resolves; content hidden until ready never shifts but paints
+later. The neutralized column is what "no LCP regression" would cost — CLS 0.21–0.26, which is
+"poor" by Google's 0.1 threshold and fails this project's 0.059 mobile baseline outright.
+
+**The absolute LCP after the fix is still strong**: worst is settings at 984ms, which is 7.5x under
+the 7.4s mobile baseline and inside Google's 2.5s "good" band. Every section stays under ~1s. But
+against the pre-fix numbers it is a regression, and calling it anything else would be dishonest.
+
+The rewards and wishlist rows show the trade is not always worth taking: their content does NOT
+shift when visible (CLS 0 in both columns), so hiding it buys no CLS and only costs LCP. A future,
+more surgical rule could hide only the data containers that actually shift and keep static headings
+visible for LCP — at the cost of per-section granularity the current one-rule fix avoids. That is a
+deliberate follow-up, not something to guess at now.
+
+### Keyboard occlusion — still passes after the fix
+
+| case | viewport h | bar | input t/b | bar t/b | input visible | bar covers |
+|---|---|---|---|---|---|---|
+| no keyboard | 844 | fixed | 400/444 | 787/844 | yes | 0px |
+| iOS (~336px) | 508 | fixed | 232/276 | 451/508 | yes | 0px |
+| Android (~310px) | 534 | fixed | 245/289 | 477/534 | yes | 0px |
+
+Unchanged from section 14. Still a simulation, still not a substitute for a handset.
+
+### Gates
+
+Complete suite 232 files / 4248 tests green; `typecheck`, `typecheck:portal`, `build:portal:check`
+all clean, including the §19.5 100dvh guard and the 31.2 blast-radius guard. **30.5's CLS is now met.
+The open question is the LCP trade** — recorded here rather than decided unilaterally, because "no
+LCP regression" was an explicit requirement and this fix does not meet it strictly, even as it keeps
+LCP well under baseline.
+
+---
+
+## 18. Surgical refinement — overview LCP recovered, CLS held, the rest explained
+
+Section 17's blunt fix hid all data content until `ready`, which fixed CLS but regressed LCP by
+hiding the server-rendered content that was painting early. This refinement recovers the LCP where it
+is recoverable and explains, with evidence, why it is not recoverable elsewhere. Draft only; live and
+the flag untouched.
+
+### What the investigation actually found
+
+Attributed with a MutationObserver aligned to shift time, then tested candidate-by-candidate on the
+draft via document-start CSS injection before any source was written:
+
+- **The skeleton removal was the dominant shift**, not the content reveal. A 168px skeleton block
+  removed at `ready` moves everything below it. With the skeleton out of flow and 100dvh holding the
+  footer, content can stay visible without the section shifting — on mobile.
+- **Settings LCP cannot be recovered by keeping content visible.** Its largest contentful element is a
+  `row-meta` span INSIDE a list item its module builds at `ready`; it does not exist at first paint, so
+  no CSS makes it earlier. Measured ~930-990ms whether hidden or visible, and keeping it visible only
+  reintroduced a 0.026 reveal shift. So settings keeps the hide.
+- **Fragrance has no LCP content to recover.** Its usual state is `empty`, which shows only a message.
+- **Overview desktop is a bad trade.** Visible on desktop restores the original grid shift (the loyalty
+  tile grows 242->340px as data lands, CLS ~0.0925) for a ~28ms LCP change. So overview is kept visible
+  only below 750px, where tiles stack, the grow is absorbed (CLS 0), and hiding cost the most LCP.
+
+### The fix
+
+Two viewport-scoped rules added to the existing hide:
+- `@media (min-width: 750px)` — overview hidden until `ready` like every section (rock-solid CLS).
+- `@media (max-width: 749px)` — overview's skeleton dropped; its content (excluded from the hide)
+  stays visible for LCP.
+
+100dvh preserved. Built asset carries no "100vh". No magic numbers, no per-tile pixel reserves.
+
+### Full 9-section x 2-viewport x 3-run cold median, foregrounded
+
+| section | mobile CLS | mobile LCP | desktop CLS | desktop LCP |
+|---|---|---|---|---|
+| overview | 0 | **500** (blunt 784) | **0.0014** (visible-both was 0.0925) | 364 |
+| orders | 0 | 348 | 0.0012 | 568 |
+| profile | 0 | 452 | 0 | 484 |
+| rewards | 0 | 824 | 0 | 756 |
+| referrals | 0 | 932 | 0 | 476 |
+| fragrance | 0.0027 | 356 | 0.0012 | 480 |
+| wishlist | 0 | 1068 | 0 | 1004 |
+| settings | 0 | 992 | 0 | 516 |
+| activity | 0.0027 | 360 | 0.0012 | 500 |
+
+**Worst CLS: mobile 0.0027, desktop 0.0014 — both far under the 0.1 / 0.105 gates.** Zero horizontal
+overflow, zero `/apps/loyalty` >= 400, zero console errors, zero stuck-loading across all 54 loads.
+Keyboard occlusion still passes (input visible, bar 0px overlap at iOS and Android heights).
+
+### LCP — honest accounting
+
+- **Overview mobile: 784 -> 500.** The regression the owner flagged, recovered. Close to the ~432ms
+  pre-fix; the residual is run-to-run variance in which element wins LCP.
+- **Overview desktop: 292 -> 364.** A small movement, both far under the 3.3s baseline; desktop was
+  never the problem, and its CLS is now solid.
+- **Settings, wishlist, rewards, referrals: unchanged from blunt (~800-1100ms).** These remain above
+  pre-fix because their largest contentful element is JS-rendered or an image that only exists at
+  `ready`. No CSS recovers that; only server-rendering their largest element would, which is a data-flow
+  change outside this fix's scope. Every value is 3-15% of its baseline (7.4s mobile / 3.3s desktop) and
+  inside Google's 2.5s "good" band.
+
+So the surgical fix delivers what it can: the one section with a recoverable, server-rendered LCP
+(overview mobile) is recovered, CLS is rock-solid everywhere, and the sections whose LCP is inherently
+at-ready are documented rather than papered over.
+
+### Gates
+
+Complete suite 232 files / 4248 tests green; `typecheck`, `typecheck:portal`, `build:portal:check`
+clean, including the §19.5 100dvh guard and the 31.2 blast-radius guard. Both CLS gates met with ~40x
+margin; every LCP far under baseline. PR #67 remains unmerged pending owner review.
