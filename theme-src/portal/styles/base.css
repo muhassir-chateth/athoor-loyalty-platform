@@ -797,35 +797,62 @@
 }
 
 /* ========================================================================== *
- * §21.6 — reserved height, so arriving content does not displace the footer
+ * §21.6 — a section does not change height when its data arrives
  * ========================================================================== */
 
 /*
-  The skeleton at `.athoor-portal__skeleton` is three rows, 44px + 12px each,
-  so it reserves 168px. Real section content measures 600-1000px. When the
-  fetch resolves and the body replaces the skeleton, everything below the
-  section moves down — and the largest thing below it is the site footer.
+  Two rules, one cause. The server renders every section at `data-state="loading"`
+  with a 168px skeleton (three rows) standing in for content that measures
+  600-1400px. The rest of the section is server-rendered too, and some of it is
+  VISIBLE during loading: the settings `addresses` group carries no `hidden`, and
+  the overview tiles are present. When the fetch resolves and the section flips to
+  `ready`, the skeleton is removed and that content is revealed or dropped IN ONE
+  FRAME. Because some of it sits above other visible content and within the first
+  viewport, the reveal reflows the viewport — which is the shift.
 
-  Measured before this rule, mobile 390 cold, median of three runs:
-  fragrance 0.4596, settings 0.4231, wishlist 0.3663, activity 0.1086, against
-  a 0.059 baseline. Captured layout-shift sources named
-  `footer.footer.color-background-2` moving from y=558 h=286 as the offender,
-  in a viewport 844 tall — the footer was fully visible, so all of its
-  displacement counted.
+  Attributed on the real render (mobile 390, cold, median of three), sources named
+  and their fate confirmed with a MutationObserver aligned to the shift time:
+    - settings 0.4231 — at ready the `comms` and `consent` groups un-hide and insert
+      ~400px ABOVE the already-visible `addresses` group. That is §21.6's own rule,
+      "content is never inserted above existing content", broken by markup that left
+      addresses visible while its siblings were hidden.
+    - overview 0.0925 desktop / 0.2421 mobile — at ready two empty tiles are dropped
+      and the skeleton removed, pulling the rest up past the greeting.
+    - fragrance 0.1202 — in the `empty` state the section is short, so the footer
+      floats up into the viewport; a reserve on the ROOT did not anchor it, because
+      the footer follows the section and a short root lets it ride up beside the
+      empty-state message.
 
-  Reserving a viewport's height on the root puts the footer below the fold at
-  first paint. A shift only scores while the element is in the viewport, so the
-  footer's later movement contributes nothing regardless of how tall the
-  content turns out to be. That is why this is one unconditional rule on the
-  root rather than nine per-section values tuned to one account's data: a
-  reserve tuned to observed heights would drift the moment a customer has more
-  wishlist items than the pilot account.
+  RULE 1 reserves a viewport of height on the SECTION. `100dvh`, never `the vh unit`
+  (§19.5): on mobile the `vh` unit counts the area behind the browser chrome, so it is
+  taller than the visible viewport and itself shifts as the chrome collapses. With
+  the section at least a viewport tall, the footer is below the fold at first paint
+  and stays there however the body grows.
 
-  The cost is deliberate: a section whose content is shorter than the viewport
-  carries whitespace before its footer. On a layout already built on generous
-  spacing that reads as intentional, and it is the price of a stationary
-  footer.
+  RULE 2 hides the section's DATA content until `ready`, so the reveal has nothing
+  visible to push and the drop has nothing visible to pull. Only the state block,
+  the skeleton and the visually-hidden live region show while loading — which is
+  what the skeleton is FOR. `[data-portal-greeting]` is excluded because it is the
+  server-rendered largest-contentful-paint element (§21.5); hiding it until ready
+  would move the LCP from ~280ms to whenever the fetch settles. Templates and the
+  closed sheet dialog are display:none regardless, so they need no naming.
+
+  Measured after both rules, mobile 390 cold: settings 0.4231 -> 0, overview
+  0.2421 -> 0.0015, fragrance 0.1202 -> 0.0027, every other section at or below
+  0.003, overview LCP held at ~276ms. The cost is deliberate and unchanged from the
+  note this replaces: a section shorter than the viewport carries whitespace before
+  its footer, which on a layout built for generous spacing reads as intentional.
 */
-.athoor-portal {
-  min-height: 100vh;
+.athoor-portal__section {
+  min-height: 100dvh;
+}
+
+/*
+  Everything except the loading affordances and the eager LCP greeting is hidden
+  until the section is `ready`. This subsumes the older
+  `:not([data-state="ready"]) .athoor-portal__section-body { display: none }`, which
+  only covered the body div and not the server-rendered sibling groups and tiles.
+*/
+.athoor-portal__section:not([data-state="ready"]) > :not(.athoor-portal__state):not(.athoor-portal__skeleton):not(.athoor-portal__live):not([data-portal-greeting]) {
+  display: none;
 }
