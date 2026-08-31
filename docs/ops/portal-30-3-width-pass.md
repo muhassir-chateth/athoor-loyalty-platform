@@ -58,3 +58,71 @@ The four unmeasured clauses remain gated **statically** by
 
 A harness measuring the wrong markup reports a pass just as confidently as one measuring the
 right markup — worth remembering when reading any row above.
+
+---
+
+# The remaining clauses, measured on the REAL rendered portal
+
+Everything above this line was measured against a fixture. This section was measured against the
+portal as an authenticated customer actually renders it (customer `9395357876563`, draft allowlist,
+live Chrome/CDP session). That distinction is the whole point of the section: the fixture rows were
+only ever evidence that the CSS *could* behave, not that the shipped markup *does*.
+
+Eight widths, two sections, `Emulation.setDeviceMetricsOverride`, 9s settle per width.
+
+## `my-athoor-wishlist`
+
+| width | scrollWidth | overflow | bar position | nav targets | min target HxW | grid columns |
+|---|---|---|---|---|---|---|
+| 320 | 320 | none | fixed | 5 | 56x64 | **1** |
+| 375 | 375 | none | fixed | 5 | 56x75 | **1** |
+| 390 | 390 | none | fixed | 5 | 56x78 | **2** |
+| 414 | 414 | none | fixed | 5 | 56x83 | 2 |
+| 768 | 768 | none | relative | 8 | 44x67 | 3 |
+| 1024 | 1024 | none | sticky | 8 | 44x220 | 2,4 |
+| 1280 | 1280 | none | sticky | 8 | 44x220 | 2,4 |
+| 1920 | 1920 | none | sticky | 8 | 44x220 | 2,4 |
+
+## `my-athoor` (overview)
+
+| width | scrollWidth | overflow | bar position | nav targets | min target HxW | grid columns |
+|---|---|---|---|---|---|---|
+| 320 | 320 | none | fixed | 5 | 56x64 | 3 |
+| 375 | 375 | none | fixed | 5 | 56x75 | 3 |
+| 390 | 390 | none | fixed | 5 | 56x78 | 3 |
+| 414 | 414 | none | fixed | 5 | 56x83 | 3 |
+| 768 | 768 | none | relative | 8 | 44x67 | 3,4 |
+| 1024 | 1024 | none | sticky | 8 | 44x220 | 2,3,4 |
+| 1280 | 1280 | none | sticky | 8 | 44x220 | 2,3,4 |
+| 1920 | 1920 | none | sticky | 8 | 44x220 | 2,3,4 |
+
+## What these rows settle
+
+- **The 1-up/2-up wishlist boundary is exactly 390.** 320 and 375 resolve to one column; 390 resolves
+  to two. The boundary is not approximately right, it is on the stated pixel.
+- **No horizontal overflow at any width, either section.** `scrollWidth == clientWidth` in all 16 rows.
+- **The bottom bar is `fixed` below 750 and released to `relative` at 768**, then `sticky` from 1024.
+- **Tap targets: 5 below 750, 8 from 768.** Smallest is 56x64 at 320px, so the 44px floor holds with
+  room to spare; the 44px-high rows at >=768 are desktop nav links, not touch targets.
+
+## The two "clipped text" hits were false positives, and I checked rather than assumed
+
+The detector flagged `.athoor-portal__skip` and `.athoor-portal__live` at every single width. A defect
+that reproduces identically at all eight widths is usually the detector, not the CSS. Computed styles:
+
+| element | position | clip | w x h | verdict |
+|---|---|---|---|---|
+| `.athoor-portal__skip` | absolute | `rect(0px, 0px, 0px, 0px)` | 1 x 1 | visually hidden by design |
+| `.athoor-portal__live` | absolute | `rect(0px, 0px, 0px, 0px)` | 0 x 0 | visually hidden by design |
+
+Both are the skip link and the ARIA live region — elements whose entire job is to be available to a
+screen reader and invisible on screen. `scrollWidth > clientWidth` is the *expected* state for a
+`clip: rect(0,0,0,0)` element, so my detector was measuring them wrongly, not finding a defect.
+**No real clipped text at any width.** The detector needs a visually-hidden exclusion before it is
+trustworthy; I have not fixed it, so treat any future clipped-text row from it with the same suspicion.
+
+## 30.3 remaining gap
+
+One clause is still unmeasured and cannot be measured from here: **the mobile software keyboard**
+(does it occlude the bottom bar or the focused field on a real handset). That needs a physical device.
+Everything else in 30.3 is now measured on the shipped markup.
