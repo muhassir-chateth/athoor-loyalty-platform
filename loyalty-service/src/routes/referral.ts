@@ -37,6 +37,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { LedgerRepository, Queryable } from "../ledger/repository.js";
 import {
+  assignReferralCode,
   recordReferralOnSignup,
   resolveReferrerByCode,
   REFERRAL_PURCHASE_POINTS,
@@ -340,6 +341,18 @@ export function registerReferralRoutes(
       return reply.code(404).send({ error: "customer_not_found" });
     }
 
+    // Self-heal: legacy customers have referral_code IS NULL. Generate once on first read.
+    let effectiveCode = row.referral_code;
+    if (effectiveCode === null) {
+      try {
+        effectiveCode = await transactor.transaction((tx) => assignReferralCode(tx, ctx.customerId));
+        req.log?.info({ customerId: ctx.customerId }, "assigned referral code on read for legacy customer");
+      } catch (err) {
+        req.log?.error({ err, customerId: ctx.customerId }, "could not assign referral code on read");
+        effectiveCode = null;
+      }
+    }
+
     // ── THE ADDITIVE BLOCK (task 11.1) ──────────────────────────────────────
     // One extra query, all subqueries scoped to `$1`. The two stage reasons are
     // bound, not interpolated.
@@ -389,12 +402,12 @@ export function registerReferralRoutes(
     };
 
     return {
-      referralCode: row.referral_code,
+      referralCode: effectiveCode,
       // Built server-side so the link format is not a theme literal (Req 10.11/10.13).
       // `null` when the customer has no code yet — there is nothing to share, and a
       // URL ending `?ref=` would be a broken link presented as a working one.
       shareUrl:
-        row.referral_code === null ? null : buildShareUrl(shareDomain, row.referral_code),
+        effectiveCode === null ? null : buildShareUrl(shareDomain, effectiveCode),
       wasReferred: row.was_referred,
       // How many friends this member has brought in, by stage. EXISTING — verbatim.
       referredSignups: row.signup_rewards,
