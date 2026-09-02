@@ -68,6 +68,10 @@ const EnvSchema = z.object({
 
   // Shopify custom app
   SHOPIFY_SHOP_DOMAIN: z.string().min(1).default("myathoorlondon.myshopify.com"),
+  // The public branded storefront domain used in customer-facing share URLs
+  // (e.g. "myathoorlondon.co.uk"). When absent, SHOPIFY_SHOP_DOMAIN is used.
+  // Set this in production to avoid sharing the internal .myshopify.com domain.
+  SHOPIFY_STOREFRONT_DOMAIN: z.string().min(1).optional(),
   SHOPIFY_ADMIN_API_TOKEN: z.string().min(1).optional(),
   SHOPIFY_WEBHOOK_SECRET: z.string().min(1).optional(),
   SHOPIFY_APP_PROXY_SECRET: z.string().min(1).optional(),
@@ -116,6 +120,8 @@ export interface AppConfig {
   requireHttps: boolean;
   shopify: {
     shopDomain: string;
+    /** The public branded domain for customer-facing share URLs. Defaults to shopDomain. */
+    storefrontDomain: string;
     adminApiToken?: string;
     webhookSecret?: string;
     appProxySecret?: string;
@@ -182,6 +188,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     requireHttps: env.REQUIRE_HTTPS,
     shopify: {
       shopDomain: env.SHOPIFY_SHOP_DOMAIN,
+      storefrontDomain: env.SHOPIFY_STOREFRONT_DOMAIN ?? env.SHOPIFY_SHOP_DOMAIN,
       adminApiToken: env.SHOPIFY_ADMIN_API_TOKEN,
       webhookSecret: env.SHOPIFY_WEBHOOK_SECRET,
       appProxySecret: env.SHOPIFY_APP_PROXY_SECRET,

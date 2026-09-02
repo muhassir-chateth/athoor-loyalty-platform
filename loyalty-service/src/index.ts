@@ -518,7 +518,10 @@ async function main(): Promise<void> {
       // config rather than left to the module default: a dependency constructed but
       // not forwarded is exactly the defect that left `portalCatalogSource`
       // answering 502 in production until task 9.1.
-      shareDomain: config.shopify.shopDomain,
+      // Use the public branded storefront domain for share URLs (Req 10.11/10.13).
+      // SHOPIFY_STOREFRONT_DOMAIN overrides SHOPIFY_SHOP_DOMAIN when set, so
+      // customers share myathoorlondon.co.uk rather than the internal .myshopify.com.
+      shareDomain: config.shopify.storefrontDomain,
       // A rewarded claim credits the REFERRER +150, so their display cache must
       // be refreshed after the commit (task 35, Req 13.5a). Same Admin-gated
       // lazy getter as the other consumers, so a non-Shopify boot still works.
