@@ -145,6 +145,9 @@ describe("SHOPIFY_SHOP_DOMAIN is the Admin API host, not a storefront domain", (
     // cannot be done without touching the schema.
     const source = readFileSync(join(HERE, "config.ts"), "utf8");
     const domainVars = [...source.matchAll(/^\s*([A-Z_]*DOMAIN[A-Z_]*):/gm)].map((m) => m[1]);
-    expect(domainVars).toEqual(["SHOPIFY_SHOP_DOMAIN"]);
+    // SHOPIFY_STOREFRONT_DOMAIN added deliberately: it is the optional branded
+    // domain used only in customer-facing share URLs. SHOPIFY_SHOP_DOMAIN remains
+    // the Admin API identity and is never changed for share purposes.
+    expect(domainVars).toEqual(["SHOPIFY_SHOP_DOMAIN", "SHOPIFY_STOREFRONT_DOMAIN"]);
   });
 });
